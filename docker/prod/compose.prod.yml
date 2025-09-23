@@ -1,0 +1,8 @@
+services:
+  app:
+    build:
+      context: .
+      target: prod
+    container_name: myapp-prod
+    ports:
+      - "8000:8000"

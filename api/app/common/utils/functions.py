@@ -1,0 +1,52 @@
+import math
+from typing import Iterable, Sequence
+
+from aiopath import AsyncPath
+
+
+def pick(props: list[str], obj: object | dict) -> dict:
+    if isinstance(obj, dict):
+        return {prop: obj[prop] for prop in props if prop in obj}
+    elif isinstance(obj, object):
+        return {prop: getattr(obj, prop) for prop in props if hasattr(obj, prop)}
+
+
+def numeral_noun_declension(
+    number, nominative_singular, genetive_singular, nominative_plural
+) -> str:
+    result = (
+        (number in range(5, 20))
+        and nominative_plural
+        or (1 in (number, (diglast := number % 10)))
+        and nominative_singular
+        or ({number, diglast} & {2, 3, 4})
+        and genetive_singular
+        or nominative_plural
+    )
+    return str(result)
+
+
+def chunk_by_size(arr: Iterable, size: int) -> list[list]:
+    """Делит на куски по size элементов"""
+    arr = list(arr)
+    return [arr[i : i + size] for i in range(0, len(arr), size)]
+
+
+def chunk_into_parts(arr: Sequence, parts: int) -> list[list]:
+    """Делит на примерно `parts` равных частей"""
+    size = math.ceil(len(arr) / parts)
+    return chunk_by_size(arr, size)
+
+
+def format_number(x, separator=" "):
+    return f"{x:,}".replace(",", separator)
+
+
+async def clear_dir(directory: AsyncPath):
+    async for item in directory.iterdir():
+        if await item.is_dir():
+            await clear_dir(item)
+            await item.rmdir()
+        else:
+            # Удаляем файл
+            await item.unlink()

@@ -1,0 +1,31 @@
+postgres:
+  dsn: "postgres://postgres:postgres@127.0.0.1:5432/neurogram"
+
+hatchet:
+  token: "eyJhbGciOiJFUzI1NiIsICJraWQiOiJWbm84eHcifQ.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCAiZXhwIjo0OTExMjczMTYyLCAiZ3JwY19icm9hZGNhc3RfYWRkcmVzcyI6ImxvY2FsaG9zdDo3MDc3IiwgImlhdCI6MTc1NzY3MzE2MiwgImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCIsICJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwgInN1YiI6IjcwN2QwODU1LTgwYWItNGUxZi1hMTU2LWYxYzQ1NDZjYmY1MiIsICJ0b2tlbl9pZCI6ImRjYzkxYWVkLTdiNjctNGJmMC1iYTdjLWIyNjY5YjUzYzY5YyJ9.ZZuUgYN9BrQq6rJxi6sCqBAABgdLkr-bEB5kj88xq5USLVZt3fVHB3Ghu1iBfvx9o4X33Fveuill8WRwijHy7Q"
+
+s3:
+  access_key: "IhDRQQH1TfL0wQtUDpKV"
+  secret_key: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
+  endpoint_url: "http://127.0.0.1:9000"
+
+ipinfo:
+  token: "585e8f96698098"
+
+api:
+  port: 8833
+  host: "localhost"
+  jwt:
+    secret: "arG6u&AIQ3n6ZRq*"
+    algorithm: "HS256"
+    expire_seconds: 3600
+    refresh_expire_days: 30
+  bot:
+    token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c"
+
+web:
+  url: "http://localhost:5173"
+
+worker:
+  name: "neuro"
+  slots: 10

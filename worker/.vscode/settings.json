@@ -1,0 +1,16 @@
+{
+	"editor.tabSize": 4,
+	"editor.insertSpaces": true,
+	"editor.formatOnSave": true,
+	"python.analysis.typeCheckingMode": "basic",
+	"python.analysis.extraPaths": [
+		"${workspaceFolder}/../common"
+	],
+	"[python]": {
+		"editor.defaultFormatter": "charliermarsh.ruff",
+		"editor.formatOnSave": true,
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit"
+		}
+	}
+}

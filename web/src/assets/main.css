@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import '@nuxt/ui-pro';
+
+button[role='button'],
+button:not(:disabled) {
+  cursor: pointer;
+}

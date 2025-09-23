@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: neuro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: neurogram
+    ports:
+      - "5445:5432"   # доступ с хоста (ноута)
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+    networks:
+      - dev
+
+  worker:
+    build:
+      context: ../../worker
+      target: dev
+    container_name: neuro-worker
+    volumes:
+      - ../../worker:/app
+      - uv-venv-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+    command: ["uv", "run", "python", "-m", "app.dev"]
+    depends_on:
+      - postgres
+    networks:
+      - hatchet
+      - dev
+      - web
+
+  api:
+    build:
+      context: ../../api
+      target: dev
+    container_name: neuro-api
+    ports:
+      - "8883:8833"   # маппим наружу API
+    volumes:
+      - ../../api:/app
+      - uv-venv-api:/app/.venv      # отдельный том под venv api
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+    command: ["uv", "run", "python", "-m", "app"]
+    depends_on:
+      - postgres
+    networks:
+      - hatchet 
+      - dev
+      - web
+
+  web:
+    build:
+      context: ../../web
+      target: dev
+    container_name: neuro-web
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../../web:/app
+      - ./config.yml:/app/config.yml 
+    depends_on:
+      - api
+      - worker
+    networks:
+      - dev
+      - web
+
+volumes:
+  uv-venv-worker: {}
+  uv-venv-api: {}
+  postgres-data-dev: {}
+
+networks:
+  hatchet:
+    external: true
+    name: hatchet-network
+  web:
+    driver: bridge
+  dev:
+    driver: bridge

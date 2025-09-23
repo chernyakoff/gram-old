@@ -1,0 +1,27 @@
+
+import typing as t
+from importlib import import_module
+from pathlib import Path
+
+T = t.TypeVar("T")
+
+
+def load(varpath: str, vartype:t.Type[T], exclude:t.List[str]=[]) -> t.List[T]:
+    def _load(path: Path, var: str) -> t.Optional[T]:
+        parts = list(path.parts)  # [1:]
+        module_name = parts.pop().replace(".py", "")
+        if module_name in exclude or module_name.startswith('__'):
+            return
+        package = ".".join(parts)
+        if module_name not in globals():
+            mod = import_module(f".{module_name}", package)
+            if var in mod.__dict__ and isinstance(mod.__dict__[var], vartype):
+                return mod.__dict__[var]
+    vars = []
+    path, varname = varpath.split(":")
+    path = path.replace(".", "/")
+    for path in Path(path).rglob("*.py"):
+        var = _load(path=path, var=varname)
+        if var:
+            vars.append(var)
+    return vars
