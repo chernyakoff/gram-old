@@ -33,6 +33,7 @@ class Web(BaseModel):
 
 class Hatchet(BaseModel):
     token: str
+    host_port: str
 
 
 class DatabaseOptions(BaseModel):
@@ -47,6 +48,14 @@ class S3Config(BaseModel):
     access_key: str
     secret_key: str
     endpoint_url: str
+    public_endpoint_url: str
+
+
+class Openai(BaseModel):
+    api_key: str
+    model: str
+    base_url: str | None
+    timeout: int | None = 180
 
 
 class Postgres(BaseModel):
@@ -63,9 +72,10 @@ class Settings(BaseModel):
     web: Web
     postgres: Postgres
     hatchet: Hatchet
+    openai: Openai
 
     @classmethod
-    def create(cls, path="config.yml") -> Self:
+    def create(cls, path="config.yml", worker=False) -> Self:
         with open(path, "r") as f:
             data = yaml.safe_load(f)
         return cls(**data)

@@ -1,0 +1,168 @@
+<template>
+  <UDashboardPanel id="accounts">
+    <template #header>
+      <UDashboardNavbar :title="title" :ui="{ right: 'gap-3' }">
+        <template #leading>
+          <UDashboardSidebarCollapse />
+        </template>
+        <template #right>
+          <AddAccountsModal @completed="refresh" />
+        </template>
+      </UDashboardNavbar>
+    </template>
+    <template #body>
+      <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
+        <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
+      </div>
+      <UTable
+        ref="table"
+        v-model:column-filters="columnFilters"
+        v-model:column-visibility="columnVisibility"
+        class="shrink-0"
+        :data="accounts ?? []"
+        :columns="columns"
+        :loading="loading"
+        :ui="{
+          base: 'table-fixed border-separate border-spacing-0',
+          thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
+          tbody: '[&>tr]:last:[&>td]:border-b-0',
+          th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
+          td: 'border-b border-default',
+        }"
+      >
+        <template #project-cell="{ row }">
+          {{ row.original.project?.name ?? 'не назначен' }}
+        </template>
+        <template #name-cell="{ row }">
+          <div class="flex items-center gap-3" @click="openDrawer(row.original.id)">
+            <UButton
+              v-if="row.original.photos.length"
+              class="rounded-full"
+              color="neutral"
+              variant="link"
+            >
+              <template #default>
+                <UAvatar :src="row.original.photos[0]?.url" class="h-8 w-8" />
+              </template>
+            </UButton>
+            <UButton v-else class="rounded-full" color="neutral" variant="link">
+              <template #default>
+                <UIcon name="i-lucide-circle-user" class="h-8 w-8" />
+              </template>
+            </UButton>
+            <div>
+              <p class="font-medium text-highlighted">
+                {{ row.original.firstName }} {{ row.original.lastName }}
+              </p>
+              <p>
+                <a class="text-sm" :href="`https://t.me/${row.original.username}`" target="_blank">
+                  @{{ row.original.username }}
+                </a>
+              </p>
+            </div>
+          </div>
+        </template>
+      </UTable>
+    </template>
+  </UDashboardPanel>
+  <AccountDrawer
+    v-if="selectedAccountId !== null"
+    v-model:open="drawerOpen"
+    :accountId="selectedAccountId"
+    :key="selectedAccountId"
+    @completed="refresh"
+  />
+</template>
+<script setup lang="ts">
+import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vue'
+import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
+import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
+import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
+
+import { useAccounts } from '@/composables/use-accounts'
+import { useTitle, useDateFormat } from '@vueuse/core'
+
+import type { TableColumn } from '@nuxt/ui'
+import { ref, onMounted } from 'vue'
+
+import { useTableSelection } from '@/composables/table/use-selection'
+import type { AccountOut } from '@/types/openapi'
+
+const title = 'Аккаунты'
+useTitle(title)
+const { get, accounts, loading } = useAccounts()
+
+onMounted(() => get())
+
+// Drawer управление
+const drawerOpen = ref(false)
+const selectedAccountId = ref<number | null>(null)
+
+function openDrawer(id: number) {
+  selectedAccountId.value = id
+  drawerOpen.value = true
+}
+
+const refresh = () => {
+  tableApi.value?.setRowSelection({})
+  get()
+}
+
+const columnFilters = ref([{ id: 'phone', value: '' }])
+const columnVisibility = ref()
+const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table')
+
+const columns: TableColumn<AccountOut>[] = [
+  selectionColumn(),
+  {
+    accessorKey: 'id',
+    header: 'ID',
+  },
+  {
+    accessorKey: 'project',
+    header: 'Проект',
+  },
+  {
+    accessorKey: 'phone',
+    header: 'Телефон',
+  },
+  {
+    accessorKey: 'country',
+    header: 'Страна',
+  },
+  {
+    accessorKey: 'name',
+    header: 'Имя',
+  },
+  /*  {
+    accessorKey: 'about',
+    header: 'Профиль',
+  },
+  {
+    accessorKey: 'twofa',
+    header: 'Пароль',
+  },
+  {
+    accessorKey: 'channel',
+    header: 'Канал',
+  },
+  {
+    accessorKey: 'premium',
+    header: 'Премиум',
+  },
+  {
+    accessorKey: 'busy',
+    header: 'Статус',
+  },
+  {
+    accessorKey: 'active',
+    header: 'Состояние',
+  }, */
+  {
+    accessorKey: 'createdAt',
+    header: 'Загружен',
+    cell: ({ row }) => useDateFormat(row.original.createdAt, 'DD.MM.YY').value,
+  },
+]
+</script>

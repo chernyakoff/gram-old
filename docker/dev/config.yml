@@ -8,14 +8,16 @@ hatchet:
 s3:
   access_key: "IhDRQQH1TfL0wQtUDpKV"
   secret_key: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
-  endpoint_url: "http://127.0.0.1:9000"
+  public_endpoint_url: "http://127.0.0.1:9000"
+  endpoint_url: "http://neuro-minio:9000"
 
 ipinfo:
   token: "585e8f96698098"
 
 api:
   port: 8833
-  host: "localhost"
+  host: "0.0.0.0"
+  url: "http://localhost:8833"
   jwt:
     secret: "arG6u&AIQ3n6ZRq*"
     algorithm: "HS256"
@@ -27,6 +29,7 @@ api:
 web:
   url: "http://localhost:5173"
 
-worker:
-  name: "neuro"
-  slots: 10
+openai:
+  api_key: "sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE"
+  model: "gpt-4o-mini"
+  base_url: "https://api.proxyapi.ru/openai/v1"

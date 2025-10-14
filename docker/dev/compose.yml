@@ -14,19 +14,41 @@ services:
     networks:
       - dev
 
-  worker:
+  base-worker:
     build:
-      context: ../../worker
+      context: ../../workers/base
       target: dev
-    container_name: neuro-worker
+    container_name: neuro-base-worker
     volumes:
-      - ../../worker:/app
-      - uv-venv-worker:/app/.venv   # отдельный том под venv worker
+      - ../../workers/base:/app
+      - uv-venv-base-worker:/app/.venv   # отдельный том под venv worker
       - ./config.yml:/app/config.yml 
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    command: ["uv", "run", "python", "-m", "app.dev"]
+      - UV_LINK_MODE=copy
+    command: ["uv", "run", "python", "-m", "app"]
+    depends_on:
+      - postgres
+    networks:
+      - hatchet
+      - dev
+      - web
+
+  dialog-worker:
+    build:
+      context: ../../workers/dialog
+      target: dev
+    container_name: neuro-dialog-worker
+    volumes:
+      - ../../workers/dialog:/app
+      - uv-venv-dialog-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+      - UV_LINK_MODE=copy
+    command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
     networks:
@@ -40,7 +62,7 @@ services:
       target: dev
     container_name: neuro-api
     ports:
-      - "8883:8833"   # маппим наружу API
+      - "8833:8833"   # маппим наружу API
     volumes:
       - ../../api:/app
       - uv-venv-api:/app/.venv      # отдельный том под venv api
@@ -48,7 +70,7 @@ services:
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "app.dev"]
     depends_on:
       - postgres
     networks:
@@ -68,15 +90,36 @@ services:
       - ./config.yml:/app/config.yml 
     depends_on:
       - api
-      - worker
+      - base-worker
+    networks:
+      - dev
+      - web
+
+  minio:
+    build:
+      context: ./minio
+    container_name: neuro-minio
+    environment:
+      MINIO_ROOT_USER: mike
+      MINIO_ROOT_PASSWORD: gabun8374
+      S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
+      S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
     networks:
       - dev
       - web
 
 volumes:
-  uv-venv-worker: {}
+  uv-venv-base-worker: {}
+  uv-venv-dialog-worker: {}
   uv-venv-api: {}
   postgres-data-dev: {}
+  minio-data: {}
 
 networks:
   hatchet:

@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import Enum, IntEnum, StrEnum
 
 
 class LicenseType(IntEnum):
@@ -13,3 +13,36 @@ class LicenseType(IntEnum):
 class Role(IntEnum):
     USER = 0
     ADMIN = 7
+
+
+class AccountAction(StrEnum):
+    RESOLVE_USERNAME = "resolve_username"
+    NEW_DIALOG = "new_dialog"
+
+
+class MailingStatus(StrEnum):
+    DRAFT = "draft"
+    RUNNING = "running"
+    FINISHED = "finished"
+    CANCELLED = "cancelled"
+
+
+class RecipientStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SENT = "sent"
+    FAILED = "failed"
+    BOUNCED = "bounced"
+
+
+class DialogStatus(StrEnum):
+    INIT = "init"  # приветствие
+    ENGAGE = "engage"  # проявил интерес
+    OFFER = "offer"  # сделали предложение
+    CLOSE = "close"  # завершено (отказ / интерес / договорились о звонке)
+
+
+class MessageSender(StrEnum):
+    ACCOUNT = "account"
+    RECIPIENT = "recipient"
+    SYSTEM = "system"

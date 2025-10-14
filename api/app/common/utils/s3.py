@@ -10,10 +10,13 @@ from app.config import config
 class AsyncS3Client:
     _client: Any
 
-    def __init__(self):
+    def __init__(self, public=False):
         self.access_key = config.s3.access_key
         self.secret_key = config.s3.secret_key
-        self.endpoint_url = config.s3.endpoint_url
+
+        self.endpoint_url = (
+            config.s3.endpoint_url if not public else config.s3.public_endpoint_url
+        )
         self._session = aioboto3.Session()
         self._client = None
 

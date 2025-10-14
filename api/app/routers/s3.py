@@ -2,22 +2,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
 from app.common.utils.s3 import AsyncS3Client
+from app.dto.common import PresignedIn, PresignedOut
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/s3", tags=["s3"])
-
-
-class PresignedOut(BaseModel):
-    s3path: str
-    url: str
-
-
-class PresignedIn(BaseModel):
-    path: str  # формат: <bucket>/<folder1>/<folder2>
-    filename: str
 
 
 def build_storage_path(input: PresignedIn, user_id: int) -> str:
@@ -40,7 +30,7 @@ def build_storage_path(input: PresignedIn, user_id: int) -> str:
 @router.post("/presigned", response_model=PresignedOut)
 async def presigned(input: PresignedIn, user=Depends(get_current_user)):
     path = build_storage_path(input, user.id)
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client(public=True) as s3:
         try:
             url = await s3.presigned_put_url(path)
         except Exception as e:

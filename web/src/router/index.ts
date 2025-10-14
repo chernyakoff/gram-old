@@ -1,26 +1,33 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth-store'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('@/layouts/MainLayout.vue'),
+    component: () => import('@/views/landing/layout.vue'),
     children: [
-      { path: '', name: 'main', component: () => import('@/pages/main/IndexPage.vue') },
-      { path: 'license', name: 'license', component: () => import('@/pages/main/LicensePage.vue') },
+      { path: '', name: 'main', component: () => import('@/views/landing/index.vue') },
+      { path: 'license', name: 'license', component: () => import('@/views/landing/license.vue') },
     ],
   },
   {
     path: '/app',
-    component: () => import('@/layouts/AppLayout.vue'),
+    component: () => import('@/views/dashboard/layout.vue'),
     children: [
-      { path: '', name: 'app', component: () => import('@/pages/app/IndexPage.vue') },
-      { path: 'accounts', component: () => import('@/pages/app/AccountsPage.vue') },
-      { path: 'contacts', component: () => import('@/pages/app/ContactsPage.vue') },
-      { path: 'proxies', component: () => import('@/pages/app/ProxiesPage.vue') },
-      { path: 'jobs', component: () => import('@/pages/app/JobsPage.vue') },
-      { path: 'projects', component: () => import('@/pages/app/ProjectsPage.vue') },
+      { path: '', name: 'app', component: () => import('@/views/dashboard/index.vue') },
+      { path: 'accounts', component: () => import('@/views/dashboard/accounts.vue') },
+      { path: 'proxies', component: () => import('@/views/dashboard/proxies.vue') },
+      { path: 'mailings', component: () => import('@/views/dashboard/mailings.vue') },
+      { path: 'dialogs', component: () => import('@/views/dashboard/dialogs.vue') },
+      { path: 'jobs', component: () => import('@/views/dashboard/jobs.vue') },
+      { path: 'projects', component: () => import('@/views/dashboard/projects.vue') },
+      {
+        path: 'project/:id?',
+        name: 'project-create',
+        component: () => import('@/views/dashboard/project-create.vue'),
+        props: true, // чтобы id сразу приходил как пропс
+      },
     ],
   },
 ]

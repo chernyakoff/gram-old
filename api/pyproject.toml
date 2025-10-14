@@ -24,6 +24,8 @@ dependencies = [
     "aerich>=0.9.1",
     "autoflake>=2.3.1",
     "aioboto3>=15.1.0",
+    "tortoise-serializer>=1.6.0",
+    "openai>=1.109.1",
 ]
 requires-python = "==3.13.*"
 readme = "README.md"
@@ -36,6 +38,7 @@ distribution = false
 
 [tool.taskipy.tasks]
 app = "python -m app"
+dev = "python -m app.dev"
 migration = "aerich migrate"
 migrate = "aerich upgrade"
 unmigrate = "aerich downgrade"

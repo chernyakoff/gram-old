@@ -1,7 +1,13 @@
 @import 'tailwindcss';
-@import '@nuxt/ui-pro';
+@import '@nuxt/ui';
 
 button[role='button'],
 button:not(:disabled) {
   cursor: pointer;
+}
+
+@theme {
+  --font-sans:
+    'Public Sans', sans-serif, -apple-system, blinkmacsystemfont, 'Segoe UI', roboto,
+    'Helvetica Neue', arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
 }

@@ -1,9 +1,22 @@
+import datetime
 from typing import Self
 
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import Role
+from .enums import (
+    AccountAction,
+    DialogStatus,
+    MailingStatus,
+    MessageSender,
+    RecipientStatus,
+    Role,
+)
+
+""" 
+исходные модели для всего проекта - править тут
+миграции тоже отсюда запускать
+ """
 
 
 class TimestampMixin:
@@ -16,13 +29,15 @@ class TimestampMixin:
 
 class User(Model, TimestampMixin):
     id = fields.BigIntField(pk=True, generated=False)
-    username = fields.CharField(max_length=64, null=True, db_index=True)
+    username = fields.CharField(max_length=34, null=True, db_index=True)
     first_name = fields.CharField(null=True, max_length=64)
     last_name = fields.CharField(null=True, max_length=64)
     photo_url = fields.CharField(max_length=256, null=True)
     role = fields.IntEnumField(enum_type=Role, default=Role.USER)
     license_end_date = fields.DatetimeField(null=True)
     settings: fields.ReverseRelation["Settings"]
+    mailings = fields.ReverseRelation["Mailing"]
+    projects = fields.ReverseRelation["Project"]
 
     @property
     def display_name(self) -> str:
@@ -79,7 +94,6 @@ class Proxy(Model, TimestampMixin):
     username = fields.CharField(max_length=255, null=False)
     password = fields.CharField(max_length=255, null=False)
     active = fields.BooleanField(default=True)
-    accounts = fields.ReverseRelation["Account"]
     country = fields.CharField(max_length=2, null=False)
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="proxies", null=False
@@ -121,13 +135,24 @@ class Account(Model, TimestampMixin):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="accounts", null=False
     )
+    project: fields.ForeignKeyNullableRelation["Project"] = fields.ForeignKeyField(
+        "models.Project",
+        related_name="accounts",
+        null=True,
+    )
     premium = fields.BooleanField(default=False)
     country = fields.CharField(max_length=2, null=False)
-    timeout_expires_at = fields.DatetimeField(null=True)
     photos = fields.ReverseRelation["AccountPhoto"]
 
+    worker_id = fields.CharField(
+        max_length=64, null=True
+    )  # воркер, который взял аккаунт
+    lease_expires_at = fields.DatetimeField(null=True)  # время, когда lease истекает
+
+    last_error = fields.TextField(null=True)
+    last_attempt_at = fields.DatetimeField(null=True)
+
     user_id: int
-    main_photos: list["AccountPhoto"]
 
     @property
     def display_username(self) -> str:
@@ -160,3 +185,132 @@ class AccountPhoto(Model):
 
     class Meta:
         table = "account_photos"
+
+
+class Project(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=64, null=False)
+    status = fields.BooleanField(default=True)
+    accounts = fields.ReverseRelation[Account]
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="projects", null=False
+    )
+    dialog_limit = fields.IntField(
+        description="Сообщений в одной переписке", null=False, default=10
+    )
+    out_daily_limit = fields.IntField(
+        description="Исходящих сообщений с одного аккаунта в сутки",
+        null=False,
+        default=6,
+    )
+    send_time_start = fields.IntField(
+        description="Начало времени рассылки", null=False, default=0
+    )
+    send_time_end = fields.IntField(
+        description="Конец времени рассылки",
+        null=False,
+        default=23,
+    )
+    first_message = fields.TextField(null=False)
+    prompt = fields.TextField(null=False)
+    mailings: fields.ReverseRelation["Mailing"]
+    user_id: int
+
+    class Meta:
+        table = "projects"
+
+
+class AccountActionCounter(Model):
+    account = fields.ForeignKeyField("models.Account", related_name="counters")
+    action = fields.CharEnumField(AccountAction, max_length=64)
+    date = fields.DateField(auto_now_add=True)
+    count = fields.IntField(default=0)
+
+    class Meta:
+        table = "account_action_counter"
+        unique_together = ("account", "action", "date")
+
+
+class Mailing(Model):
+    id = fields.BigIntField(pk=True)
+    name = fields.TextField(null=True)
+    project = fields.ForeignKeyField(
+        "models.Project",
+        related_name="mailings",
+        on_delete=fields.CASCADE,
+    )
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="mailings", null=False
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    started_at = fields.DatetimeField(null=True)
+    finished_at = fields.DatetimeField(null=True)
+    status = fields.CharEnumField(MailingStatus, default=MailingStatus.DRAFT)
+    recipients: fields.ReverseRelation["Recipient"]
+
+    class Meta:
+        table = "mailings"
+
+
+class Recipient(Model):
+    id = fields.BigIntField(pk=True)
+    mailing = fields.ForeignKeyField(
+        "models.Mailing",
+        related_name="recipients",
+        on_delete=fields.CASCADE,
+    )
+
+    username = fields.CharField(max_length=320)  # ограничение email по стандарту
+    metadata = fields.JSONField(null=True)
+    status = fields.CharEnumField(RecipientStatus, default=RecipientStatus.PENDING)
+
+    worker_id = fields.CharField(max_length=64, null=True)
+    lease_expires_at = fields.DatetimeField(null=True)
+
+    attempts = fields.IntField(default=0)
+    last_error = fields.TextField(null=True)
+    last_attempt_at = fields.DatetimeField(null=True)
+
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "recipients"
+        indexes = [
+            ("mailing_id", "status", "lease_expires_at"),
+            ("lease_expires_at",),
+        ]
+
+
+class Dialog(Model):
+    id = fields.BigIntField(pk=True)
+
+    recipient = fields.OneToOneField(
+        "models.Recipient",
+        related_name="dialog",
+        on_delete=fields.CASCADE,
+    )
+    status = fields.CharEnumField(DialogStatus, default=DialogStatus.INIT)
+    started_at = fields.DatetimeField(auto_now_add=True)
+    finished_at = fields.DatetimeField(null=True)
+
+    messages: fields.ReverseRelation["Message"]
+
+    class Meta:
+        table = "dialogs"
+
+
+class Message(Model):
+    id = fields.BigIntField(pk=True)
+    dialog = fields.ForeignKeyField(
+        "models.Dialog",
+        related_name="messages",
+        on_delete=fields.CASCADE,
+    )
+
+    sender = fields.CharEnumField(MessageSender, null=False)
+    tg_message_id = fields.BigIntField(null=True)  # ID сообщения в Telegram
+    text = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "messages"

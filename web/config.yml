@@ -1,3 +1,2 @@
-vite:
-  api_url:
-    http://localhost:8833
+api:
+  url: "http://localhost:8833"

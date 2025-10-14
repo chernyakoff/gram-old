@@ -1,4 +1,6 @@
 import math
+import random
+import re
 from typing import Iterable, Sequence
 
 from aiopath import AsyncPath
@@ -50,3 +52,49 @@ async def clear_dir(directory: AsyncPath):
         else:
             # Удаляем файл
             await item.unlink()
+
+
+def generate_message(template: str) -> str:
+    # Экранированные символы
+    ESCAPES = {r"\{": "\ue000", r"\}": "\ue001", r"\|": "\ue002", r"\\": "\ue003"}
+
+    # Сначала заменяем экранированные символы на временные метки
+    for k, v in ESCAPES.items():
+        template = template.replace(k, v)
+
+    def expand(text: str) -> str:
+        stack = []
+        i = 0
+        while i < len(text):
+            if text[i] == "{":
+                stack.append(i)
+                i += 1
+            elif text[i] == "}":
+                if stack:
+                    start = stack.pop()
+                    inner = text[start + 1 : i]
+                    # Разбиваем варианты по | и рекурсивно разворачиваем
+                    options = [expand(opt) for opt in inner.split("|")]
+                    choice = random.choice(options)
+                    text = text[:start] + choice + text[i + 1 :]
+                    i = start + len(choice)  # смещаем указатель после вставки
+                else:
+                    i += 1
+            else:
+                i += 1
+        return text
+
+    result = expand(template)
+
+    # Возвращаем экранированные символы обратно
+    for k, v in ESCAPES.items():
+        if k == r"\\":
+            result = result.replace(v, "\\")
+        elif k == r"\{":
+            result = result.replace(v, "{")
+        elif k == r"\}":
+            result = result.replace(v, "}")
+        elif k == r"\|":
+            result = result.replace(v, "|")
+
+    return result

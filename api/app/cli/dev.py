@@ -1,32 +1,22 @@
+from datetime import datetime
+
 from cyclopts import App
+from pydantic import BaseModel, Field
 from rich import print
+from tortoise.query_utils import Prefetch
 
+from app.common.models import orm
 from app.common.utils.s3 import AsyncS3Client
+from app.dto import mailing
+from app.dto.account import AccountOut
+from app.routers.chat import generate_message
 
-app = App(name="test", help="dev tests etc")
-
-PROXIES = b"""
-176.53.167.83:30042:sazanova-nadezda_ya_ru:6072b7fd12
-45.134.29.254:30042:sazanova-nadezda_ya_ru:6072b7fd12
-185.64.251.159:30042:sazanova-nadezda_ya_ru:6072b7fd12
-84.54.8.245:30042:sazanova-nadezda_ya_ru:6072b7fd12
-45.134.28.104:30042:sazanova-nadezda_ya_ru:6072b7fd12
-176.53.164.101:30042:sazanova-nadezda_ya_ru:6072b7fd12
-185.64.251.94:30042:sazanova-nadezda_ya_ru:6072b7fd12
-85.31.50.7:30042:sazanova-nadezda_ya_ru:6072b7fd12
-"""
-
-ACCOUNTS_FILE = "accounts.zip"
+app = App(name="dev", help="dev tests etc")
 
 
 @app.command
-async def s3_url():
-    async with AsyncS3Client() as s3:
-        upload_url = await s3.presigned_put_url(
-            "service/kukaryamba",
-            meta={
-                "customkey": "customvalue",
-            },
-        )
-
-    print(upload_url)
+async def qwerty():
+    hz = await orm.Dialog.filter(
+        recipient__mailing__user_id=359107176
+    ).prefetch_related("recipient", "recipient__mailing")
+    print(hz)

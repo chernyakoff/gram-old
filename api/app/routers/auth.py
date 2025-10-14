@@ -2,66 +2,17 @@ import hashlib
 import hmac
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Self
+from typing import Optional
 
-import pytz
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from jose import ExpiredSignatureError, JWTError, jwt
-from pydantic import BaseModel
 
 from app.common.models import orm
 from app.common.utils.functions import pick
 from app.config import config
-
-moscow_tz = pytz.timezone("Europe/Moscow")
-
+from app.dto.user import UserLoginIn, UserLoginOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-# ----------------- Schemas -----------------
-
-
-class UserLoginIn(BaseModel):
-    id: int
-    auth_date: int
-    hash: str
-    first_name: str | None
-    last_name: str | None
-    username: str | None
-    photo_url: str | None
-
-
-class UserLoginOut(BaseModel):
-    access_token: str
-
-
-class UserMeOut(BaseModel):
-    id: int
-    username: str | None
-    first_name: str | None
-    last_name: str | None
-    photo_url: str | None
-    role: str
-    has_license: bool
-
-    @classmethod
-    def from_orm(cls, user: orm.User) -> Self:
-        return cls(
-            id=user.id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            photo_url=user.photo_url,
-            role=user.role.name,
-            has_license=bool(
-                user.license_end_date
-                and user.license_end_date > datetime.now(moscow_tz)
-            ),
-        )
-
-
-# ----------------- Telegram validation -----------------
 
 
 def validate_telegram_data(data: dict):
@@ -158,27 +109,23 @@ async def get_current_user(authorization: str = Header(...)) -> orm.User:
 @router.post("/", response_model=UserLoginOut)
 async def login(data: UserLoginIn, response: Response):
     validate_telegram_data(data.model_dump())
-
     user, _ = await orm.User.update_or_create(
         id=data.id,
         defaults=pick(["username", "first_name", "last_name", "photo_url"], data),
     )
-
     access_token = create_access_token({"sub": str(user.id)})
     set_refresh_cookie(response, user.id)
-
     return {"access_token": access_token}
 
 
-@router.get("/me", response_model=UserMeOut)
-async def me(user=Depends(get_current_user)) -> UserMeOut:
-    return UserMeOut.from_orm(user)
+@router.get("/me", response_model=UserOut)
+async def me(user=Depends(get_current_user)) -> UserOut:
+    return await UserOut.from_tortoise_orm(user)
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie(key="refresh_token", path="/")
-    return {"detail": "Logged out successfully"}
 
 
 @router.post("/refresh", response_model=UserLoginOut)

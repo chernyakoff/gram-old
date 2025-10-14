@@ -1,0 +1,17 @@
+import re
+
+
+def is_valid_telegram_username(username: str) -> bool:
+    # длина от 5 до 32
+    if not 5 <= len(username) <= 32:
+        return False
+    # разрешены только латиница, цифры и _
+    if not re.fullmatch(r"[A-Za-z0-9_]+", username):
+        return False
+    # минимум 3 буквы
+    if len(re.findall(r"[A-Za-z]", username)) < 3:
+        return False
+    # запрещены двойные подчёркивания
+    if "__" in username:
+        return False
+    return True

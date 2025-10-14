@@ -1,0 +1,114 @@
+import asyncio
+import uuid
+from contextlib import asynccontextmanager
+from datetime import timedelta
+from typing import AsyncIterator
+
+from tortoise import Tortoise
+from tortoise import timezone as tz
+from tortoise.transactions import in_transaction
+
+from app.common.models.orm import Proxy
+
+
+class ProxyPool:
+    def __init__(self, user_id: int, ttl: int = 30, heartbeat_interval: int = 10):
+        self.user_id = user_id
+        self.ttl = ttl
+        self.heartbeat_interval = heartbeat_interval
+
+        # proxy_id -> session_id
+        self._active_proxies: dict[int, str] = {}
+        self._lock = asyncio.Lock()
+        self._heartbeat_task: asyncio.Task | None = None
+
+    # -------------------- Контекстный менеджер --------------------
+    @asynccontextmanager
+    async def proxy(self, country: str, timeout: int = 30) -> AsyncIterator[Proxy]:
+        start = asyncio.get_event_loop().time()
+        delay = 1
+        proxy = None
+
+        while True:
+            proxy = await self.acquire(country)
+            if proxy:
+                break
+
+            if asyncio.get_event_loop().time() - start > timeout:
+                raise TimeoutError(
+                    f"No proxy available for country {country} after {timeout}s"
+                )
+
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 5)
+
+        try:
+            yield proxy
+        finally:
+            if proxy:
+                await self.release(proxy)
+
+    # -------------------- Acquire --------------------
+    async def acquire(self, country: str) -> Proxy | None:
+        session_id = str(uuid.uuid4())
+        async with in_transaction("default"):
+            conn = Tortoise.get_connection("default")
+            rows = await conn.execute_query_dict(
+                """
+                WITH picked AS (
+                    SELECT id
+                    FROM proxies
+                    WHERE country = $1
+                      AND user_id = $2
+                      AND active = TRUE
+                      AND (locked_until IS NULL OR locked_until < NOW())
+                    ORDER BY RANDOM()
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE proxies
+                SET locked_until = NOW() + make_interval(secs => $3),
+                    lock_session = $4
+                WHERE id IN (SELECT id FROM picked)
+                RETURNING *;
+                """,
+                [country, self.user_id, self.ttl, session_id],
+            )
+
+            if not rows:
+                return None
+
+            proxy = Proxy(**rows[0])
+            proxy._saved_in_db = True
+
+            # Добавляем в активные и запускаем heartbeat, если нужно
+            async with self._lock:
+                self._active_proxies[proxy.id] = session_id
+                if not self._heartbeat_task or self._heartbeat_task.done():
+                    self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
+            return proxy
+
+    # -------------------- Release --------------------
+    async def release(self, proxy: Proxy):
+        async with self._lock:
+            self._active_proxies.pop(proxy.id, None)
+        await Proxy.filter(id=proxy.id, lock_session=proxy.lock_session).update(
+            locked_until=None, lock_session=None
+        )
+
+    # -------------------- Центральный Heartbeat --------------------
+    async def _heartbeat_loop(self):
+        try:
+            while True:
+                await asyncio.sleep(self.heartbeat_interval)
+                async with self._lock:
+                    if not self._active_proxies:
+                        break  # все прокси освобождены → можно завершить heartbeat
+                    proxy_ids = list(self._active_proxies.keys())
+                    if proxy_ids:
+                        await Proxy.filter(id__in=proxy_ids).update(
+                            locked_until=tz.now() + timedelta(seconds=self.ttl)
+                        )
+        except asyncio.CancelledError:
+            pass

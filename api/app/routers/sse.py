@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from app.hatchet.client import hatchet
@@ -13,9 +13,10 @@ router = APIRouter(prefix="/sse", tags=["sse"])
 
 # Максимальный размер очереди (чтобы не разрасталась бесконечно)
 QUEUE_SIZE = 100
-PING_INTERVAL = 15  # каждые 15 секунд шлем ping
+PING_INTERVAL = 15 # каждые 15 секунд шлем ping
 
 subscribers: list[asyncio.Queue] = []
+# pipa dripa supa pupa watchfiles testing suka
 
 
 async def watch_job(run_id: str):
@@ -46,7 +47,7 @@ async def broadcast_event(event: dict):
 
 
 @router.get("/")
-async def jobs_stream():
+async def jobs_stream(request: Request):
     """
     SSE эндпоинт для фронта. Все события транслируются через него.
     """
@@ -57,6 +58,9 @@ async def jobs_stream():
         try:
             yield ": connected\n\n"
             while True:
+                if await request.is_disconnected():
+                    logger.info("Client disconnected")
+                    break
                 try:
                     # ждём событие или таймаут для ping
                     data = await asyncio.wait_for(queue.get(), timeout=PING_INTERVAL)
@@ -64,13 +68,14 @@ async def jobs_stream():
                 except asyncio.TimeoutError:
                     # отправляем ping, если новых событий не было
                     yield "data: {}\n\n"
-                    # Failed to load resource: net::ERR_INCOMPLETE_CHUNKED_ENCODING
+
         except asyncio.CancelledError:
             # сюда придёт при reload/shutdown
             print("SSE connection cancelled")
             raise
 
         finally:
-            subscribers.remove(queue)
+            if queue in subscribers:
+                subscribers.remove(queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
