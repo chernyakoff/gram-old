@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: neuro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: neurogram
+    ports:
+      - "5445:5432"   # доступ с хоста (ноута)
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+    networks:
+      - dev
+
+  base-worker:
+    build:
+      context: ../../workers/base
+      target: prod
+    container_name: neuro-base-worker
+    volumes:
+      - ../../workers/base:/app
+      - uv-venv-base-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+      - UV_LINK_MODE=copy
+    command: ["uv", "run", "python", "-m", "app"]
+    depends_on:
+      - postgres
+    networks:
+      - hatchet
+      - dev
+      - web
+
+  dialog-worker:
+    build:
+      context: ../../workers/dialog
+      target: prod
+    container_name: neuro-dialog-worker
+    volumes:
+      - ../../workers/dialog:/app
+      - uv-venv-dialog-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+      - UV_LINK_MODE=copy
+    command: ["uv", "run", "python", "-m", "app"]
+    depends_on:
+      - postgres
+    networks:
+      - hatchet
+      - dev
+      - web
+
+  api:
+    build:
+      context: ../../api
+      target: prod
+    container_name: neuro-api
+    volumes:
+      - ../../api:/app
+      - uv-venv-api:/app/.venv      # отдельный том под venv api
+      - ./config.yml:/app/config.yml 
+    environment:
+      - UV_SYSTEM_PYTHON=1
+      - PYTHONPATH=/app
+    command: ["uv", "run", "python", "-m", "app"]
+    depends_on:
+      - postgres
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.neuro-api.rule=Host(`api.lidorub.online`)"
+      - "traefik.http.routers.neuro-api.entrypoints=websecure"
+      - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.neuro-api.loadbalancer.server.port=8833"
+    networks:
+      - hatchet 
+      - dev
+      - web
+
+  web:
+    build:
+      context: ../../web
+      target: prod
+    container_name: neuro-web
+    volumes:
+      - ../../web:/app
+      - ./config.yml:/app/config.yml 
+    depends_on:
+      - api
+      - base-worker
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.neuro-web.rule=Host(`lidorub.online`)"
+      - "traefik.http.routers.neuro-web.entrypoints=websecure"
+      - "traefik.http.routers.neuro-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.neuro-webюloadbalancer.server.port=3000"
+    networks:
+      - dev
+      - web
+
+  minio:
+    build:
+      context: ./minio
+    container_name: neuro-minio
+    environment:
+      MINIO_PUBLIC_URL: https://mi.lidorub.online
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: b23vk6N1VdOV
+      S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
+      S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.neuro-minio.rule=Host(`mi.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio.entrypoints=websecure"
+      - "traefik.http.routers.neuro-minio.tls.certresolver=letsencrypt"
+      - "traefik.http.services.neuro-minio.loadbalancer.server.port=9000"
+      - "traefik.http.routers.neuro-minio-console.rule=Host(`mi.lidorub.online`) && PathPrefix(`/console`)"
+      - "traefik.http.services.neuro-minio-console.loadbalancer.server.port=9001"
+    networks:
+      - dev
+      - web
+
+volumes:
+  uv-venv-base-worker: {}
+  uv-venv-dialog-worker: {}
+  uv-venv-api: {}
+  postgres-data-dev: {}
+  minio-data: {}
+
+networks:
+  hatchet:
+    external: true
+    name: hatchet-network
+  web:
+    driver: bridge
+  dev:
+    driver: bridge
