@@ -33,7 +33,6 @@ services:
     networks:
       - hatchet
       - dev
-      - web
 
   dialog-worker:
     build:
@@ -54,7 +53,6 @@ services:
     networks:
       - hatchet
       - dev
-      - web
 
   api:
     build:
@@ -143,5 +141,6 @@ networks:
     name: hatchet-network
   web:
     driver: bridge
+    external: true
   dev:
     driver: bridge
