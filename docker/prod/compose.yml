@@ -82,12 +82,10 @@ services:
 
   web:
     build:
-      context: ../../web
-      target: prod
+      context: ../..
+      dockerfile: web/Dockerfile.prod
     container_name: neuro-web
-    volumes:
-      - ../../web:/app
-      - ./config.yml:/app/config.yml
+
     depends_on:
       - api
       - base-worker
@@ -106,7 +104,7 @@ services:
       context: ./minio
     container_name: neuro-minio
     environment:
-      MINIO_PUBLIC_URL: https://mi.lidorub.online
+      MINIO_PUBLIC_URL: https://media.lidorub.online
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: b23vk6N1VdOV
       S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
@@ -118,11 +116,11 @@ services:
       - minio-data:/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.neuro-minio.rule=Host(`mi.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio.rule=Host(`media.lidorub.online`)"
       - "traefik.http.routers.neuro-minio.entrypoints=websecure"
       - "traefik.http.routers.neuro-minio.tls.certresolver=letsencrypt"
       - "traefik.http.services.neuro-minio.loadbalancer.server.port=9000"
-      - "traefik.http.routers.neuro-minio-console.rule=Host(`mi.lidorub.online`) && PathPrefix(`/console`)"
+      - "traefik.http.routers.neuro-minio-console.rule=Host(`media.lidorub.online`) && PathPrefix(`/console`)"
       - "traefik.http.services.neuro-minio-console.loadbalancer.server.port=9001"
     networks:
       - dev
@@ -140,7 +138,9 @@ networks:
     external: true
     name: hatchet-network
   web:
+    name: web
     driver: bridge
     external: true
   dev:
+    name: dev
     driver: bridge

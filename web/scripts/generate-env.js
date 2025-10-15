@@ -11,6 +11,10 @@ const __dirname = path.dirname(__filename)
 const configFile = path.resolve(__dirname, '../config.yml')
 const envFile = path.resolve(__dirname, '../.env')
 
+if (!fs.existsSync(configFile)) {
+  throw new Error(`config.yml не найден по пути ${configFile}`)
+}
+
 // Читаем YAML
 const config = yaml.load(fs.readFileSync(configFile, 'utf8'))
 

@@ -1,0 +1,56 @@
+# ================================
+# Stage 1 — Build (Production)
+# ================================
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Базовые зависимости для сборки
+RUN apk add --no-cache bash
+
+# Копируем package.json и скрипты ИЗ web/
+COPY web/package*.json ./
+COPY web/scripts ./scripts
+
+# Устанавливаем все зависимости (dev-зависимости нужны для vite/vue-tsc)
+RUN npm install
+
+# Копируем production config из docker/prod
+COPY docker/prod/config.yml ./config.yml
+
+RUN echo "=== config.yml содержимое ===" && cat config.yml && echo "=== конец файла ==="
+
+# Копируем остальные исходники web-проекта
+COPY web/. .
+
+# Еще раз копируем production config, чтобы гарантировать что он не перезатерся
+COPY docker/prod/config.yml ./config.yml
+
+RUN echo "=== ФИНАЛЬНЫЙ config.yml ===" && cat config.yml && echo "=== конец ==="
+
+# Генерируем .env из config.yml перед сборкой
+RUN node scripts/generate-env.js
+
+# Проверяем что получилось в .env
+RUN echo "=== .env содержимое ===" && cat .env && echo "=== конец файла ==="
+
+# Сборка фронта
+RUN npm run build
+
+# ================================
+# Stage 2 — Production Server
+# ================================
+FROM node:20-alpine AS prod
+
+WORKDIR /app
+
+# Копируем готовый билд из Stage build
+COPY --from=build /app/dist ./dist
+
+# Устанавливаем serve
+RUN npm install -g serve
+
+EXPOSE 3000
+
+# Запуск production сервера
+CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:3000"]

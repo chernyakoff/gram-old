@@ -1,58 +1,53 @@
 # ================================
-# Stage 1 — development
+# Stage 1 — Development
 # ================================
 FROM node:20-alpine AS dev
 
 WORKDIR /app
 
-# Установим зависимости для разработки
+# Устанавливаем dev-зависимости
 COPY package*.json ./
 COPY scripts ./scripts
-RUN npm install --include=dev
+RUN npm install
 
 # Копируем исходники
 COPY . .
 
-# Экспонируем порт для vite dev server
 EXPOSE 5173
 
-# Запуск в режиме разработки
 CMD ["npm", "run", "dev", "--", "--host"]
 
 # ================================
-# Stage 2 — production build
+# Stage 2 — Build
 # ================================
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# Устанавливаем зависимости (включая dev)
 COPY package*.json ./
 COPY scripts ./scripts
+RUN npm install
 
-# Установим все зависимости, включая devDependencies
-RUN npm install --include=dev
-
-# Копируем исходники
+# Копируем исходники проекта
 COPY . .
 
 # Сборка фронта
 RUN npm run build
 
 # ================================
-# Stage 3 — production server
+# Stage 3 — Production
 # ================================
 FROM node:20-alpine AS prod
 
 WORKDIR /app
 
-# Установим serve
+# Минимизируем образ — ставим только serve
 RUN npm install -g serve
 
-# Скопируем только готовый билд
+# Копируем готовый билд из build-стадии
 COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 
-# Запуск production сервера
 CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:3000"]
