@@ -5,10 +5,10 @@ FROM node:20-alpine AS dev
 
 WORKDIR /app
 
-# Установим зависимости
+# Установим зависимости для разработки
 COPY package*.json ./
-COPY scripts ./scripts 
-RUN npm install
+COPY scripts ./scripts
+RUN npm install --include=dev
 
 # Копируем исходники
 COPY . .
@@ -20,15 +20,20 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host"]
 
 # ================================
-# Stage 2 — production
+# Stage 2 — production build
 # ================================
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Копируем package.json и package-lock.json
 COPY package*.json ./
-RUN npm install
+COPY scripts ./scripts
 
+# Установим все зависимости, включая devDependencies
+RUN npm install --include=dev
+
+# Копируем исходники
 COPY . .
 
 # Сборка фронта
@@ -44,9 +49,10 @@ WORKDIR /app
 # Установим serve
 RUN npm install -g serve
 
-# Скопируем билд
+# Скопируем только готовый билд
 COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 
+# Запуск production сервера
 CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:3000"]
