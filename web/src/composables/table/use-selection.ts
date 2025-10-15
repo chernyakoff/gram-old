@@ -1,7 +1,7 @@
 import { h, computed, useTemplateRef } from 'vue'
 import type { Table } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
-//@ts-expect-error allowArbitraryExtensions is not set
+
 import Checkbox from '@nuxt/ui/components/Checkbox.vue'
 export function useTableSelection<TableRow extends object>(
   tableRefName: string,

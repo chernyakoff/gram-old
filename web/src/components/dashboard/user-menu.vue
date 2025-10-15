@@ -5,21 +5,15 @@
     :ui="{ content: collapsed ? 'w-48' : 'w-(--reka-dropdown-menu-trigger-width)' }"
   >
     <UButton
-      v-bind="{
-        avatar: {
-          src: user?.photoUrl,
-        },
-        label: collapsed ? undefined : user?.username,
-        trailingIcon: collapsed ? undefined : 'i-lucide-chevrons-up-down',
-      }"
+      :avatar="{ src: user?.photoUrl ?? undefined }"
+      :label="collapsed ? undefined : (user?.username ?? undefined)"
+      :trailing-icon="collapsed ? undefined : 'i-lucide-chevrons-up-down'"
       color="neutral"
       variant="ghost"
       block
       :square="collapsed"
       class="data-[state=open]:bg-elevated"
-      :ui="{
-        trailingIcon: 'text-dimmed',
-      }"
+      :ui="{ trailingIcon: 'text-dimmed' }"
     />
     <template #chip-leading="{ item }">
       <span

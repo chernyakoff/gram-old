@@ -55,7 +55,8 @@ export const useUploadStore = defineStore('upload', () => {
         .map((r) => r.value),
       rejected: results
         .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        .map((r, i) => tasks[i].file), // возвращаем файлы, которые не загрузились
+        .map((r, i) => tasks[i]?.file)
+        .filter(Boolean) as File[],
     }
   }
 
