@@ -41,13 +41,12 @@ FROM node:20-alpine AS prod
 
 WORKDIR /app
 
-# Установим express только для прод-сервера
-RUN npm install express serve-static
+# Установим serve
+RUN npm install -g serve
 
-# Скопируем билд и сервер
+# Скопируем билд
 COPY --from=build /app/dist ./dist
-COPY server.js ./
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["serve", "-s", "dist", "-l", "3000"]
