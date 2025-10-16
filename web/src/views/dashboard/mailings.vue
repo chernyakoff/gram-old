@@ -31,8 +31,8 @@
           <template #status-cell="{ row }">
             <UBadge
               class="opacity-80"
-              :label="statusMap[row.original.status].label"
-              :color="statusMap[row.original.status].color"
+              :label="getStatusInfo(row.original.status).label"
+              :color="getStatusInfo(row.original.status).color"
             />
           </template>
           <template #actions-cell="{ row }">
@@ -73,6 +73,12 @@ const statusMap = {
   finished: { label: 'Завершёна', color: 'success' },
   cancelled: { label: 'Отменёна', color: 'error' },
 } as const
+
+type Status = keyof typeof statusMap
+
+function getStatusInfo(status: string) {
+  return statusMap[status as Status] ?? { label: 'Неизвестно', color: 'default' }
+}
 
 const columns: TableColumn<MailingOut>[] = [
   {

@@ -44,7 +44,7 @@
               <USwitch
                 title="Изменить статус"
                 :modelValue="row.original.status"
-                @update:modelValue="(val) => toggleStatus(row.original, val)"
+                @update:modelValue="(val: boolean) => toggleStatus(row.original, val)"
               />
               <ChatModal :id="row.original.id" />
               <UButton

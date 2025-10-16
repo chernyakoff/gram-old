@@ -101,10 +101,11 @@ watch(
     if (open) {
       Object.assign(state, getEmptyState())
       if (projects.value.length === 0) {
-        projects.value = (await getList()).map((m) => ({
+        const list = await getList()
+        projects.value = list.map((m) => ({
           label: m.name,
           value: m.id,
-        }))
+        })) as SelectMenuItem[]
       }
     }
   },
