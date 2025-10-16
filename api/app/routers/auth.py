@@ -14,7 +14,6 @@ from app.dto.user import UserLoginIn, UserLoginOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-
 def validate_telegram_data(data: dict):
     received_hash = data.pop("hash", None)
     auth_date = data.get("auth_date")
@@ -25,7 +24,10 @@ def validate_telegram_data(data: dict):
     if auth_date is None or int(time.time()) - int(auth_date) > 86400:
         raise HTTPException(400, "Telegram authentication session is expired.")
 
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()) if data[k])
+    # Исключаем пустые значения из проверки
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(data.items()) if v
+    )
     secret_key = hashlib.sha256(
         config.api.bot.token.get_secret_value().encode()
     ).digest()
@@ -35,7 +37,6 @@ def validate_telegram_data(data: dict):
 
     if not hmac.compare_digest(generated_hash, received_hash):
         raise HTTPException(400, "Telegram data signature mismatch")
-
 
 # ----------------- JWT helpers -----------------
 
