@@ -397,6 +397,7 @@ async def on_new_message(
 
             if not ai_response:
                 return
+            await asyncio.sleep(random.randint(5, 20))
 
         if new_status and new_status != dialog.status:
             old_status = dialog.status
@@ -433,8 +434,6 @@ async def on_new_message(
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related("user")
-
-    await acquire_account(account, f"{ctx.worker.id()}")
 
     pool = ProxyPool(account.user_id)
     account_util = await AccountUtil.from_orm(account)

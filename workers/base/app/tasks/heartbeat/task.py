@@ -1,4 +1,3 @@
-import uuid
 from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel
@@ -36,43 +35,66 @@ async def task(input: EmptyModel, ctx: Context):
     worker_id = str(ctx.worker.id())
 
     # Берём активные проекты
-    projects = await orm.Project.filter(status=True).prefetch_related(
-        "accounts", "mailings"
-    )
+    projects = await orm.Project.filter(status=True).prefetch_related("mailings")
 
     for project in projects:
-        # Берём свободные аккаунты проекта
-        free_accounts: list[orm.Account] = [
-            acc
-            for acc in project.accounts  # type: ignore
-            if acc.active
-        ][:MAX_ACCOUNTS_PER_CYCLE]
+        # Находим активные mailings для проекта
+        active_mailings = [
+            m
+            for m in project.mailings
+            if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+        ]
 
-        for acc in free_accounts:
-            counter = await orm.AccountActionCounter.filter(
-                account=acc, action=enums.AccountAction.NEW_DIALOG, date=now.date()
-            ).first()
+        if not active_mailings:
+            continue
 
-            dialogs_left = project.out_daily_limit - (counter.count if counter else 0)
+        # Атомарно захватываем аккаунты и recipients в одной транзакции
+        async with in_transaction() as conn:
+            # 1. Находим свободные аккаунты проекта
+            free_accounts = (
+                await orm.Account.filter(
+                    project=project,
+                    active=True,
+                )
+                .filter(Q(busy=False) | Q(lease_expires_at__lt=now))
+                .limit(MAX_ACCOUNTS_PER_CYCLE)
+                .using_db(conn)
+            )
 
-            if dialogs_left <= 0:
+            if not free_accounts:
                 continue
 
-            active_mailings = [
-                m
-                for m in project.mailings
-                if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
-            ]
+            # 2. Для каждого аккаунта проверяем лимиты и захватываем recipients
+            for acc in free_accounts:
+                # Проверяем дневной лимит
+                counter = (
+                    await orm.AccountActionCounter.filter(
+                        account=acc,
+                        action=enums.AccountAction.NEW_DIALOG,
+                        date=now.date(),
+                    )
+                    .using_db(conn)
+                    .first()
+                )
 
-            for mailing in active_mailings:
-                # Генерируем уникальный session_id для этой порции
-                session_id = str(uuid.uuid4())
-                lease_time = now + timedelta(minutes=RECIPIENT_LEASE_MINUTES)
+                dialogs_left = project.out_daily_limit - (
+                    counter.count if counter else 0
+                )
 
-                # Атомарно захватываем recipients с помощью транзакции
-                async with in_transaction() as conn:
+                if dialogs_left <= 0:
+                    continue
+
+                # Ищем свободных recipients из активных mailings
+                recipients_to_assign = []
+
+                for mailing in active_mailings:
+                    # Сколько ещё можем взять для этого аккаунта
+                    need_count = dialogs_left - len(recipients_to_assign)
+                    if need_count <= 0:
+                        break
+
                     # Выбираем свободных recipients
-                    recipients = (
+                    available_recipients = (
                         await orm.Recipient.filter(
                             mailing=mailing,
                             status=enums.RecipientStatus.PENDING,
@@ -81,26 +103,55 @@ async def task(input: EmptyModel, ctx: Context):
                             Q(lease_expires_at__lt=now)
                             | Q(lease_expires_at__isnull=True)
                         )
-                        .limit(min(project.out_daily_limit, dialogs_left))
+                        .limit(need_count)
                         .using_db(conn)
                     )
 
-                    if not recipients:
-                        continue
+                    recipients_to_assign.extend(available_recipients)
 
-                    recipients_id = [r.id for r in recipients]
+                if not recipients_to_assign:
+                    continue
 
-                    # Атомарно помечаем их как занятые
-                    await (
-                        orm.Recipient.filter(
-                            id__in=recipients_id,
-                            status=enums.RecipientStatus.PENDING,
-                        )
-                        .using_db(conn)
-                        .update(worker_id=worker_id, lease_expires_at=lease_time)
+                # 3. Атомарно блокируем и аккаунт, и recipients
+                recipients_id = [r.id for r in recipients_to_assign]
+
+                account_lease_time = now + timedelta(hours=LEASE_HOURS)
+                recipient_lease_time = now + timedelta(minutes=RECIPIENT_LEASE_MINUTES)
+
+                # Блокируем аккаунт
+                updated_accounts = await (
+                    orm.Account.filter(
+                        id=acc.id,
                     )
+                    .filter(Q(busy=False) | Q(lease_expires_at__lt=now))
+                    .using_db(conn)
+                    .update(
+                        busy=True,
+                        worker_id=worker_id,
+                        lease_expires_at=account_lease_time,
+                        last_attempt_at=now,
+                        last_error=None,
+                    )
+                )
 
-                # Теперь отправляем в таск - recipients уже заняты
+                # Если аккаунт не удалось захватить (другой worker успел раньше)
+                if updated_accounts == 0:
+                    continue
+
+                # Блокируем recipients
+                await (
+                    orm.Recipient.filter(
+                        id__in=recipients_id,
+                        status=enums.RecipientStatus.PENDING,
+                    )
+                    .filter(
+                        Q(lease_expires_at__lt=now) | Q(lease_expires_at__isnull=True)
+                    )
+                    .using_db(conn)
+                    .update(worker_id=worker_id, lease_expires_at=recipient_lease_time)
+                )
+
+                # 4. Отправляем в таск - всё уже заблокировано
                 await dialog_task.aio_run_no_wait(
                     DialogIn(account_id=acc.id, recipients_id=recipients_id)
                 )
