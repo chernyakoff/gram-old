@@ -1,4 +1,2 @@
 api:
   url: "http://localhost:8833"
-  bot:
-    name: "Tgggl_bot"
