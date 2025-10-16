@@ -11,7 +11,7 @@ from app.config import config
 
 IPV4_REGEX = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
 
-timeout = aiohttp.ClientTimeout(total=5)
+timeout = aiohttp.ClientTimeout(total=20)
 
 
 @dataclass
