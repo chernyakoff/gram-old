@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 
 from app.common.utils import vars
@@ -18,7 +17,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.add_middleware(ProxyHeadersMiddleware)
 
 
 app.add_middleware(

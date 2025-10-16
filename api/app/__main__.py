@@ -8,4 +8,6 @@ if __name__ == "__main__":
         host=config.api.host,
         port=config.api.port,
         reload=False,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
