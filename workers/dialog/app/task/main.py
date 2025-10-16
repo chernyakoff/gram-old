@@ -300,21 +300,32 @@ STATUS: [init|engage|offer|close]
 
 
 async def check_and_stop_if_needed(
-    project: orm.Project, stop_event: asyncio.Event, logger: Logger
+    project: orm.Project,
+    account: orm.Account,
+    stop_event: asyncio.Event,
+    logger: Logger,
 ):
     """Проверяет условия для остановки task"""
 
-    # Подсчитываем активные диалоги
+    # Получаем все mailing_id для этого проекта
+    mailing_ids = await orm.Mailing.filter(project=project).values_list("id", flat=True)
+
+    if not mailing_ids:
+        logger.info("Нет mailings для проекта, останавливаем task")
+        stop_event.set()
+        return
+
+    # Подсчитываем активные диалоги (Dialog теперь связан напрямую с Recipient)
     active_dialogs = await orm.Dialog.filter(
-        recipient__project_id=project.id, status__not_in=[enums.DialogStatus.CLOSE]
+        recipient__mailing_id__in=mailing_ids, status__not_in=[enums.DialogStatus.CLOSE]
     ).count()
 
     closed_dialogs = await orm.Dialog.filter(
-        recipient__project_id=project.id, status=enums.DialogStatus.CLOSE
+        recipient__mailing_id__in=mailing_ids, status=enums.DialogStatus.CLOSE
     ).count()
 
     logger.info(
-        f"Статус диалогов: активных={active_dialogs}, закрытых={closed_dialogs}"
+        f"Статус диалогов для проекта {project.id}: активных={active_dialogs}, закрытых={closed_dialogs}"
     )
 
     # Если все диалоги закрыты, останавливаем task
@@ -323,12 +334,17 @@ async def check_and_stop_if_needed(
         stop_event.set()
         return
 
-    # Или если есть лимит на общее количество закрытых диалогов
-    if (
-        hasattr(project, "out_daily_limit")
-        and closed_dialogs >= project.out_daily_limit
-    ):
-        logger.info(f"Достигнут лимит закрытых диалогов: {closed_dialogs}")
+    # Проверяем дневной лимит для аккаунта
+    counter = await orm.AccountActionCounter.filter(
+        account=account, action=enums.AccountAction.NEW_DIALOG, date=tz.now().date()
+    ).first()
+
+    dialogs_today = counter.count if counter else 0
+
+    if dialogs_today >= project.out_daily_limit:
+        logger.info(
+            f"Достигнут дневной лимит для аккаунта {account.id}: {dialogs_today}/{project.out_daily_limit}"
+        )
         stop_event.set()
         return
 
@@ -337,6 +353,7 @@ async def on_new_message(
     event: NewMessage.Event,
     client: TelegramClient,
     project: orm.Project,
+    account: orm.Account,
     logger: Logger,
     stop_event: asyncio.Event,
 ):
@@ -346,10 +363,12 @@ async def on_new_message(
             return
         text = event.raw_text
 
+        # Находим recipient по username
         recipient = await orm.Recipient.get_or_none(username=sender.username)
         if not recipient:
             return
 
+        # Dialog теперь связан напрямую с Recipient через OneToOneField
         dialog = await orm.Dialog.get_or_none(recipient=recipient)
         if not dialog:
             dialog = await orm.Dialog.create(
@@ -376,12 +395,12 @@ async def on_new_message(
         message_count = len(messages)
         if message_count >= project.dialog_limit:
             dialog.status = enums.DialogStatus.CLOSE
+            dialog.finished_at = tz.now()
             await dialog.save()
             logger.info(
                 f"Диалог с {recipient.username} закрыт: достигнут лимит {project.dialog_limit} сообщений"
             )
-            # Проверяем, нужно ли останавливать весь task
-            await check_and_stop_if_needed(project, stop_event, logger)
+            await check_and_stop_if_needed(project, account, stop_event, logger)
             return
 
         # Генерируем ответ от AI
@@ -391,23 +410,24 @@ async def on_new_message(
                     get_ai_response_with_status(project.prompt, messages, logger),
                     timeout=30,
                 )
+                await asyncio.sleep(random.randint(5, 45))
             except asyncio.TimeoutError:
                 logger.warning(f"OpenAI timeout для {recipient.username}")
                 return
 
             if not ai_response:
                 return
-            await asyncio.sleep(random.randint(5, 20))
 
         if new_status and new_status != dialog.status:
             old_status = dialog.status
             dialog.status = new_status
+            if new_status == enums.DialogStatus.CLOSE:
+                dialog.finished_at = tz.now()
             await dialog.save()
             logger.info(f"Статус диалога изменен: {old_status} -> {new_status}")
 
-            # Если диалог закрыт, проверяем условия остановки
             if new_status == enums.DialogStatus.CLOSE:
-                await check_and_stop_if_needed(project, stop_event, logger)
+                await check_and_stop_if_needed(project, account, stop_event, logger)
 
         msg = await send_message(client, recipient, logger, ai_response)
         if msg:
@@ -419,7 +439,7 @@ async def on_new_message(
             )
 
             logger.info(f"Отправлен ответ {recipient.username}")
-            await check_and_stop_if_needed(project, stop_event, logger)
+            await check_and_stop_if_needed(project, account, stop_event, logger)
 
     except Exception as e:
         logger.error(f"Ошибка в on_new_message: {e}")
@@ -434,6 +454,9 @@ async def on_new_message(
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related("user")
+
+    # УБРАТЬ эту строку - аккаунт уже захвачен в heartbeat:
+    # await acquire_account(account, f"{ctx.worker.id()}")
 
     pool = ProxyPool(account.user_id)
     account_util = await AccountUtil.from_orm(account)
@@ -466,6 +489,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                     on_new_message,
                     client=client,
                     project=project,
+                    account=account,
                     logger=logger,
                     stop_event=stop_event,
                 ),
@@ -481,6 +505,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 msg = await send_message(client, recipient, logger, first_message)
                 if not msg:
                     continue
+
                 dialog, _ = await orm.Dialog.get_or_create(
                     recipient=recipient, defaults={"status": enums.DialogStatus.INIT}
                 )
@@ -498,7 +523,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
                 await asyncio.sleep(random.randint(60, 180))
 
-            # Основной цикл — просто держим соединение
+            # Основной цикл – просто держим соединение
             while tz.now() < end_time and not stop_event.is_set():
                 if not client.is_connected():
                     logger.warning("Потеряно соединение, пытаемся переподключиться...")
@@ -528,6 +553,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
         except Exception as e:
             logger.error(f"Ошибка при отключении клиента: {e}")
 
-        # если не было ошибки выше — делаем нормальный release
+        # если не было ошибки выше – делаем нормальный release
         if not account.last_error:
             await release_account(account)
