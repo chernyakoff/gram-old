@@ -41,10 +41,10 @@ const statusFilter = ref('all')
 const selectedJob = ref<BackgroundJob | null>()
 
 const filteredJobs = computed(() => {
-  if (statusFilter.value === 'all') return jobs
-  return jobs.filter((job) => job.status === statusFilter.value)
+  return (
+    statusFilter.value === 'all' ? jobs : jobs.filter((job) => job.status === statusFilter.value)
+  ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 })
-
 const statuses = [
   { label: 'все', value: 'all' },
   { label: 'ожид.', value: 'pending' },
