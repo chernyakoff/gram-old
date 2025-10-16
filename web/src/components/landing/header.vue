@@ -27,7 +27,7 @@
   </UHeader>
 
   <!-- Один модальный компонент для обеих кнопок -->
-  <UModal v-model="showLoginModal" title="Логин">
+  <UModal v-model:open="showLoginModal" title="Логин">
     <template #body>
       <div class="tab-panel">
         <div id="telegram-login-container" class="flex justify-center my-4"></div>
