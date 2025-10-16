@@ -28,8 +28,8 @@ class StreamLogger:
 
     async def _log(self, entry: LogEntry):
         data = self._dump(entry)
-        if entry.status in [Status.ERROR, Status.WARNING]:
-            self.ctx.log(data)
+        # if entry.status in [Status.ERROR, Status.WARNING]:
+        self.ctx.log(data)
         await self.ctx.aio_put_stream(data)
 
     async def error(self, msg: str | Exception, payload: dict | None = None):
