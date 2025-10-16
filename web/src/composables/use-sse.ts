@@ -8,6 +8,7 @@ export function useSSE() {
   function connect() {
     if (evtSource) return // уже подключен
 
+    console.log({API_URL:import.meta.env.API_URL})
     evtSource = new EventSource(`${import.meta.env.API_URL}/sse`)
 
     evtSource.onmessage = (event) => {
