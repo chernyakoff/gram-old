@@ -28,6 +28,7 @@ async def lifespan() -> AsyncGenerator[LifespanContext, None]:
 worker = hatchet.worker(
     name=worker_config.name,
     slots=worker_config.slots,
+    durable_slots=worker_config.slots,
     workflows=[dialog_task],
     lifespan=lifespan,
 )
