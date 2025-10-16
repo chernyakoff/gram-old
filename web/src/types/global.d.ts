@@ -1,3 +1,13 @@
+interface TelegramUser {
+  id: number
+  first_name: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+  hash: string
+}
+
 interface LogEntry {
   status: 'info' | 'error' | 'success' | 'warning'
   message: string
