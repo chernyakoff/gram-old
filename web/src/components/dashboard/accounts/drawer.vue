@@ -1,5 +1,5 @@
 <template>
-  <UDrawer direction="right" class="w-160" :handle="false" v-model:open="open" :draggable="false">
+  <UDrawer direction="right" class="w-160" v-model:open="open" :handleOnly="true">
     <template #body>
       <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
         <template #profile>
