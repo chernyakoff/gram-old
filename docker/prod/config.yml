@@ -24,7 +24,8 @@ api:
     expire_seconds: 3600
     refresh_expire_days: 30
   bot:
-    token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c"
+    token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c" 
+    name: "Tgggl_bot"
 
 web:
   url: "https://lidorub.online"
