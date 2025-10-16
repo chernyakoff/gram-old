@@ -16,6 +16,24 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
 );
 CREATE INDEX IF NOT EXISTS "idx_users_usernam_266d85" ON "users" ("username");
 COMMENT ON COLUMN "users"."role" IS 'USER: 0\nADMIN: 7';
+CREATE TABLE IF NOT EXISTS "projects" (
+    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "id" SERIAL NOT NULL PRIMARY KEY,
+    "name" VARCHAR(64) NOT NULL,
+    "status" BOOL NOT NULL DEFAULT True,
+    "dialog_limit" INT NOT NULL DEFAULT 10,
+    "out_daily_limit" INT NOT NULL DEFAULT 6,
+    "send_time_start" INT NOT NULL DEFAULT 0,
+    "send_time_end" INT NOT NULL DEFAULT 23,
+    "first_message" TEXT NOT NULL,
+    "prompt" TEXT NOT NULL,
+    "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE
+);
+COMMENT ON COLUMN "projects"."dialog_limit" IS 'Сообщений в одной переписке';
+COMMENT ON COLUMN "projects"."out_daily_limit" IS 'Исходящих сообщений с одного аккаунта в сутки';
+COMMENT ON COLUMN "projects"."send_time_start" IS 'Начало времени рассылки';
+COMMENT ON COLUMN "projects"."send_time_end" IS 'Конец времени рассылки';
 CREATE TABLE IF NOT EXISTS "accounts" (
     "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -37,6 +55,11 @@ CREATE TABLE IF NOT EXISTS "accounts" (
     "busy" BOOL NOT NULL DEFAULT False,
     "premium" BOOL NOT NULL DEFAULT False,
     "country" VARCHAR(2) NOT NULL,
+    "worker_id" VARCHAR(64),
+    "lease_expires_at" TIMESTAMPTZ,
+    "last_error" TEXT,
+    "last_attempt_at" TIMESTAMPTZ,
+    "project_id" INT REFERENCES "projects" ("id") ON DELETE CASCADE,
     "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
     CONSTRAINT "uid_accounts_id_3abbae" UNIQUE ("id", "user_id")
 );
@@ -48,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "account_action_counter" (
     "account_id" BIGINT NOT NULL REFERENCES "accounts" ("id") ON DELETE CASCADE,
     CONSTRAINT "uid_account_act_account_e7e16e" UNIQUE ("account_id", "action", "date")
 );
-COMMENT ON COLUMN "account_action_counter"."action" IS 'RESOLVE_USERNAME: resolve_username\nSEND_MESSAGE_STRANGER: send_message_stranger';
+COMMENT ON COLUMN "account_action_counter"."action" IS 'RESOLVE_USERNAME: resolve_username\nNEW_DIALOG: new_dialog';
 CREATE TABLE IF NOT EXISTS "account_photos" (
     "id" BIGSERIAL NOT NULL PRIMARY KEY,
     "tg_id" BIGINT NOT NULL,
@@ -58,24 +81,17 @@ CREATE TABLE IF NOT EXISTS "account_photos" (
     "file_reference" BYTEA NOT NULL,
     "account_id" BIGINT REFERENCES "accounts" ("id") ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS "projects" (
-    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "id" SERIAL NOT NULL PRIMARY KEY,
-    "name" VARCHAR(64) NOT NULL,
-    "status" BOOL NOT NULL DEFAULT True,
-    "dialog_limit" INT NOT NULL DEFAULT 10,
-    "out_daily_limit" INT NOT NULL DEFAULT 6,
-    "send_time_start" INT NOT NULL DEFAULT 0,
-    "send_time_end" INT NOT NULL DEFAULT 23,
-    "first_message" TEXT NOT NULL,
-    "prompt" TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS "mailings" (
+    "id" BIGSERIAL NOT NULL PRIMARY KEY,
+    "name" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "started_at" TIMESTAMPTZ,
+    "finished_at" TIMESTAMPTZ,
+    "status" VARCHAR(9) NOT NULL DEFAULT 'draft',
+    "project_id" INT NOT NULL REFERENCES "projects" ("id") ON DELETE CASCADE,
     "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE
 );
-COMMENT ON COLUMN "projects"."dialog_limit" IS 'Сообщений в одной переписке';
-COMMENT ON COLUMN "projects"."out_daily_limit" IS 'Исходящих сообщений с одного аккаунта в сутки';
-COMMENT ON COLUMN "projects"."send_time_start" IS 'Начало времени рассылки';
-COMMENT ON COLUMN "projects"."send_time_end" IS 'Конец времени рассылки';
+COMMENT ON COLUMN "mailings"."status" IS 'DRAFT: draft\nRUNNING: running\nFINISHED: finished\nCANCELLED: cancelled';
 CREATE TABLE IF NOT EXISTS "proxies" (
     "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -91,6 +107,39 @@ CREATE TABLE IF NOT EXISTS "proxies" (
     "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
     CONSTRAINT "uid_proxies_host_30bab3" UNIQUE ("host", "port", "username", "password")
 );
+CREATE TABLE IF NOT EXISTS "recipients" (
+    "id" BIGSERIAL NOT NULL PRIMARY KEY,
+    "username" VARCHAR(320) NOT NULL,
+    "metadata" JSONB,
+    "status" VARCHAR(10) NOT NULL DEFAULT 'pending',
+    "worker_id" VARCHAR(64),
+    "lease_expires_at" TIMESTAMPTZ,
+    "attempts" INT NOT NULL DEFAULT 0,
+    "last_error" TEXT,
+    "last_attempt_at" TIMESTAMPTZ,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "mailing_id" BIGINT NOT NULL REFERENCES "mailings" ("id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "idx_recipients_mailing_fcf65c" ON "recipients" ("mailing_id", "status", "lease_expires_at");
+CREATE INDEX IF NOT EXISTS "idx_recipients_lease_e_06a290" ON "recipients" ("lease_expires_at");
+COMMENT ON COLUMN "recipients"."status" IS 'PENDING: pending\nPROCESSING: processing\nSENT: sent\nFAILED: failed\nBOUNCED: bounced';
+CREATE TABLE IF NOT EXISTS "dialogs" (
+    "id" BIGSERIAL NOT NULL PRIMARY KEY,
+    "status" VARCHAR(6) NOT NULL DEFAULT 'init',
+    "started_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finished_at" TIMESTAMPTZ,
+    "recipient_id" BIGINT NOT NULL UNIQUE REFERENCES "recipients" ("id") ON DELETE CASCADE
+);
+COMMENT ON COLUMN "dialogs"."status" IS 'INIT: init\nENGAGE: engage\nOFFER: offer\nCLOSE: close';
+CREATE TABLE IF NOT EXISTS "messages" (
+    "id" BIGSERIAL NOT NULL PRIMARY KEY,
+    "sender" VARCHAR(9) NOT NULL,
+    "tg_message_id" BIGINT,
+    "text" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dialog_id" BIGINT NOT NULL REFERENCES "dialogs" ("id") ON DELETE CASCADE
+);
+COMMENT ON COLUMN "messages"."sender" IS 'ACCOUNT: account\nRECIPIENT: recipient\nSYSTEM: system';
 CREATE TABLE IF NOT EXISTS "settings" (
     "id" SERIAL NOT NULL PRIMARY KEY,
     "section" VARCHAR(255) NOT NULL,

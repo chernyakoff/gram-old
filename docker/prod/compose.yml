@@ -71,6 +71,7 @@ services:
       - postgres
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=web"
       - "traefik.http.routers.neuro-api.rule=Host(`api.lidorub.online`)"
       - "traefik.http.routers.neuro-api.entrypoints=websecure"
       - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
@@ -91,6 +92,7 @@ services:
       - base-worker
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=web"
       - "traefik.http.routers.neuro-web.rule=Host(`lidorub.online`)"
       - "traefik.http.routers.neuro-web.entrypoints=websecure"
       - "traefik.http.routers.neuro-web.tls.certresolver=letsencrypt"
@@ -103,10 +105,13 @@ services:
     build:
       context: ./minio
     container_name: neuro-minio
+    restart: unless-stopped
     environment:
-      MINIO_PUBLIC_URL: https://media.lidorub.online
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: b23vk6N1VdOV
+      # Эти переменные нужны для правильной работы MinIO через reverse proxy
+      MINIO_SERVER_URL: "https://media.lidorub.online"
+      MINIO_BROWSER_REDIRECT_URL: "https://minio.lidorub.online"
       S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
       S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
     ports:
@@ -114,13 +119,21 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    # НЕ добавляем command - используем ENTRYPOINT из Dockerfile
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.neuro-minio.rule=Host(`media.lidorub.online`)"
-      - "traefik.http.routers.neuro-minio.entrypoints=websecure"
-      - "traefik.http.routers.neuro-minio.tls.certresolver=letsencrypt"
-      - "traefik.http.services.neuro-minio.loadbalancer.server.port=9000"
-      - "traefik.http.routers.neuro-minio-console.rule=Host(`media.lidorub.online`) && PathPrefix(`/console`)"
+      - "traefik.docker.network=web"
+      # S3 API endpoint
+      - "traefik.http.routers.neuro-minio-api.rule=Host(`media.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio-api.entrypoints=websecure"
+      - "traefik.http.routers.neuro-minio-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.neuro-minio-api.service=neuro-minio-api"
+      - "traefik.http.services.neuro-minio-api.loadbalancer.server.port=9000"
+      # Console на отдельном домене
+      - "traefik.http.routers.neuro-minio-console.rule=Host(`minio.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio-console.entrypoints=websecure"
+      - "traefik.http.routers.neuro-minio-console.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.neuro-minio-console.service=neuro-minio-console"
       - "traefik.http.services.neuro-minio-console.loadbalancer.server.port=9001"
     networks:
       - dev
