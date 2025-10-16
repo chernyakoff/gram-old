@@ -25,7 +25,7 @@ def validate_telegram_data(data: dict):
     if auth_date is None or int(time.time()) - int(auth_date) > 86400:
         raise HTTPException(400, "Telegram authentication session is expired.")
 
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()) if data[k])
     secret_key = hashlib.sha256(
         config.api.bot.token.get_secret_value().encode()
     ).digest()
