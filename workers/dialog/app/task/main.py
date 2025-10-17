@@ -39,7 +39,7 @@ async def release_account(account: orm.Account, error: str | None = None):
         await account.save(update_fields=list(update_data.keys()))
 
 
-@hatchet.durable_task(
+@hatchet.task(
     name="dialog",
     input_validator=DialogIn,
     execution_timeout=timedelta(hours=6),
