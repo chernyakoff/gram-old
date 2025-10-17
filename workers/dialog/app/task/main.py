@@ -77,9 +77,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
             limiter = AccountLimiter(account)
 
             # Создаём менеджер диалогов
-            manager = DialogManager(
-                client, project, account, input.recipients_id, logger, stop_event
-            )
+            manager = DialogManager(client, project, account, logger, stop_event)
             manager.setup_event_handlers()
 
             # Отправляем первые сообщения
@@ -87,6 +85,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
             for recipient_id in input.recipients_id:
                 recipient = await orm.Recipient.get(id=recipient_id)
+                manager.register_session_recipient(recipient.id)
 
                 # Получаем entity
                 entity = await manager.telegram_service.get_entity(recipient)

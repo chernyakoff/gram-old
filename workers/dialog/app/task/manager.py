@@ -6,9 +6,10 @@ from telethon.events import NewMessage
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
-from app.task.ai_service import AIService
-from app.task.telegram_service import TelegramService
 from app.utils.logger import Logger
+
+from .ai_service import AIService
+from .telegram_service import TelegramService
 
 
 class DialogManager:
@@ -19,28 +20,36 @@ class DialogManager:
         client: TelegramClient,
         project: orm.Project,
         account: orm.Account,
-        recipient_ids: list[int],
         logger: Logger,
         stop_event: asyncio.Event,
     ):
         self.client = client
         self.project = project
         self.account = account
-        self.recipient_ids = recipient_ids
         self.logger = logger
         self.stop_event = stop_event
 
         self.ai_service = AIService()
         self.telegram_service = TelegramService(client, logger)
 
+        # Отслеживаем диалоги текущей сессии
+        self.session_recipients_ids: set[int] = set()
+        self.session_start_time = tz.now()
+
+    def register_session_recipient(self, recipient_id: int):
+        """Регистрирует recipient как часть текущей сессии"""
+        self.session_recipients_ids.add(recipient_id)
+
     def setup_event_handlers(self):
         """Регистрирует обработчики событий"""
         self.client.add_event_handler(
             partial(
                 self._on_new_message,
+                client=self.client,
                 project=self.project,
-                recipient_ids=self.recipient_ids,
+                account=self.account,
                 logger=self.logger,
+                stop_event=self.stop_event,
             ),
             NewMessage(),
         )
@@ -48,9 +57,11 @@ class DialogManager:
     async def _on_new_message(
         self,
         event: NewMessage.Event,
+        client: TelegramClient,
         project: orm.Project,
-        recipient_ids: list[int],
+        account: orm.Account,
         logger: Logger,
+        stop_event: asyncio.Event,
     ):
         """Обработчик входящих сообщений"""
         try:
@@ -62,8 +73,9 @@ class DialogManager:
 
             # Находим recipient
             recipient = await orm.Recipient.filter(
-                username=sender.username, id__in=recipient_ids
+                username=sender.username, id__in=self.session_recipients_ids
             ).first()
+
             if not recipient:
                 return
 
@@ -75,7 +87,7 @@ class DialogManager:
                 )
 
             if dialog.status == enums.DialogStatus.CLOSE:
-                logger.info(f"Диалог с {recipient.username} уже закрыт, пропускаем")
+                logger.info(f"[{recipient.username}] Диалог уже закрыт, пропускаем")
                 return
 
             # Сохраняем сообщение от получателя
@@ -200,7 +212,7 @@ class DialogManager:
     async def _check_and_stop_if_needed(self):
         """Проверяет условия для остановки task"""
 
-        # Проверяем дневной лимит для аккаунта
+        # 1. Проверяем дневной лимит для аккаунта
         counter = await orm.AccountActionCounter.filter(
             account=self.account,
             action=enums.AccountAction.NEW_DIALOG,
@@ -211,34 +223,39 @@ class DialogManager:
 
         if dialogs_today >= self.project.out_daily_limit:
             self.logger.info(
-                f"Достигнут дневной лимит: {dialogs_today}/{self.project.out_daily_limit}"
+                f"🛑 Достигнут дневной лимит: {dialogs_today}/{self.project.out_daily_limit}"
             )
             self.stop_event.set()
             return
 
-        # Получаем все mailing_id для проекта
-        mailing_ids = await orm.Mailing.filter(project=self.project).values_list(
-            "id", flat=True
-        )
-
-        if not mailing_ids:
+        # 2. Проверяем статус диалогов ТЕКУЩЕЙ СЕССИИ
+        if not self.session_recipients_ids:
             return
 
-        # Подсчитываем активные диалоги
-        active_dialogs = await orm.Dialog.filter(
-            recipient__mailing_id__in=mailing_ids,
+        # Считаем активные и закрытые диалоги только для recipients текущей сессии
+        active_session_dialogs = await orm.Dialog.filter(
+            recipient_id__in=self.session_recipients_ids,
             status__not_in=[enums.DialogStatus.CLOSE],
         ).count()
 
-        closed_today = await orm.Dialog.filter(
-            recipient__mailing_id__in=mailing_ids,
+        closed_session_dialogs = await orm.Dialog.filter(
+            recipient_id__in=self.session_recipients_ids,
             status=enums.DialogStatus.CLOSE,
-            finished_at__gte=tz.now().replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ),
         ).count()
 
+        total_session_dialogs = len(self.session_recipients_ids)
+
         self.logger.info(
-            f"[Аккаунт {self.account.id}] Статус: активных={active_dialogs}, "
-            f"закрыто сегодня={closed_today}, всего={dialogs_today}/{self.project.out_daily_limit}"
+            f"[Аккаунт {self.account.id}] Сессия: "
+            f"активных={active_session_dialogs}/{total_session_dialogs}, "
+            f"закрытых={closed_session_dialogs}/{total_session_dialogs}"
         )
+
+        # КЛЮЧЕВАЯ ПРОВЕРКА: Если все диалоги сессии завершены
+        if active_session_dialogs == 0 and closed_session_dialogs > 0:
+            self.logger.info(
+                f"🛑 Все диалоги текущей сессии завершены "
+                f"({closed_session_dialogs}/{total_session_dialogs})"
+            )
+            self.stop_event.set()
+            return
