@@ -19,12 +19,14 @@ class DialogManager:
         client: TelegramClient,
         project: orm.Project,
         account: orm.Account,
+        recipient_ids: list[int],
         logger: Logger,
         stop_event: asyncio.Event,
     ):
         self.client = client
         self.project = project
         self.account = account
+        self.recipient_ids = recipient_ids
         self.logger = logger
         self.stop_event = stop_event
 
@@ -36,11 +38,9 @@ class DialogManager:
         self.client.add_event_handler(
             partial(
                 self._on_new_message,
-                client=self.client,
                 project=self.project,
-                account=self.account,
+                recipient_ids=self.recipient_ids,
                 logger=self.logger,
-                stop_event=self.stop_event,
             ),
             NewMessage(),
         )
@@ -48,11 +48,9 @@ class DialogManager:
     async def _on_new_message(
         self,
         event: NewMessage.Event,
-        client: TelegramClient,
         project: orm.Project,
-        account: orm.Account,
+        recipient_ids: list[int],
         logger: Logger,
-        stop_event: asyncio.Event,
     ):
         """Обработчик входящих сообщений"""
         try:
@@ -63,7 +61,9 @@ class DialogManager:
             text = event.raw_text
 
             # Находим recipient
-            recipient = await orm.Recipient.get_or_none(username=sender.username)
+            recipient = await orm.Recipient.filter(
+                username=sender.username, id__in=recipient_ids
+            ).first()
             if not recipient:
                 return
 
