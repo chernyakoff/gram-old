@@ -28,8 +28,8 @@ class Logger:
 
     def _log(self, entry: LogEntry):
         data = self._dump(entry)
-        if entry.status in [Status.ERROR, Status.WARNING]:
-            self.ctx.log(data)
+        # if entry.status in [Status.ERROR, Status.WARNING]:
+        self.ctx.log(data)
 
     def error(self, msg: str | Exception, payload: dict | None = None):
         if isinstance(msg, Exception):
