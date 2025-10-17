@@ -127,25 +127,45 @@ class DialogManager:
         """Генерирует ответ от AI и отправляет его"""
 
         # Показываем "печатает..."
-        async with self.client.action(event.chat_id, "typing"):  # type: ignore
-            try:
-                ai_response, new_status = await asyncio.wait_for(
-                    self.ai_service.get_response_with_status(
-                        self.project.prompt, messages, self.logger
-                    ),
-                    timeout=30,
-                )
-                # Имитация печатания
-                await asyncio.sleep(5)  # можно сделать random.randint(3, 8)
+        MAX_RETRIES = 3
 
-            except asyncio.TimeoutError:
-                self.logger.warning(f"[{recipient.username}] OpenAI timeout")
-                return
+        for attempt in range(1, MAX_RETRIES + 1):
+            async with self.client.action(event.chat_id, "typing"):  # type: ignore
+                try:
+                    ai_response, new_status = await asyncio.wait_for(
+                        self.ai_service.get_response_with_status(
+                            self.project.prompt, messages, self.logger
+                        ),
+                        timeout=60,
+                    )
 
-        if not ai_response:
-            self.logger.warning(f"[{recipient.username}] AI не вернул ответ")
+                    if not ai_response:
+                        self.logger.warning(
+                            f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
+                        )
+                        if attempt == MAX_RETRIES:
+                            self.stop_event.set()
+                            return
+                        else:
+                            await asyncio.sleep(2)  # пауза перед повтором
+                            continue  # пробуем снова
+
+                    # Имитация печатания
+                    await asyncio.sleep(5)  # или random.randint(3, 8)
+                    break  # получили ответ, выходим из цикла
+
+                except asyncio.TimeoutError:
+                    self.logger.warning(
+                        f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
+                    )
+                    if attempt == MAX_RETRIES:
+                        self.stop_event.set()
+                        return
+                    else:
+                        await asyncio.sleep(2)  # пауза перед повтором
+
+        if not ai_response:  # такого не может быть - добавил для type check
             return
-
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 

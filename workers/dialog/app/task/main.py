@@ -42,8 +42,8 @@ async def release_account(account: orm.Account, error: str | None = None):
 @hatchet.task(
     name="dialog",
     input_validator=DialogIn,
-    execution_timeout=timedelta(hours=6),
-    schedule_timeout=timedelta(hours=6),
+    execution_timeout=timedelta(hours=SESSION_LIFETIME_HOURS),
+    schedule_timeout=timedelta(hours=SESSION_LIFETIME_HOURS),
 )
 async def dialog_task(input: DialogIn, ctx: Context):
     """Главная задача для работы с диалогами"""
