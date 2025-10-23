@@ -45,12 +45,12 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
                 msg.text = f"{msg.text}\n{get_status_addon(chat.status)}"
-                print("USER MESSAGE", msg.text)
+                # print("USER MESSAGE", msg.text)
                 break
 
     prompt = await build_prompt(project.prompt, chat.status)
 
-    print("PROMPT", prompt)
+    # print("PROMPT", prompt)
 
     # иначе строим контекст для модели
     messages = [{"role": "system", "content": prompt}]
@@ -63,7 +63,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     response = completion.choices[0].message.content or ""
 
-    print("RESPONSE", response)
+    # print("RESPONSE", response)
 
     status = get_ooc_status(response)
     if not status:
