@@ -45,11 +45,9 @@ class DialogManager:
         self.client.add_event_handler(
             partial(
                 self._on_new_message,
-                client=self.client,
                 project=self.project,
                 account=self.account,
                 logger=self.logger,
-                stop_event=self.stop_event,
             ),
             NewMessage(),
         )
@@ -57,11 +55,9 @@ class DialogManager:
     async def _on_new_message(
         self,
         event: NewMessage.Event,
-        client: TelegramClient,
         project: orm.Project,
         account: orm.Account,
         logger: Logger,
-        stop_event: asyncio.Event,
     ):
         """Обработчик входящих сообщений"""
         try:
@@ -83,7 +79,7 @@ class DialogManager:
             dialog = await orm.Dialog.get_or_none(recipient=recipient)
             if not dialog:
                 dialog = await orm.Dialog.create(
-                    recipient=recipient, status=enums.DialogStatus.INIT
+                    recipient=recipient, status=enums.DialogStatus.INIT, account=account
                 )
 
             if dialog.status == enums.DialogStatus.CLOSING:
