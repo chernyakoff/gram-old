@@ -132,6 +132,7 @@ import { parse } from 'valibot'
 import { useTemplateRef } from 'vue'
 import TiptapField from '@/components/shared/tiptap-field.vue'
 import type { StepperItem } from '@nuxt/ui'
+import { useRouter } from 'vue-router'
 
 const items = [
   {
@@ -173,6 +174,8 @@ const items = [
 
 const toast = useToast()
 const form = useTemplateRef('form')
+
+const router = useRouter()
 
 const props = defineProps<{
   id?: number
@@ -216,6 +219,7 @@ const onSubmit = async (event: FormSubmitEvent<ProjectInSchema>) => {
   })
   if (!props.id) {
     await create(data)
+    router.back()
   } else {
     await update(props.id, data)
   }
