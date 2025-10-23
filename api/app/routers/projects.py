@@ -7,6 +7,7 @@ from app.dto.project import (
     ProjectOut,
     ProjectShortOut,
     ProjectStatusIn,
+    create_default_project,
 )
 from app.routers.auth import get_current_user
 
@@ -15,12 +16,19 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.post("/")
 async def create_project(data: ProjectIn, user=Depends(get_current_user)):
-    await data.create_tortoise_instance(orm.Project, user_id=user.id)
+    project = orm.Project(**await data.to_model_dict())
+    project.user_id = user.id
+    await project.save()
 
 
 @router.get("/", response_model=list[ProjectShortOut])
 async def get_projects(user=Depends(get_current_user)):
     return await ProjectShortOut.from_queryset(orm.Project.filter(user_id=user.id))
+
+
+@router.get("/default", response_model=ProjectIn)
+async def get_default_project(user=Depends(get_current_user)):
+    return await create_default_project()
 
 
 @router.get("/list", response_model=list[ProjectBase])
@@ -33,7 +41,7 @@ async def get_project(id: int, user=Depends(get_current_user)):
     project = await orm.Project.get_or_none(id=id, user_id=user.id)
     if not project:
         raise HTTPException(status_code=404, detail="not found")
-    return await ProjectOut.from_tortoise_orm(project)
+    return ProjectOut.from_orm(project)
 
 
 @router.delete("/")
@@ -47,7 +55,7 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    data.partial_update_tortoise_instance(project)
+    project.update_from_dict(await data.to_model_dict())
     project.user_id = user.id
     await project.save()
 

@@ -2,6 +2,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
+from app.common.models.enums import DialogStatus
+
 
 class MessageRole(StrEnum):
     user = "user"
@@ -15,9 +17,11 @@ class Message(BaseModel):
 
 
 class ChatIn(BaseModel):
+    status: DialogStatus = DialogStatus.INIT
     project_id: int
     messages: list[Message]
 
 
 class ChatOut(BaseModel):
     text: str
+    status: DialogStatus

@@ -46,6 +46,7 @@ const { login } = useAuth()
 const showLoginModal = ref(false)
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.BOT_NAME
+const USE_MOCK_LOGIN = false
 
 interface TelegramUser {
   id: number
@@ -60,6 +61,29 @@ interface TelegramUser {
 declare global {
   interface Window {
     onTelegramAuth: (user: TelegramUser) => void
+  }
+}
+
+const rawMock = `{
+    "id": 359107176,
+    "first_name": "М",
+    "last_name": "С",
+    "username": "chernyakoff",
+    "photo_url": "https://t.me/i/userpic/320/E5CF1DXAc92hvxFoNm0Z4y4Z4ycjpk6DqbKdvmjyVyw.jpg",
+    "auth_date": 1761232447,
+    "hash": "f35cf6d7c970b00e3eb2d37bc3b221e32dba638f4917eadae7d5beb36c64f376"
+}`
+
+function parseUserLogin(raw: string): UserLoginIn {
+  const data = JSON.parse(raw)
+  return {
+    id: data.id,
+    authDate: data.auth_date,
+    hash: data.hash,
+    firstName: data.first_name ?? null,
+    lastName: data.last_name ?? null,
+    username: data.username ?? null,
+    photoUrl: data.photo_url ?? null,
   }
 }
 
@@ -88,7 +112,18 @@ onMounted(() => {
 watch(showLoginModal, (isOpen) => {
   if (isOpen) {
     setTimeout(() => {
-      loadTelegramWidget()
+      if (USE_MOCK_LOGIN) {
+        // эмулируем "нажатие" на Telegram login
+        const user = parseUserLogin(rawMock)
+        console.log('🔧 Using mock Telegram login:', user)
+        login(user)
+          .then(() => {
+            showLoginModal.value = false
+          })
+          .catch((err) => console.error('Mock login failed', err))
+      } else {
+        loadTelegramWidget()
+      }
     }, 100)
   }
 })

@@ -20,3 +20,4 @@ class DialogOut(Serializer):
 class DialogMessageOut(BaseModel):
     sender: enums.MessageSender
     text: str
+    created_at: datetime

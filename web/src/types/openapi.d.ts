@@ -41,11 +41,13 @@ export interface components {
             accountIds: number[];
         };
         ChatIn: {
+            status: components["schemas"]["DialogStatus"];
             projectId: number;
             messages: components["schemas"]["Message"][];
         };
         ChatOut: {
             text: string;
+            status: components["schemas"]["DialogStatus"];
         };
         ContactOut: {
             uid: number;
@@ -67,6 +69,7 @@ export interface components {
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
             text: string;
+            createdAt: string;
         };
         DialogOut: {
             id: number;
@@ -74,7 +77,7 @@ export interface components {
             recipient: string;
             startedAt: string;
         };
-        DialogStatus: "init" | "engage" | "offer" | "close";
+        DialogStatus: "init" | "engage" | "offer" | "closing";
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
@@ -119,7 +122,14 @@ export interface components {
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
-            prompt: string;
+            role: string;
+            context: string;
+            init: string;
+            engage: string;
+            offer: string;
+            closing: string;
+            instruction: string;
+            rules: string;
         };
         ProjectOut: {
             name: string;
@@ -128,7 +138,14 @@ export interface components {
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
-            prompt: string;
+            role: string;
+            context: string;
+            init: string;
+            engage: string;
+            offer: string;
+            closing: string;
+            instruction: string;
+            rules: string;
             id: number;
         };
         ProjectShortOut: {

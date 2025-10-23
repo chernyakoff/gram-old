@@ -143,6 +143,7 @@ class Account(Model, TimestampMixin):
     premium = fields.BooleanField(default=False)
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
+    dialogs: fields.ReverseRelation["Dialog"]
 
     worker_id = fields.CharField(
         max_length=64, null=True
@@ -212,7 +213,7 @@ class Project(Model, TimestampMixin):
         default=23,
     )
     first_message = fields.TextField(null=False)
-    prompt = fields.TextField(null=False)
+    prompt = fields.JSONField(null=False)
     mailings: fields.ReverseRelation["Mailing"]
     user_id: int
 
@@ -283,6 +284,11 @@ class Recipient(Model):
 
 class Dialog(Model):
     id = fields.BigIntField(pk=True)
+    account = fields.ForeignKeyField(
+        "models.Account",
+        related_name="dialogs",
+        on_delete=fields.CASCADE,
+    )
 
     recipient = fields.OneToOneField(
         "models.Recipient",

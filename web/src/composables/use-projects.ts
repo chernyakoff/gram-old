@@ -23,6 +23,9 @@ export function useProjects() {
       return data
     }
   }
+  async function default_project() {
+    return await api<ProjectIn>('projects/default', { method: 'GET' })
+  }
 
   async function list() {
     return await api<ProjectBase[]>('projects/list', { method: 'GET' })
@@ -46,5 +49,17 @@ export function useProjects() {
     })
   }
 
-  return { create, get, del, update, projects, status, list, loading, error, success }
+  return {
+    create,
+    get,
+    del,
+    update,
+    projects,
+    status,
+    list,
+    default_project,
+    loading,
+    error,
+    success,
+  }
 }

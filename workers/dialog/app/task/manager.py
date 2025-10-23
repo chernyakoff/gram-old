@@ -86,7 +86,7 @@ class DialogManager:
                     recipient=recipient, status=enums.DialogStatus.INIT
                 )
 
-            if dialog.status == enums.DialogStatus.CLOSE:
+            if dialog.status == enums.DialogStatus.CLOSING:
                 logger.info(f"[{recipient.username}] Диалог уже закрыт, пропускаем")
                 return
 
@@ -134,7 +134,7 @@ class DialogManager:
                 try:
                     ai_response, new_status = await asyncio.wait_for(
                         self.ai_service.get_response_with_status(
-                            self.project.prompt, messages, self.logger
+                            self.project.prompt, dialog.status, messages, self.logger
                         ),
                         timeout=60,
                     )
@@ -193,7 +193,7 @@ class DialogManager:
             old_status = dialog.status
             dialog.status = new_status
 
-            if new_status == enums.DialogStatus.CLOSE:
+            if new_status == enums.DialogStatus.CLOSING:
                 dialog.finished_at = tz.now()
 
             await dialog.save()
@@ -202,7 +202,7 @@ class DialogManager:
             )
 
             # Проверяем лимиты только при закрытии
-            if new_status == enums.DialogStatus.CLOSE:
+            if new_status == enums.DialogStatus.CLOSING:
                 await self._check_and_stop_if_needed()
 
         elif not new_status:
@@ -224,7 +224,7 @@ class DialogManager:
         self, dialog: orm.Dialog, recipient: orm.Recipient, reason: str
     ):
         """Закрывает диалог"""
-        dialog.status = enums.DialogStatus.CLOSE
+        dialog.status = enums.DialogStatus.CLOSING
         dialog.finished_at = tz.now()
         await dialog.save()
         self.logger.info(f"[{recipient.username}] Диалог закрыт: {reason}")
@@ -255,12 +255,12 @@ class DialogManager:
         # Считаем активные и закрытые диалоги только для recipients текущей сессии
         active_session_dialogs = await orm.Dialog.filter(
             recipient_id__in=self.session_recipients_ids,
-            status__not_in=[enums.DialogStatus.CLOSE],
+            status__not_in=[enums.DialogStatus.CLOSING],
         ).count()
 
         closed_session_dialogs = await orm.Dialog.filter(
             recipient_id__in=self.session_recipients_ids,
-            status=enums.DialogStatus.CLOSE,
+            status=enums.DialogStatus.CLOSING,
         ).count()
 
         total_session_dialogs = len(self.session_recipients_ids)

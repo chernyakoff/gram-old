@@ -3,6 +3,12 @@ import re
 from openai import AsyncOpenAI
 
 from app.common.models import enums, orm
+from app.common.utils.prompt import (
+    build_prompt,
+    get_ooc_status,
+    get_status_addon,
+    strip_ooc_status,
+)
 from app.config import config
 from app.utils.logger import Logger
 
@@ -22,13 +28,22 @@ class AIService:
         self.model = config.openai.model
 
     async def get_response_with_status(
-        self, project_prompt: str, dialog_messages: list[orm.Message], logger: Logger
+        self,
+        project_prompt: dict,
+        status: enums.DialogStatus,
+        dialog_messages: list[orm.Message],
+        logger: Logger,
     ) -> tuple[str | None, enums.DialogStatus | None]:
         """Получает ответ от AI и определяет статус диалога"""
 
         history = self._build_history(dialog_messages)
-        system_prompt = self._build_system_prompt(project_prompt)
+        system_prompt = await self._build_system_prompt(project_prompt, status)
         messages = [{"role": "system", "content": system_prompt}] + history
+
+        for msg in reversed(messages):
+            if msg["role"] == "user":
+                msg["content"] += f"\n{get_status_addon(status)}"
+                break
 
         try:
             completion = await self.client.chat.completions.create(
@@ -40,8 +55,8 @@ class AIService:
             if not response:
                 return None, None
 
-            text, status = self._parse_response(response, logger)
-            return text, status
+            text, new_status = self._parse_response(response, logger)
+            return text, new_status
 
         except Exception as e:
             logger.error(f"Ошибка AI запроса: {e}")
@@ -55,21 +70,11 @@ class AIService:
             history.append({"role": role, "content": msg.text})
         return history
 
-    def _build_system_prompt(self, project_prompt: str) -> str:
+    async def _build_system_prompt(
+        self, project_prompt: dict, status: enums.DialogStatus
+    ) -> str:
         """Формирует системный промпт с инструкциями по статусам"""
-        return f"""{project_prompt}
-
-ВАЖНО: После каждого ответа укажи статус диалога на отдельной строке в формате:
-STATUS: [один из: init, engage, offer, close]
-
-Критерии:
-- init: первое взаимодействие, приветствие
-- engage: получатель проявляет интерес, задаёт вопросы, ведёт диалог
-- offer: сделано конкретное предложение (цена, условия, призыв к действию)
-- close: диалог завершён (отказ, договорённость достигнута, потеря интереса, или собеседник игнорирует)
-
-ОБЯЗАТЕЛЬНО добавляй строку STATUS после каждого своего ответа!
-"""
+        return await build_prompt(project_prompt, status)
 
     def _parse_response(
         self, response: str, logger: Logger
@@ -79,35 +84,13 @@ STATUS: [один из: init, engage, offer, close]
         status = None
         text = response
 
-        # Ищем паттерн "STATUS: xxx" (регистронезависимо)
-        match = re.search(
-            r"STATUS:\s*(init|engage|offer|close)", response, re.IGNORECASE
-        )
-
-        if match:
-            status_str = match.group(1).lower()
-            # Убираем строку со статусом из текста
-            text = re.sub(
-                r"\n?\s*STATUS:\s*(init|engage|offer|close)\s*\n?",
-                "",
-                response,
-                flags=re.IGNORECASE,
-            ).strip()
-
-            # Маппинг строки на enum
-            status_map = {
-                "init": enums.DialogStatus.INIT,
-                "engage": enums.DialogStatus.ENGAGE,
-                "offer": enums.DialogStatus.OFFER,
-                "close": enums.DialogStatus.CLOSE,
-            }
-
-            status = status_map.get(status_str)
-
+        status = get_ooc_status(response)
+        if status:
+            text = strip_ooc_status(text)
             if status:
-                logger.info(f"AI установил статус: {status_str}")
+                logger.info(f"AI установил статус: {status.value}")
             else:
-                logger.warning(f"Неизвестный статус от AI: {status_str}")
+                logger.warning(f"Неизвестный статус от AI: {status.value}")
         else:
             logger.warning(f"AI не вернул статус. Ответ: {response[:100]}...")
 

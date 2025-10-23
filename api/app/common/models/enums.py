@@ -39,7 +39,7 @@ class DialogStatus(StrEnum):
     INIT = "init"  # приветствие
     ENGAGE = "engage"  # проявил интерес
     OFFER = "offer"  # сделали предложение
-    CLOSE = "close"  # завершено (отказ / интерес / договорились о звонке)
+    CLOSING = "closing"  # завершено (отказ / интерес / договорились о звонке)
 
 
 class MessageSender(StrEnum):

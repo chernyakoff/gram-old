@@ -1,10 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from openai import AsyncOpenAI
 
-from app.common.models import orm
+from app.cli.dev import build_prompt
+from app.common.models import enums, orm
 from app.common.utils.functions import generate_message
+from app.common.utils.prompt import (
+    get_ooc_status,
+    get_status_addon,
+    strip_ooc_status,
+)
 from app.config import config
-from app.dto.chat import ChatIn, ChatOut
+from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -31,16 +37,38 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Project not found")
 
     # если сообщений нет, это первый вызов — просто возвращаем first_message
+
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
-        return ChatOut(text=first_message)
+        return ChatOut(text=first_message, status=chat.status)
+    else:
+        for msg in reversed(chat.messages):
+            if msg.role == MessageRole.user:
+                msg.text = f"{msg.text}\n{get_status_addon(chat.status)}"
+                print("USER MESSAGE", msg.text)
+                break
+
+    prompt = await build_prompt(project.prompt, chat.status)
+
+    print("PROMPT", prompt)
 
     # иначе строим контекст для модели
-    messages = [{"role": "system", "content": project.prompt}]
+    messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
     completion = await client.chat.completions.create(
         model=config.openai.model,
         messages=messages,  # type: ignore
     )
-    return ChatOut(text=completion.choices[0].message.content or "")
+
+    response = completion.choices[0].message.content or ""
+
+    print("RESPONSE", response)
+
+    status = get_ooc_status(response)
+    if not status:
+        status = enums.DialogStatus.INIT
+
+    response = strip_ooc_status(response)
+
+    return ChatOut(text=response, status=status)

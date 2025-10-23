@@ -35,7 +35,7 @@
           {{ row.original.project?.name ?? 'не назначен' }}
         </template>
         <template #name-cell="{ row }">
-          <div class="flex items-center gap-3" @click="openDrawer(row.original.id)">
+          <div class="flex items-center gap-3" @click="openDrawer(row.original)">
             <UButton
               v-if="row.original.photos.length"
               class="rounded-full"
@@ -92,15 +92,22 @@ import type { AccountOut } from '@/types/openapi'
 const title = 'Аккаунты'
 useTitle(title)
 const { get, accounts, loading } = useAccounts()
-
+const toast = useToast()
 onMounted(() => get())
 
 // Drawer управление
 const drawerOpen = ref(false)
 const selectedAccountId = ref<number | null>(null)
 
-function openDrawer(id: number) {
-  selectedAccountId.value = id
+function openDrawer(account: AccountOut) {
+  if (account.busy) {
+    toast.add({
+      title: 'Аккаунт в работе',
+      color: 'warning',
+    })
+    return
+  }
+  selectedAccountId.value = account.id
   drawerOpen.value = true
 }
 
@@ -111,7 +118,9 @@ const refresh = () => {
 
 const columnFilters = ref([{ id: 'phone', value: '' }])
 const columnVisibility = ref()
-const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table')
+const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table', 'id', {
+  isSelectable: (row) => !row.busy,
+})
 
 const columns: TableColumn<AccountOut>[] = [
   selectionColumn(),

@@ -21,6 +21,7 @@
     </UDashboardNavbar>
     <Menu v-model="selectedDialog" :dialogs="filteredDialogs" :statuses="statuses" />
   </UDashboardPanel>
+
   <Detail v-if="selectedDialog" :messages="messages" />
   <div v-else class="hidden lg:flex flex-1 items-center justify-center">
     <UIcon name="i-lucide-logs" class="size-32 text-dimmed" />

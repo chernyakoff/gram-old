@@ -43,7 +43,7 @@ import DeleteProxiesModal from '@/components/dashboard/proxies/delete-modal.vue'
 import AddProxiesModal from '@/components/dashboard/proxies/add-modal.vue'
 
 import { useProxies } from '@/composables/use-proxies'
-import { useTableSelection } from '@/composables/table/use-selection'
+import { useTableSelection } from '@/composables/table/use-selection.bak'
 import type { ProxyOut } from '@/types/openapi'
 
 const title = 'Прокси'

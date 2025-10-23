@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import type { UIMessage, TextUIPart } from 'ai'
 import { getErrorValue, useApi } from './use-api'
-import type { ChatOut } from '@/types/openapi'
+import type { ChatOut, DialogStatus } from '@/types/openapi'
 
 function toApiMessage(msg: UIMessage): { role: string; text: string } {
   const textParts = msg.parts.filter((p) => p.type === 'text' || p.type === 'reasoning') as Array<{
@@ -26,6 +26,7 @@ export function useChat() {
   const messages = ref<UIMessage[]>([])
   const status = ref<'ready' | 'submitted' | 'error' | 'submitted'>('ready')
   const error = ref<string | null>(null)
+  const dialogStatus = ref<DialogStatus>()
 
   async function sendMessage(projectId: number, text: string) {
     if (!text) return
@@ -41,8 +42,10 @@ export function useChat() {
         body: {
           projectId: projectId,
           messages: messages.value.map(toApiMessage),
+          status: dialogStatus.value,
         },
       })
+      dialogStatus.value = data.status
 
       if (data?.text) {
         messages.value.push(toUIMessage({ role: 'assistant', text: data.text }))
@@ -69,9 +72,9 @@ export function useChat() {
       // пустой массив messages — сервер вернёт first_message без запроса к модели
       const data = await api<ChatOut>('chat/', {
         method: 'POST',
-        body: { projectId, messages: [] },
+        body: { projectId, messages: [], status: dialogStatus.value },
       })
-
+      dialogStatus.value = data.status
       if (data?.text) {
         messages.value.push(toUIMessage({ role: 'assistant', text: data.text }))
       } else {

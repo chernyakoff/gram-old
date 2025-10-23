@@ -27,7 +27,14 @@ export const projectInSchema = v.object({
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
   firstMessage: textSchema,
-  prompt: textSchema,
+  role: textSchema,
+  context: textSchema,
+  init: textSchema,
+  engage: textSchema,
+  offer: textSchema,
+  closing: textSchema,
+  instruction: textSchema,
+  rules: textSchema,
 }) as v.GenericSchema<ProjectIn>
 
 export type ProjectInSchema = v.InferOutput<typeof projectInSchema>
