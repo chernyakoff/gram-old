@@ -107,7 +107,11 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
                 # Создаём диалог
                 dialog, created = await orm.Dialog.get_or_create(
-                    recipient=recipient, defaults={"status": enums.DialogStatus.INIT}
+                    recipient=recipient,
+                    defaults={
+                        "status": enums.DialogStatus.INIT,
+                        "account_id": account.id,
+                    },
                 )
 
                 if created:

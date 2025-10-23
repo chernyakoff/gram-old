@@ -45,9 +45,6 @@ class DialogManager:
         self.client.add_event_handler(
             partial(
                 self._on_new_message,
-                project=self.project,
-                account=self.account,
-                logger=self.logger,
             ),
             NewMessage(),
         )
@@ -55,9 +52,6 @@ class DialogManager:
     async def _on_new_message(
         self,
         event: NewMessage.Event,
-        project: orm.Project,
-        account: orm.Account,
-        logger: Logger,
     ):
         """Обработчик входящих сообщений"""
         try:
@@ -79,11 +73,15 @@ class DialogManager:
             dialog = await orm.Dialog.get_or_none(recipient=recipient)
             if not dialog:
                 dialog = await orm.Dialog.create(
-                    recipient=recipient, status=enums.DialogStatus.INIT, account=account
+                    recipient=recipient,
+                    status=enums.DialogStatus.INIT,
+                    account=self.account,
                 )
 
             if dialog.status == enums.DialogStatus.CLOSING:
-                logger.info(f"[{recipient.username}] Диалог уже закрыт, пропускаем")
+                self.logger.info(
+                    f"[{recipient.username}] Диалог уже закрыт, пропускаем"
+                )
                 return
 
             # Сохраняем сообщение от получателя
@@ -94,12 +92,12 @@ class DialogManager:
                 text=text,
             )
 
-            logger.info(f"[{recipient.username}] Получено новое сообщение")
+            self.logger.info(f"[{recipient.username}] Получено новое сообщение")
 
             # Проверяем лимит сообщений
             messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
 
-            if len(messages) >= project.dialog_limit:
+            if len(messages) >= self.project.dialog_limit:
                 await self._close_dialog(dialog, recipient, "лимит сообщений")
                 await self._check_and_stop_if_needed()
                 return
@@ -108,10 +106,10 @@ class DialogManager:
             await self._generate_and_send_response(event, dialog, recipient, messages)
 
         except Exception as e:
-            logger.error(f"Ошибка в on_new_message: {e}")
+            self.logger.error(f"Ошибка в on_new_message: {e}")
             import traceback
 
-            logger.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
 
     async def _generate_and_send_response(
         self,
