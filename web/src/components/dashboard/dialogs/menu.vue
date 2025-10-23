@@ -42,7 +42,7 @@ const statusColor = {
   init: 'neutral',
   engage: 'warning',
   offer: 'success',
-  close: 'info',
+  closing: 'info',
 } as const
 
 const dialogRefs = ref<Record<string, Element>>({})
