@@ -35,6 +35,8 @@ const series = computed(() => {
   }))
 })
 
+const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37']
+
 const options = computed<ApexOptions>(() => ({
   chart: {
     type: 'area',
@@ -43,15 +45,37 @@ const options = computed<ApexOptions>(() => ({
     toolbar: { show: false },
     zoom: { enabled: false },
   },
-  xaxis: { type: 'datetime', labels: { rotate: -90 } },
-  yaxis: { title: { text: 'Количество' } },
+  colors,
+  fill: {
+    type: 'solid',
+    opacity: 1, // области полностью непрозрачные
+  },
+  stroke: {
+    width: 0, // убираем линии графика
+  },
+  tooltip: {
+    theme: isDark.value ? 'dark' : 'light',
+  },
+  xaxis: {
+    type: 'datetime',
+    labels: {
+      rotate: -90,
+      datetimeFormatter: {
+        day: 'dd.mm.yy', // формат даты, например 27 Oct
+      },
+      style: { colors: isDark.value ? 'rgba(170, 170, 170, 0.6)' : 'rgba(51, 51, 51, 0.6)' },
+    },
+  },
+  yaxis: {
+    labels: {
+      style: { colors: isDark.value ? 'rgba(170, 170, 170, 0.6)' : 'rgba(51, 51, 51, 0.6)' },
+    },
+  },
   dataLabels: { enabled: false },
-  stroke: { curve: 'smooth' },
-  legend: { position: 'top' },
-  tooltip: { x: { format: 'dd MMM yyyy' } },
+
+  legend: { show: false },
   grid: {
     borderColor: isDark.value ? 'rgba(119, 119, 119, 0.3)' : 'rgba(51, 51, 51, 0.3)',
-
     xaxis: { lines: { show: true } },
     yaxis: { lines: { show: true } },
   },
