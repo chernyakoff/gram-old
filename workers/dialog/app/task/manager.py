@@ -1,4 +1,5 @@
 import asyncio
+import random
 from functools import partial
 
 from telethon import TelegramClient
@@ -124,47 +125,50 @@ class DialogManager:
         MAX_RETRIES = 3
 
         for attempt in range(1, MAX_RETRIES + 1):
-            async with self.client.action(event.chat_id, "typing"):  # type: ignore
-                try:
-                    ai_response, new_status = await asyncio.wait_for(
-                        self.ai_service.get_response_with_status(
-                            self.project.prompt, dialog.status, messages, self.logger
-                        ),
-                        timeout=60,
-                    )
+            try:
+                ai_response, new_status = await asyncio.wait_for(
+                    self.ai_service.get_response_with_status(
+                        self.project.prompt, dialog.status, messages, self.logger
+                    ),
+                    timeout=60,
+                )
 
-                    if not ai_response:
-                        self.logger.warning(
-                            f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
-                        )
-                        if attempt == MAX_RETRIES:
-                            self.stop_event.set()
-                            return
-                        else:
-                            await asyncio.sleep(2)  # пауза перед повтором
-                            continue  # пробуем снова
-
-                    # Имитация печатания
-                    await asyncio.sleep(5)  # или random.randint(3, 8)
-                    break  # получили ответ, выходим из цикла
-
-                except asyncio.TimeoutError:
+                if not ai_response:
                     self.logger.warning(
-                        f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
+                        f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
                     )
                     if attempt == MAX_RETRIES:
                         self.stop_event.set()
                         return
                     else:
                         await asyncio.sleep(2)  # пауза перед повтором
+                        continue  # пробуем снова
+
+                # Имитация печатания
+                break  # получили ответ, выходим из цикла
+
+            except asyncio.TimeoutError:
+                self.logger.warning(
+                    f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
+                )
+                if attempt == MAX_RETRIES:
+                    self.stop_event.set()
+                    return
+                else:
+                    await asyncio.sleep(2)  # пауза перед повтором
 
         if not ai_response:  # такого не может быть - добавил для type check
             return
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 
-        # Отправляем сообщение
-        msg = await self.telegram_service.send_message(recipient, ai_response)
+        await asyncio.sleep(random.randint(30, 180))
+        await self.client.send_read_acknowledge(event.chat_id)  # type: ignore
+        async with self.client.action(event.chat_id, "typing"):  # type: ignore
+            # Отправляем сообщение
+            await asyncio.sleep(random.randint(20, 60))
+            msg = await self.telegram_service.send_message(recipient, ai_response)
+
         if msg:
             await orm.Message.create(
                 dialog=dialog,
