@@ -24,12 +24,14 @@
     "@tiptap/core": "^3.7.2",
     "@tiptap/starter-kit": "^3.7.2",
     "@tiptap/vue-3": "^3.7.2",
+    "apexcharts": "^5.3.5",
     "ky": "^1.10.0",
     "pinia": "^3.0.3",
     "scule": "^1.3.0",
     "valibot": "^1.1.0",
     "vue": "^3.5.18",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "vue3-apexcharts": "^1.10.0"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.84.2",

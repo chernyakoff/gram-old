@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 import { useApi } from '@/composables/use-api'
-import type { MailingOut } from '@/types/openapi'
+import type { MailingListOut, MailingOut } from '@/types/openapi'
 import type { MailingFormSchema } from '@/schemas/mailings'
 
 export function useMailings() {
@@ -28,5 +28,9 @@ export function useMailings() {
     })
   }
 
-  return { create, get, del, mailings, loading, error, success }
+  async function list() {
+    return await api<MailingListOut[]>('mailings/list', { method: 'GET' })
+  }
+
+  return { create, get, del, list, mailings, loading, error, success }
 }

@@ -6,7 +6,13 @@ from tortoise.query_utils import Prefetch
 
 from app.common.models import orm
 from app.common.utils.s3 import AsyncS3Client
-from app.dto.account import AccountIn, AccountOut, AccountsBulkCreateIn, BindProjectIn
+from app.dto.account import (
+    AccountIn,
+    AccountListOut,
+    AccountOut,
+    AccountsBulkCreateIn,
+    BindProjectIn,
+)
 from app.dto.common import WorkflowOut
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
@@ -28,6 +34,11 @@ async def upload_accounts(
         return {"id": ref.workflow_run_id}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
+
+
+@router.get("/list", response_model=list[AccountListOut])
+async def get_account_list(user=Depends(get_current_user)):
+    return await AccountListOut.from_queryset(orm.Account.filter(user_id=user.id))
 
 
 @router.get("/{id}", response_model=AccountOut)
@@ -88,3 +99,4 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
     await orm.Account.filter(id__in=data.account_ids, user_id=user.id).update(
         project_id=data.project_id
     )
+

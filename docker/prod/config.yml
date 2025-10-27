@@ -24,7 +24,7 @@ api:
     expire_seconds: 3600
     refresh_expire_days: 30
   bot:
-    token: "8207129398:AAGRe9ytQZJVuCtZ2NCSp0Fs5GhyVt_rD8s" 
+    token: "8207129398:AAGRe9ytQZJVuCtZ2NCSp0Fs5GhyVt_rD8s"
     name: "LidorubLoginBot"
 
 web:
@@ -32,5 +32,5 @@ web:
 
 openai:
   api_key: "sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE"
-  model: "gpt-4o-mini"
+  model: "gpt-4.1-nano"
   base_url: "https://api.proxyapi.ru/openai/v1"

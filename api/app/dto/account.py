@@ -59,3 +59,13 @@ class AccountOut(AccountBase):
 class BindProjectIn(BaseModel):
     project_id: int
     account_ids: list[int]
+
+
+class AccountListOut(Serializer):
+    id: int
+    name: str
+    phone: str
+
+    @classmethod
+    async def resolve_name(cls, instance: orm.Account, context: ContextType):
+        return " ".join([str(instance.first_name), str(instance.last_name)])

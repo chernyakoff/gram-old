@@ -18,6 +18,11 @@ class MailingOut(Serializer):
     failed_count: int  # сколько RecipientStatus.FAILED
 
 
+class MailingListOut(Serializer):
+    id: int
+    name: str
+
+
 class MailingIn(Serializer):
     name: str
     project_id: int

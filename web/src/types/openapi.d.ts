@@ -8,6 +8,11 @@ export interface components {
             lastName: string | null;
             photos: components["schemas"]["AccountPhotosIn"];
         };
+        AccountListOut: {
+            id: number;
+            name: string;
+            phone: string;
+        };
         AccountOut: {
             username: string | null;
             about: string | null;
@@ -85,6 +90,10 @@ export interface components {
             name: string;
             projectId: number;
             recipients: string[];
+        };
+        MailingListOut: {
+            id: number;
+            name: string;
         };
         MailingOut: {
             id: number;
@@ -168,6 +177,19 @@ export interface components {
             country: string;
             createdAt: string;
         };
+        StatsIn: {
+            dateFrom: string;
+            dateTo: string;
+            projectId?: number | null;
+            accountId?: number | null;
+            mailingId?: number | null;
+        };
+        StatsOut: {
+            init: number[];
+            engage: number[];
+            offer: number[];
+            closing: number[];
+        };
         UserLoginIn: {
             id: number;
             authDate: number;
@@ -205,6 +227,7 @@ export interface components {
     pathItems: never;
 }
 export type AccountIn = components['schemas']['AccountIn'];
+export type AccountListOut = components['schemas']['AccountListOut'];
 export type AccountOut = components['schemas']['AccountOut'];
 export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
@@ -220,6 +243,7 @@ export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type MailingIn = components['schemas']['MailingIn'];
+export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];
 export type MailingStatus = components['schemas']['MailingStatus'];
 export type Message = components['schemas']['Message'];
@@ -234,6 +258,8 @@ export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
+export type StatsIn = components['schemas']['StatsIn'];
+export type StatsOut = components['schemas']['StatsOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserOut = components['schemas']['UserOut'];

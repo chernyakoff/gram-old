@@ -2,7 +2,13 @@ import { ref } from 'vue'
 import { useUploadStore } from '@/stores/upload-store'
 import { useApi } from '@/composables/use-api'
 
-import type { AccountIn, AccountOut, BindProjectIn, WorkflowOut } from '@/types/openapi'
+import type {
+  AccountIn,
+  AccountListOut,
+  AccountOut,
+  BindProjectIn,
+  WorkflowOut,
+} from '@/types/openapi'
 
 export function useAccounts() {
   const accounts = ref<AccountOut[]>([])
@@ -48,5 +54,9 @@ export function useAccounts() {
     return await api(`accounts/bind-project`, { method: 'POST', body })
   }
 
-  return { upload, update, get, del, accounts, bindProject, loading, error, success }
+  async function list() {
+    return await api<AccountListOut[]>('accounts/list', { method: 'GET' })
+  }
+
+  return { upload, list, update, get, del, accounts, bindProject, loading, error, success }
 }
