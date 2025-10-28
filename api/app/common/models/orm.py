@@ -320,3 +320,15 @@ class Message(Model):
 
     class Meta:
         table = "messages"
+
+
+class AppSettings(Model):
+    id = fields.IntField(pk=True)
+    section = fields.CharField(max_length=255, null=False)
+    name = fields.CharField(max_length=255, null=False)
+    value = fields.TextField(null=True)
+
+    class Meta:
+        table = "app_settings"
+        unique_together = ("section", "name")
+        indexes = ("section", "name")

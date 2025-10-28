@@ -12,11 +12,11 @@ class StatsIn(BaseModel):
     account_id: Optional[int] = Field(None, description="ID аккаунта")
     mailing_id: Optional[int] = Field(None, description="ID рассылки")
 
-    def to_filter_q(self) -> Q:
+    def to_filter_q(self, user_id: int) -> Q:
         """Преобразуем в Q-фильтр для Tortoise"""
         start_dt = datetime.combine(self.date_from, time.min)
         end_dt = datetime.combine(self.date_to, time.max)
-        q = Q(started_at__gte=start_dt, started_at__lte=end_dt)
+        q = Q(user_id=user_id, started_at__gte=start_dt, started_at__lte=end_dt)
         if self.project_id:
             q &= Q(account__project_id=self.project_id)
         if self.account_id:

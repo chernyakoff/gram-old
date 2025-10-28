@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from openai import AsyncOpenAI
 
 from app.cli.dev import build_prompt
-from app.common.models import enums, orm
+from app.common.models import orm
+from app.common.models.enums import DialogStatus
 from app.common.utils.functions import generate_message
 from app.common.utils.prompt import (
     get_ooc_status,
@@ -10,7 +11,7 @@ from app.common.utils.prompt import (
     strip_ooc_status,
 )
 from app.config import config
-from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
+from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -45,7 +46,11 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
                 msg.text = f"{msg.text}\n{get_status_addon(chat.status)}"
-                # print("USER MESSAGE", msg.text)
+                if chat.status == DialogStatus.CLOSING:
+                    msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
+
+                print(f"QUESTION=====\n{msg.text}\n====")
+
                 break
 
     prompt = await build_prompt(project.prompt, chat.status)
@@ -63,11 +68,11 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     response = completion.choices[0].message.content or ""
 
-    # print("RESPONSE", response)
+    print(f"ANSWER=====\n{response}\n====")
 
     status = get_ooc_status(response)
     if not status:
-        status = enums.DialogStatus.INIT
+        status = chat.status
 
     response = strip_ooc_status(response)
 

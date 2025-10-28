@@ -24,7 +24,7 @@ class AIService:
         if config.openai.base_url:
             params["base_url"] = config.openai.base_url
 
-        self.client = AsyncOpenAI(**params)
+        self.client = AsyncOpenAI(**params)  # type: ignore
         self.model = config.openai.model
 
     async def get_response_with_status(
@@ -43,6 +43,11 @@ class AIService:
         for msg in reversed(messages):
             if msg["role"] == "user":
                 msg["content"] += f"\n{get_status_addon(status)}"
+                if status == enums.DialogStatus.CLOSING:
+                    msg["content"] += (
+                        "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
+                    )
+
                 break
 
         try:
@@ -54,6 +59,9 @@ class AIService:
 
             if not response:
                 return None, None
+
+            if response.strip() == "COMPLETE":
+                return "COMPLETE", enums.DialogStatus.COMPLETE
 
             text, new_status = self._parse_response(response, logger)
             return text, new_status

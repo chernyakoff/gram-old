@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from tortoise_serializer import Serializer
 
 from app.common.models.orm import Project
-from app.common.utils.prompt import get_const_blocks, get_default_prompt
+from app.common.utils.prompt import TRANSITIONS, get_default_prompt
 
 
 class ProjectBase(Serializer):
@@ -43,8 +43,7 @@ class ProjectIn(BaseModel):
             "rules",
         ]
         prompt_data = {key: data.pop(key) for key in prompt_fields}
-        const_blocks = await get_const_blocks()
-        prompt_data.update(**const_blocks)
+        prompt_data["transitions"] = TRANSITIONS
         data["prompt"] = prompt_data
         return data
 

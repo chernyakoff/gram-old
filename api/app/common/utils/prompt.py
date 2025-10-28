@@ -1,84 +1,45 @@
 import asyncio
+import json
 import re
 
 from aiopath import AsyncPath
 from html_to_markdown import convert
 
 from app.common.models.enums import DialogStatus
+from app.common.models.orm import AppSettings
 
-PROMPT_DATA = {
-    "first_message": {
-        "file": "00-first-message.txt",
-    },
-    "role": {
-        "file": "10-role.html",
-        "title": "РОЛЬ",
-    },
-    "instruction": {
-        "file": "20-instruction.html",
-        "title": "ИНСТРУКЦИЯ",
-    },
-    "context": {
-        "file": "30-context.html",
-        "title": "КОНТЕКСТ",
-    },
-    "init": {
-        "file": "41-init.html",
-        "title": "STAGE 1: INIT",
-    },
-    "engage": {
-        "file": "42-engage.html",
-        "title": "STAGE 2: ENGAGE",
-    },
-    "offer": {
-        "file": "43-offer.html",
-        "title": "STAGE 3: OFFER",
-    },
-    "closing": {
-        "file": "44-closing.html",
-        "title": "STAGE 4: CLOSING",
-    },
-    "transitions": {
-        "file": "50-transitions.html",
-        "title": "СИСТЕМА ПЕРЕХОДОВ МЕЖДУ STAGE",
-    },
-    "rules": {
-        "file": "60-rules.html",
-        "title": "ГЛОБАЛЬНЫЕ ПРАВИЛА ",
-    },
+PROMPT_TITLES = {
+    "role": "РОЛЬ",
+    "instruction": "ИНСТРУКЦИЯ",
+    "context": "КОНТЕКСТ",
+    "init": "STAGE 1: INIT",
+    "engage": "STAGE 2: ENGAGE",
+    "offer": "STAGE 3: OFFER",
+    "closing": "STAGE 4: CLOSING",
+    "transitions": "СИСТЕМА ПЕРЕХОДОВ МЕЖДУ STAGE",
+    "rules": "ГЛОБАЛЬНЫЕ ПРАВИЛА",
 }
 
-CONST_BLOCKS = ["transitions"]
+
+TRANSITIONS = """
+<table>\n <thead>\n <tr>\n <th>От</th>\n <th>К</th>\n <th>Условие</th>\n <th>Промежуточный текст</th>\n </tr>\n </thead>\n <tbody>\n <tr>\n <td><strong>INIT</strong></td>\n <td><strong>ENGAGE</strong></td>\n <td>goalMet: true (конкретное направление получено)</td>\n <td>&quot;Звучит интересно! Расскажи подробнее...&quot;</td>\n </tr>\n <tr>\n <td><strong>ENGAGE</strong></td>\n <td><strong>OFFER</strong></td>\n <td>goalMet: true (детали и боли услышаны)</td>\n <td>&quot;Спасибо за честность. Вижу, что [боль]...&quot;</td>\n </tr>\n <tr>\n <td><strong>OFFER</strong></td>\n <td><strong>CLOSING</strong></td>\n <td>goalMet: true (четкое согласие получено)</td>\n <td>&quot;Отлично! Давай запишемся...&quot;</td>\n </tr>\n <tr>\n <td><strong>CLOSING</strong></td>\n <td><strong>COMPLETE</strong></td>\n <td>goalMet: true (все данные собраны)</td>\n <td>&quot;Спасибо, [имя]! До встречи!&quot;</td>\n </tr>\n </tbody>\n</table>
+"""
 
 
 async def get_default_prompt():
-    params = {}
-    for key in PROMPT_DATA:
-        if key not in CONST_BLOCKS:
-            params[key] = (
-                await AsyncPath("app/prompt")
-                .joinpath(PROMPT_DATA[key]["file"])
-                .read_text()
-            )
-    return params
+    first_message = await AppSettings.get(section="prompt", name="first_message")
+    json_prompt = await AppSettings.get(section="prompt", name="json")
+    result = json.loads(json_prompt.value)
+    result["first_message"] = first_message.value
+
+    return result
 
 
-async def get_const_blocks():
-    params = {}
-    for key in CONST_BLOCKS:
-        params[key] = (
-            await AsyncPath("app/prompt").joinpath(PROMPT_DATA[key]["file"]).read_text()
-        )
-    return params
-
-
-def get_ooc_status(message: str) -> DialogStatus:
+def get_ooc_status(message: str) -> DialogStatus | None:
     match = re.search(r"OOC_STATUS:\s*(init|engage|offer|closing)", message)
     if match:
         status = match.group(1)
         return DialogStatus(status)
-    else:
-        return DialogStatus.INIT
 
 
 def strip_ooc_status(message: str) -> str:
@@ -106,18 +67,13 @@ def get_status_addon(status: DialogStatus) -> str:
 async def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
     html = []
     statuses = {s.value for s in DialogStatus}
-
-    for key, data in PROMPT_DATA.items():
-        if key in ["first_message"]:
-            continue
+    for key, title in PROMPT_TITLES.items():
         if key not in statuses:
-            title = f"<h1>{data['title']}</h1>" if "title" in data else ""
+            title = f"<h1>{title}</h1>"
             block = f"{title}{prompt[key]}"
             html.append(block)
         elif key == status:
-            block = (
-                f"<h1>{data['title']}</h1><p>=== СТАТУС СИСТЕМЫ ===</p>{prompt[key]}"
-            )
+            block = f"<h1>{title}</h1><p>=== СТАТУС СИСТЕМЫ ===</p>{prompt[key]}"
             html.append(block)
 
     markdown = await asyncio.to_thread(convert, "<hr>".join(html))

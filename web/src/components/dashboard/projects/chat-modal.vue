@@ -18,14 +18,24 @@
           }"
         >
           <template #content="{ message }">
-            <p :key="message.id">
-              {{ getTextFromMessage(message) }}
-            </p>
+            <div class="min-w-20 p-2">
+              <p class="mb-4">{{ getTextFromMessage(message) }}</p>
+              <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
+                <UBadge
+                  :style="{
+                    backgroundColor: statusColorMap[(message as UIMessageWithStatus).status],
+                  }"
+                >
+                  {{ (message as UIMessageWithStatus).status }}
+                </UBadge>
+              </small>
+            </div>
           </template>
         </UChatMessages>
 
         <template #prompt>
           <UChatPrompt
+            ref="promptRef"
             placeholder="Введите своё сообщение"
             v-model="input"
             icon="i-lucide-search"
@@ -43,12 +53,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
+
 import { getTextFromMessage } from '@nuxt/ui/utils/ai'
-import { useChat } from '@/composables/use-chat'
+import { useChat, type UIMessageWithStatus } from '@/composables/use-chat'
 import { useAuth } from '@/composables/use-auth'
 
 const input = ref('')
+const promptRef = ref<ComponentPublicInstance | null>(null)
+
+const statusColorMap = {
+  init: '#006a6c',
+  engage: '#8e90ff',
+  offer: '#ffab00',
+  closing: '#71dd37',
+} as const
 
 const open = ref(false)
 const { id } = defineProps<{
@@ -60,10 +80,14 @@ const chat = useChat()
 
 async function handleSubmit(e: Event) {
   e.preventDefault()
-
   if (input.value.trim() && id) {
     await chat.sendMessage(id, input.value)
     input.value = ''
+
+    await nextTick()
+
+    const el = promptRef.value?.$el as HTMLInputElement | HTMLTextAreaElement | undefined
+    el?.querySelector('input,textarea')?.focus()
   }
 }
 
@@ -73,6 +97,8 @@ watch(
   async ([isOpen, id]) => {
     if (isOpen && id) {
       await chat.startWithPrompt(id)
+      const el = promptRef.value?.$el as HTMLInputElement | HTMLTextAreaElement | undefined
+      el?.querySelector('input,textarea')?.focus()
     }
   },
   { immediate: true },

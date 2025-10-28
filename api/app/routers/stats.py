@@ -1,16 +1,17 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.common.models.enums import DialogStatus  # ваш enum из проекта
 from app.common.models.orm import Dialog
 from app.dto.stats import StatsIn, StatsOut
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/stats", tags=["Stats"])
 
 
 @router.post("/", response_model=StatsOut)
-async def get_stats(payload: StatsIn):
+async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
     date_from, date_to = payload.date_from, payload.date_to
-    filters = payload.to_filter_q()
+    filters = payload.to_filter_q(user_id=user.id)
 
     rows = await Dialog.filter(filters).values("status", "started_at")
 
