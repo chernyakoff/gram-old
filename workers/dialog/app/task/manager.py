@@ -162,12 +162,12 @@ class DialogManager:
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 
-        await asyncio.sleep(random.randint(10, 40))
+        await asyncio.sleep(random.randint(3, 10))
         await self.client.send_read_acknowledge(event.chat_id)  # type: ignore
 
         async with self.client.action(event.chat_id, "typing"):  # type: ignore
             # Отправляем сообщение
-            await asyncio.sleep(random.randint(20, 60))
+            await asyncio.sleep(random.randint(3, 10))
             msg = await self.telegram_service.send_message(recipient, ai_response)
 
         if msg:

@@ -93,8 +93,9 @@ class AIService:
         text = response
 
         status = get_ooc_status(response)
+        text = strip_ooc_status(text)
+
         if status:
-            text = strip_ooc_status(text)
             if status:
                 logger.info(f"AI установил статус: {status.value}")
             else:
