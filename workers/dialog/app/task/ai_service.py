@@ -60,10 +60,10 @@ class AIService:
             if not response:
                 return None, None
 
-            if response.strip() == "COMPLETE":
+            text, new_status = self._parse_response(response, logger)
+            if text.strip() == "COMPLETE":
                 return "COMPLETE", enums.DialogStatus.COMPLETE
 
-            text, new_status = self._parse_response(response, logger)
             return text, new_status
 
         except Exception as e:

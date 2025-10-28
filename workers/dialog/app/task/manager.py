@@ -159,8 +159,12 @@ class DialogManager:
 
         if not ai_response:  # такого не может быть - добавил для type check
             return
+
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
+
+        if ai_response == "COMPLETE":
+            return
 
         await asyncio.sleep(random.randint(3, 10))
         await self.client.send_read_acknowledge(event.chat_id)  # type: ignore
