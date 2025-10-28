@@ -85,9 +85,12 @@ async function handleSubmit(e: Event) {
     input.value = ''
 
     await nextTick()
-
-    const el = promptRef.value?.$el as HTMLInputElement | HTMLTextAreaElement | undefined
-    el?.querySelector('input,textarea')?.focus()
+    const root = promptRef.value?.$el as HTMLElement | undefined
+    const inputEl = root?.querySelector('input,textarea') as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null
+    inputEl?.focus()
   }
 }
 
@@ -97,8 +100,13 @@ watch(
   async ([isOpen, id]) => {
     if (isOpen && id) {
       await chat.startWithPrompt(id)
-      const el = promptRef.value?.$el as HTMLInputElement | HTMLTextAreaElement | undefined
-      el?.querySelector('input,textarea')?.focus()
+      await nextTick()
+      const root = promptRef.value?.$el as HTMLElement | undefined
+      const inputEl = root?.querySelector('input,textarea') as
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | null
+      inputEl?.focus()
     }
   },
   { immediate: true },
