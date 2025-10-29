@@ -20,13 +20,20 @@ const props = defineProps({
 
 const isDark = computed(() => document.documentElement.classList.contains('dark'))
 
+const labelsMap = {
+  init: 'начат',
+  engage: 'интерес',
+  offer: 'заявка',
+  closing: 'закрыт',
+} as const
+
 // --- series для area chart ---
 const series = computed(() => {
   if (!props.statsData) return []
 
   const start = new Date(props.startDate)
   return Object.keys(props.statsData).map((key) => ({
-    name: key,
+    name: labelsMap[key as keyof typeof labelsMap], // Element implicitly has an 'any' type because expression of type 'string'
     data: props.statsData[key as keyof StatsOut].map((value, idx) => {
       const d = new Date(start)
       d.setDate(start.getDate() + idx)

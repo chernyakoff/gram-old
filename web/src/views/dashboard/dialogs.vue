@@ -64,6 +64,6 @@ const statuses = [
   { label: 'начат.', value: 'init' },
   { label: 'интерес', value: 'engage' },
   { label: 'заявка', value: 'offer' },
-  { label: 'закрыт', value: 'close' },
+  { label: 'закрыт', value: 'closing' },
 ]
 </script>
