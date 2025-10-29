@@ -44,7 +44,7 @@ const { login } = useAuth()
 const showLoginModal = ref(false)
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.BOT_NAME
-const USE_MOCK_LOGIN = true
+const USE_MOCK_LOGIN = import.meta.env.MOCK_LOGIN == 1
 
 interface TelegramUser {
   id: number
