@@ -1,6 +1,5 @@
 <template>
-  <UModal v-model:open="open" title="Загрузка аккаунтов" description="session/json">
-    <UButton label="Загрузить аккаунты" icon="bx:upload" />
+  <UModal v-model:open="open" title=" аккаунтов" description="session/json">
     <template #body>
       <div class="tab-panel">
         <UFileUpload v-model="fileValue" class="w-full h-full" label="ZIP" />
@@ -52,17 +51,3 @@ async function handleUpload() {
   }
 }
 </script>
-<style scoped>
-:deep(.tab-panel) {
-  min-height: 200px;
-  height: 200px;
-  display: flex;
-  flex-direction: column;
-}
-
-:deep(.tab-panel textarea) {
-  height: 100% !important;
-  min-height: 0 !important;
-  resize: none !important;
-}
-</style>

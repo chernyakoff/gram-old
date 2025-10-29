@@ -14,10 +14,8 @@
             <UButton color="neutral" variant="subtle" icon="i-lucide-calendar">
               <template v-if="range.start">
                 <template v-if="range.end">
-                  {{ df.format(range.start.toDate(getLocalTimeZone())) }} -
-                  {{ df.format(range.end.toDate(getLocalTimeZone())) }}
+                  {{ df.format(range.start.toDate(getLocalTimeZone())) }} - {{ df.format(range.end.toDate(getLocalTimeZone())) }}
                 </template>
-
                 <template v-else>
                   {{ df.format(range.start.toDate(getLocalTimeZone())) }}
                 </template>
@@ -30,52 +28,23 @@
           </UPopover>
         </div>
         <div>
-          <USelectMenu
-            placeholder="Выберите проект"
-            v-model="projectId"
-            :items="projects"
-            class="w-full"
-            value-key="id"
-            label-key="name"
-          />
+          <USelectMenu placeholder="Выберите проект" v-model="projectId" :items="projects" class="w-full" value-key="id" label-key="name" />
         </div>
         <div>
-          <USelectMenu
-            placeholder="Выберите аккаунт"
-            v-model="accountId"
-            :items="accounts"
-            class="w-full"
-            value-key="id"
-            label-key="name"
-          />
+          <USelectMenu placeholder="Выберите аккаунт" v-model="accountId" :items="accounts" class="w-full" value-key="id" label-key="name" />
         </div>
         <div>
-          <USelectMenu
-            placeholder="Выберите рассылку"
-            v-model="mailingId"
-            :items="mailings"
-            class="w-full"
-            value-key="id"
-            label-key="name"
-          />
+          <USelectMenu placeholder="Выберите рассылку" v-model="mailingId" :items="mailings" class="w-full" value-key="id" label-key="name" />
         </div>
       </div>
       <div :class="containerClass" class="w-full gap-4 transition-all duration-500">
-        <UCard
-          :class="[firstCardClass, 'bg-gray-100 dark:bg-gray-800']"
-          class="relative transition-all duration-500"
-        >
+        <UCard :class="[firstCardClass, 'bg-gray-100 dark:bg-gray-800']" class="relative transition-all duration-500">
           <div class="absolute top-2 right-2">
             <button @click="toggleFullWidth" class="btn btn-sm">🔄</button>
           </div>
-
           <AreaChart :stats-data="statsData" :start-date="startDate" />
         </UCard>
-
-        <UCard
-          :class="[secondCardClass, 'bg-gray-100 dark:bg-gray-800']"
-          class="transition-all duration-500"
-        >
+        <UCard :class="[secondCardClass, 'bg-gray-100 dark:bg-gray-800']" class="transition-all duration-500">
           <BarChart :stats-data="statsData" />
         </UCard>
       </div>
@@ -166,14 +135,21 @@ onMounted(async () => {
   accounts.value = await getAccountList()
   statsData.value = await getStats(getPayload())
 })
+const getPayload = (): StatsIn => {
+  const start = range.value.start.toDate(getLocalTimeZone());
+  const end = range.value.end.toDate(getLocalTimeZone());
 
-const getPayload = (): StatsIn => ({
-  dateFrom: range.value.start.toDate(getLocalTimeZone()).toISOString().slice(0, 10),
-  dateTo: range.value.end.toDate(getLocalTimeZone()).toISOString().slice(0, 10),
-  projectId: projectId.value ?? null,
-  accountId: accountId.value ?? null,
-  mailingId: mailingId.value ?? null,
-})
+  // Добавляем день
+  end.setDate(end.getDate() + 1);
+
+  return {
+    dateFrom: start.toISOString().slice(0, 10),
+    dateTo: end.toISOString().slice(0, 10),
+    projectId: projectId.value ?? null,
+    accountId: accountId.value ?? null,
+    mailingId: mailingId.value ?? null,
+  }
+}
 
 watch(
   [range, projectId, accountId, mailingId],

@@ -34,6 +34,17 @@
         <template #project-cell="{ row }">
           {{ row.original.project?.name ?? 'не назначен' }}
         </template>
+        <template #premium-cell="{ row }">
+          <div class="flex items-center gap-1 justify-center">
+            <template v-if="row.original.premium">⭐</template>
+
+            <template v-else>
+              <button class="flex items-center gap-1" @click="openPremiumModal(row.original)">
+                <UIcon name="bx:cart" class="h-6 w-6" />
+              </button>
+            </template>
+          </div>
+        </template>
         <template #name-cell="{ row }">
           <div class="flex items-center gap-3" @click="openDrawer(row.original)">
             <UButton
@@ -73,12 +84,20 @@
     :key="selectedAccountId"
     @completed="refresh"
   />
+  <PremiumModal
+    v-if="selectedAccountId !== null"
+    v-model:open="premiumModalOpen"
+    :accountId="selectedAccountId"
+    :key="selectedAccountId"
+    @completed="refresh"
+  />
 </template>
 <script setup lang="ts">
 import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vue'
 import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
 import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
+import PremiumModal from '@/components/dashboard/accounts/premium-modal.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useDateFormat } from '@vueuse/core'
@@ -97,6 +116,8 @@ onMounted(() => get())
 
 // Drawer управление
 const drawerOpen = ref(false)
+const premiumModalOpen = ref(false)
+
 const selectedAccountId = ref<number | null>(null)
 
 function openDrawer(account: AccountOut) {
@@ -107,6 +128,11 @@ function openDrawer(account: AccountOut) {
     })
     return
   }
+  selectedAccountId.value = account.id
+  drawerOpen.value = true
+}
+
+function openPremiumModal(account: AccountOut) {
   selectedAccountId.value = account.id
   drawerOpen.value = true
 }
@@ -144,6 +170,16 @@ const columns: TableColumn<AccountOut>[] = [
     accessorKey: 'name',
     header: 'Имя',
   },
+  {
+    accessorKey: 'premium',
+    header: 'Премиум',
+    meta: {
+      class: {
+        th: 'text-center',
+        td: 'text-center',
+      },
+    },
+  },
   /*  {
     accessorKey: 'about',
     header: 'Профиль',
@@ -155,10 +191,6 @@ const columns: TableColumn<AccountOut>[] = [
   {
     accessorKey: 'channel',
     header: 'Канал',
-  },
-  {
-    accessorKey: 'premium',
-    header: 'Премиум',
   },
   {
     accessorKey: 'busy',
