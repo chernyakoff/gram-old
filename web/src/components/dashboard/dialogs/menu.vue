@@ -19,14 +19,23 @@
         @click="selectedDialog = dialog"
       >
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">@{{ dialog.recipient }}</div>
-          <span>{{ useDateFormat(dialog.startedAt, 'HH:MM DD.MM.YY') }}</span>
-          <UChip :color="statusColor[dialog.status]" />
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-3">@{{ dialog.recipient }}</div>
+            <span class="text-xs text-muted">
+              {{ useDateFormat(dialog.startedAt, 'HH:mm DD.MM.YY') }}
+            </span>
+          </div>
+          <!-- Простой кружочек -->
+          <span
+            class="w-3 h-3 rounded-full"
+            :style="{ backgroundColor: statusColor[dialog.status] }"
+          />
         </div>
       </div>
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
 import { watch } from 'vue'
 import { ref } from 'vue'
@@ -39,10 +48,10 @@ defineProps<{
 }>()
 
 const statusColor = {
-  init: 'neutral',
-  engage: 'warning',
-  offer: 'success',
-  closing: 'info',
+  init: '#006a6c',
+  engage: '#8e90ff',
+  offer: '#ffab00',
+  closing: '#71dd37',
 } as const
 
 const dialogRefs = ref<Record<string, Element>>({})
@@ -53,7 +62,6 @@ watch(selectedDialog, () => {
   if (!selectedDialog.value) {
     return
   }
-  //Element implicitly has an 'any' type because index expression is not of type 'number'
   const ref = dialogRefs.value[selectedDialog.value.id]
   if (ref) {
     ref.scrollIntoView({ block: 'nearest' })

@@ -23,7 +23,7 @@ const { statsData } = defineProps({
   },
 })
 
-const categories = ['Всего диалогов', 'Получено ответов', 'Проявлен интерес', 'Успешных диалогов']
+const categories = ['начат', 'интерес', 'заявка', 'закрыт']
 
 const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37']
 
