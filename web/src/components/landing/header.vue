@@ -66,8 +66,8 @@ const rawMock = `{
     "last_name": "С",
     "username": "chernyakoff",
     "photo_url": "https://t.me/i/userpic/320/E5CF1DXAc92hvxFoNm0Z4y4Z4ycjpk6DqbKdvmjyVyw.jpg",
-    "auth_date": 1761654200,
-    "hash": "6c6627cd20adb2efd9ab4338c06e6d01cae7ec247dca8b8e2fcf0098d6b1c949"
+    "auth_date": 1761748825,
+    "hash": "7ad10ab71acef242d1209e09291110f421b5bb72c2c3f92d470bc497efe31303"
 }`
 
 function parseUserLogin (raw: string): UserLoginIn {

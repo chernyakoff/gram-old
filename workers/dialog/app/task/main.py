@@ -91,11 +91,16 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
             for recipient_id in input.recipients_id:
                 recipient = await orm.Recipient.get(id=recipient_id)
+
                 manager.register_session_recipient(recipient.id)
 
                 # Получаем entity
                 entity = await manager.telegram_service.get_entity(recipient)
                 if not entity:
+                    continue
+
+                dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
+                if dialog_exists:
                     continue
 
                 # Отправляем первое сообщение
