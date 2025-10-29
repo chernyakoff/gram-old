@@ -32,5 +32,5 @@ web:
 
 openai:
   api_key: "sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE"
-  model: "gemini-2.5-flash" #"gpt-4.1-mini"
+  model: "gpt-5-chat-latest" #"gpt-4.1-mini"
   base_url: "https://api.proxyapi.ru/openai/v1"
