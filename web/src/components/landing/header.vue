@@ -10,8 +10,7 @@
         icon="i-lucide-log-in"
         variant="subtle"
         class="hidden lg:block"
-        @click="showLoginModal = true"
-      />
+        @click="showLoginModal = true" />
       <UColorModeButton />
     </template>
     <template #body>
@@ -21,11 +20,9 @@
         label="Войти"
         variant="subtle"
         block
-        @click="showLoginModal = true"
-      />
+        @click="showLoginModal = true" />
     </template>
   </UHeader>
-
   <!-- Один модальный компонент для обеих кнопок -->
   <UModal v-model:open="showLoginModal" title="Логин">
     <template #body>
@@ -35,7 +32,6 @@
     </template>
   </UModal>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import Logo from '@/components/shared/logo.vue'
@@ -46,7 +42,7 @@ const { login } = useAuth()
 const showLoginModal = ref(false)
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.BOT_NAME
-const USE_MOCK_LOGIN = true
+const USE_MOCK_LOGIN = false
 
 interface TelegramUser {
   id: number
@@ -74,7 +70,7 @@ const rawMock = `{
     "hash": "6c6627cd20adb2efd9ab4338c06e6d01cae7ec247dca8b8e2fcf0098d6b1c949"
 }`
 
-function parseUserLogin(raw: string): UserLoginIn {
+function parseUserLogin (raw: string): UserLoginIn {
   const data = JSON.parse(raw)
   return {
     id: data.id,
