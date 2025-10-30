@@ -6,6 +6,7 @@ export const cardDetailsSchema = v.pipe(
       v.string(),
       v.transform((val) => val.replace(/\s+/g, '')),
       v.nonEmpty('Номер карты не может быть пустым'),
+      v.regex(/^\d+$/, 'Номер карты должен содержать только цифры'),
     ),
     month: v.pipe(
       v.number('Месяц должен быть в диапазоне 1..12'),

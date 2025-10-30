@@ -45,6 +45,12 @@ export interface components {
             projectId: number;
             accountIds: number[];
         };
+        CardDetails: {
+            number: string;
+            month: number;
+            year: number;
+            cvv: string;
+        };
         ChatIn: {
             status: components["schemas"]["DialogStatus"];
             projectId: number;
@@ -82,7 +88,7 @@ export interface components {
             recipient: string;
             startedAt: string;
         };
-        DialogStatus: "init" | "engage" | "offer" | "closing";
+        DialogStatus: "init" | "engage" | "offer" | "closing" | "complete";
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
@@ -233,6 +239,7 @@ export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
+export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
 export type ContactOut = components['schemas']['ContactOut'];
