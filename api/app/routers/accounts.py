@@ -13,6 +13,7 @@ from app.dto.account import (
     AccountsBulkCreateIn,
     BindProjectIn,
 )
+from app.dto.card import CardDetails
 from app.dto.common import WorkflowOut
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
@@ -100,3 +101,7 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
         project_id=data.project_id
     )
 
+
+@router.post("/{id}/premium")
+async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)):
+    pass

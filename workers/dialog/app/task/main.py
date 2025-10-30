@@ -51,6 +51,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related("user")
 
+    if account.busy:
+        logger.warning(f"Account {account.id} уже занят другим воркером")
+        return
     # Аккаунт уже захвачен в heartbeat, не нужно acquire
 
     pool = ProxyPool(account.user_id)
@@ -142,9 +145,11 @@ async def dialog_task(input: DialogIn, ctx: Context):
             logger.info(f"Account {account.id} вошёл в режим ожидания сообщений")
 
             while tz.now() < end_time and not stop_event.is_set():
+                # await client.connect() """
                 if not client.is_connected():
-                    logger.warning("Потеряно соединение, переподключаемся...")
-                    await client.connect()
+                    logger.error("Потеряно соединение, завершаем задачу")
+                    await release_account(account, error="Connection lost")
+                    return
                 await asyncio.sleep(30)  # ping каждые 30 сек
 
             if stop_event.is_set():

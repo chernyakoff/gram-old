@@ -33,7 +33,7 @@ const series = computed(() => {
 
   const start = new Date(props.startDate)
   return Object.keys(props.statsData).map((key) => ({
-    name: labelsMap[key as keyof typeof labelsMap], // Element implicitly has an 'any' type because expression of type 'string'
+    name: labelsMap[key as keyof typeof labelsMap],
     data: props.statsData[key as keyof StatsOut].map((value, idx) => {
       const d = new Date(start)
       d.setDate(start.getDate() + idx)

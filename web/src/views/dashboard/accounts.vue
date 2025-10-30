@@ -39,7 +39,7 @@
             <template v-if="row.original.premium">⭐</template>
 
             <template v-else>
-              <button class="flex items-center gap-1" @click="openPremiumModal(row.original)">
+              <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
                 <UIcon name="bx:cart" class="h-6 w-6" />
               </button>
             </template>
@@ -84,9 +84,9 @@
     :key="selectedAccountId"
     @completed="refresh"
   />
-  <PremiumModal
+  <PremiumDrawer
     v-if="selectedAccountId !== null"
-    v-model:open="premiumModalOpen"
+    v-model:open="premiumDrawerOpen"
     :accountId="selectedAccountId"
     :key="selectedAccountId"
     @completed="refresh"
@@ -97,7 +97,7 @@ import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vu
 import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
 import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
-import PremiumModal from '@/components/dashboard/accounts/premium-modal.vue'
+import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useDateFormat } from '@vueuse/core'
@@ -116,7 +116,7 @@ onMounted(() => get())
 
 // Drawer управление
 const drawerOpen = ref(false)
-const premiumModalOpen = ref(false)
+const premiumDrawerOpen = ref(false)
 
 const selectedAccountId = ref<number | null>(null)
 
@@ -132,9 +132,9 @@ function openDrawer(account: AccountOut) {
   drawerOpen.value = true
 }
 
-function openPremiumModal(account: AccountOut) {
+function openPremiumDrawer(account: AccountOut) {
   selectedAccountId.value = account.id
-  drawerOpen.value = true
+  premiumDrawerOpen.value = true
 }
 
 const refresh = () => {
