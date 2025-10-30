@@ -13,7 +13,7 @@ from app.tasks.proxies.pool import ProxyPool
 from app.tasks.proxies.utils import get_user_proxies
 
 logging.basicConfig(
-    level=logging.INFO,  # или DEBUG для больше боли
+    level=logging.WARNING,  # или DEBUG для больше боли
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 

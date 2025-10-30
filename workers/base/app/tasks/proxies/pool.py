@@ -102,13 +102,17 @@ class ProxyPool:
         try:
             while True:
                 await asyncio.sleep(self.heartbeat_interval)
+
                 async with self._lock:
                     if not self._active_proxies:
-                        break  # все прокси освобождены → можно завершить heartbeat
+                        break
                     proxy_ids = list(self._active_proxies.keys())
-                    if proxy_ids:
-                        await Proxy.filter(id__in=proxy_ids).update(
-                            locked_until=tz.now() + timedelta(seconds=self.ttl)
-                        )
+
+                # Внимание: транзакция должна быть СЗДЕСЬ, а не снаружи
+                async with in_transaction("default"):
+                    await Proxy.filter(id__in=proxy_ids).update(
+                        locked_until=tz.now() + timedelta(seconds=self.ttl)
+                    )
+
         except asyncio.CancelledError:
             pass
