@@ -93,6 +93,12 @@ class ProxyPool:
     async def release(self, proxy: Proxy):
         async with self._lock:
             self._active_proxies.pop(proxy.id, None)
+
+            # <--- Вставить вот это
+            if not self._active_proxies and self._heartbeat_task:
+                self._heartbeat_task.cancel()
+                self._heartbeat_task = None
+
         await Proxy.filter(id=proxy.id, lock_session=proxy.lock_session).update(
             locked_until=None, lock_session=None
         )
@@ -104,15 +110,15 @@ class ProxyPool:
                 await asyncio.sleep(self.heartbeat_interval)
 
                 async with self._lock:
-                    if not self._active_proxies:
-                        break
                     proxy_ids = list(self._active_proxies.keys())
 
-                # Внимание: транзакция должна быть СЗДЕСЬ, а не снаружи
-                async with in_transaction("default"):
-                    await Proxy.filter(id__in=proxy_ids).update(
-                        locked_until=tz.now() + timedelta(seconds=self.ttl)
-                    )
+                if not proxy_ids:
+                    return  # <-- завершаем таск полностью
+
+                # тут транзакция НЕ нужна, update сам возьмёт коннект
+                await Proxy.filter(id__in=proxy_ids).update(
+                    locked_until=tz.now() + timedelta(seconds=self.ttl)
+                )
 
         except asyncio.CancelledError:
             pass

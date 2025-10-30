@@ -5,6 +5,7 @@ from typing import cast
 from cyclopts import App
 from rich import print
 from telethon import types
+from tortoise.transactions import in_transaction
 
 from app.common.models import orm
 from app.tasks.accounts.model import Account
@@ -49,6 +50,10 @@ async def check(id: str):
         try:
             async with pool.proxy(account.country, timeout=30) as proxy:
                 client = account.create_client(proxy)
+                orm_account.busy = True
+                async with in_transaction("default"):
+                    await orm_account.save()
+
                 try:
                     await client.connect()
                     if not await client.is_user_authorized():
@@ -63,6 +68,9 @@ async def check(id: str):
                     logger.error(f"{account.phone} - {e}")
                 finally:
                     await client.disconnect()  # type: ignore
+                    orm_account.busy = False
+                    async with in_transaction("default"):
+                        await orm_account.save()
 
         except TimeoutError:
             logger.warning("нет доступного прокси")

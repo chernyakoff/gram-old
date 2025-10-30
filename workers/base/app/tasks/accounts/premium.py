@@ -68,18 +68,24 @@ async def accounts_update(input: BuyPremiumIn, ctx: Context):
 
                 await client.send_message(PREMIUM_BOT, "/start")
                 await asyncio.sleep(2)
-                messages = await client.get_messages(PREMIUM_BOT, limit=4)
+                messages = await client.get_messages(
+                    PREMIUM_BOT, limit=4
+                )  #  messages: TotalList | Message | None
                 if not messages:
                     raise Exception("PremiumBot не ответил на /start")
+                if isinstance(messages, types.Message):
+                    messages = [messages]
 
-                invoice_msg = next((x for x in messages if x.invoice), None)
+                invoice_msg = next(
+                    (x for x in messages if x.invoice), None
+                )  # Cannot access attribute "invoice" for class "Message"
 
                 if not invoice_msg:
                     raise Exception("PremiumBot не дает ссылку на оплату")
 
-                invoice = InputInvoiceMessage(
+                """ invoice = InputInvoiceMessage(
                     peer=invoice_msg.input_chat, msg_id=invoice_msg.id
-                )
+                ) """
 
             except SessionExpiredError as e:
                 await logger.error(str(e))
