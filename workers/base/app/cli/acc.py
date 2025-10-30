@@ -33,17 +33,17 @@ async def check(id: str):
         logger.error("пользователь не найден")
         return
 
-    proxies = await get_user_proxies(input.user_id)
+    proxies = await get_user_proxies(user.id)
     if not proxies:
         logger.error("отсутствуют валидные прокси")
         return
 
-    orm_accounts = await orm.Account.filter(user_id=id, busy=False).all()
+    orm_accounts = await orm.Account.filter(user_id=user.id, busy=False).all()
     if not orm_accounts:
         logger.error("отсутствуют свободные аккаунты")
         return
 
-    pool = ProxyPool(input.user_id)
+    pool = ProxyPool(user.id)
     for orm_account in orm_accounts:
         account = await Account.from_orm(orm_account)
         try:
