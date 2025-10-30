@@ -51,9 +51,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related("user")
 
-    if account.busy:
-        logger.warning(f"Account {account.id} уже занят другим воркером")
-        return
+   
     # Аккаунт уже захвачен в heartbeat, не нужно acquire
 
     pool = ProxyPool(account.user_id)
