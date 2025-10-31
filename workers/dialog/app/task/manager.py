@@ -5,12 +5,27 @@ from functools import partial
 from telethon import TelegramClient
 from telethon.events import NewMessage
 from tortoise import timezone as tz
+from tortoise.expressions import Q
 
 from app.common.models import enums, orm
 from app.utils.logger import Logger
 
 from .ai_service import AIService
 from .telegram_service import TelegramService
+
+
+async def get_last_active_dialog(username: str, account_id: int) -> orm.Dialog | None:
+    dialog = (
+        await orm.Dialog.filter(
+            recipient__username=username,
+            account_id=account_id,
+        )
+        .exclude(status=enums.DialogStatus.COMPLETE)
+        .order_by("-started_at")
+        .prefetch_related("recipient")
+        .first()
+    )
+    return dialog
 
 
 class DialogManager:
@@ -63,27 +78,14 @@ class DialogManager:
             text = event.raw_text
 
             # Находим recipient
-            recipient = await orm.Recipient.filter(
-                username=sender.username, id__in=self.session_recipients_ids
-            ).first()
-
-            if not recipient:
-                return
-
-            # Получаем или создаём диалог
-            dialog = await orm.Dialog.get_or_none(recipient=recipient)
+            dialog = await get_last_active_dialog(sender.username, self.account.id)
             if not dialog:
-                dialog = await orm.Dialog.create(
-                    recipient=recipient,
-                    status=enums.DialogStatus.INIT,
-                    account=self.account,
-                )
-
-            if dialog.status == enums.DialogStatus.COMPLETE:
                 self.logger.info(
-                    f"[{recipient.username}] Диалог уже закрыт, пропускаем"
+                    f"[{sender.username}] Получено новое сообщение, но диалог не найден"
                 )
                 return
+
+            recipient = dialog.recipient
 
             # Сохраняем сообщение от получателя
             await orm.Message.create(

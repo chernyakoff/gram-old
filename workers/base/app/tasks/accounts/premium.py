@@ -68,7 +68,7 @@ async def tokenize_card(public_token: str, card: CardDetails):
 
 
 @hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
-async def accounts_update(input: BuyPremiumIn, ctx: Context):
+async def buy_premium(input: BuyPremiumIn, ctx: Context):
     print(input.model_dump())
 
     await asyncio.sleep(2)  # эмуляция задержки

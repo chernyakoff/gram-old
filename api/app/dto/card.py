@@ -40,6 +40,6 @@ class CardDetails(BaseModel):
     @model_validator(mode="after")
     def check_not_expired(self):
         now = datetime.now()
-        if (self.expiration_year, self.expiration_month) < (now.year, now.month):
+        if (self.year, self.month) < (now.year, now.month):
             raise ValueError("Карта просрочена")
         return self

@@ -5,6 +5,7 @@ from tortoise import BaseDBAsyncClient
 
 from app.client import hatchet
 from app.config import init_db, shutdown_db, worker_config
+from app.tasks.accounts.premium import buy_premium
 from app.tasks.accounts.update import accounts_update
 from app.tasks.accounts.upload import accounts_upload
 from app.tasks.heartbeat.task import heartbeat
@@ -31,6 +32,12 @@ async def lifespan() -> AsyncGenerator[LifespanContext, None]:
 worker = hatchet.worker(
     name=worker_config.name,
     slots=worker_config.slots,
-    workflows=[proxies_upload, accounts_upload, accounts_update, heartbeat],
+    workflows=[
+        proxies_upload,
+        accounts_upload,
+        accounts_update,
+        buy_premium,
+        heartbeat,
+    ],
     lifespan=lifespan,
 )
