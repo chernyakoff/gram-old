@@ -71,10 +71,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
             logger.info(f"Account {account.id} подключен к Telegram")
 
-            me = await client.get_me()
-
-            print(me)
-            """ project = await orm.Project.get(id=account.project_id)  # type: ignore
+            project = await orm.Project.get(id=account.project_id)  # type: ignore
             limiter = AccountLimiter(account)
 
             # Создаём менеджер диалогов
@@ -137,7 +134,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                     break
 
                 # Задержка между отправками
-                await asyncio.sleep(random.randint(60, 180)) """
+                await asyncio.sleep(random.randint(60, 180))
 
             # Основной цикл – держим соединение
             logger.info(f"Account {account.id} вошёл в режим ожидания сообщений")
