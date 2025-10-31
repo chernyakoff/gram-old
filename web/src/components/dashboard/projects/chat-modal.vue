@@ -68,6 +68,7 @@ const statusColorMap = {
   engage: '#8e90ff',
   offer: '#ffab00',
   closing: '#71dd37',
+  complete: '#fff',
 } as const
 
 const open = ref(false)
