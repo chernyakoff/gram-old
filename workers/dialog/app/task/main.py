@@ -16,7 +16,7 @@ from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
 from app.utils.proxy_pool import ProxyPool
 
-SESSION_LIFETIME_HOURS = 6
+SESSION_LIFETIME_HOURS = 2
 
 
 class DialogIn(BaseModel):
@@ -46,13 +46,10 @@ async def release_account(account: orm.Account, error: str | None = None):
     schedule_timeout=timedelta(hours=SESSION_LIFETIME_HOURS),
 )
 async def dialog_task(input: DialogIn, ctx: Context):
-    """Главная задача для работы с диалогами"""
-
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related("user")
-
-   
-    # Аккаунт уже захвачен в heartbeat, не нужно acquire
+    if not account:
+        return
 
     pool = ProxyPool(account.user_id)
     account_util = await AccountUtil.from_orm(account)
@@ -74,7 +71,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
             logger.info(f"Account {account.id} подключен к Telegram")
 
-            project = await orm.Project.get(id=account.project_id)  # type: ignore
+            me = await client.get_me()
+
+            print(me)
+            """ project = await orm.Project.get(id=account.project_id)  # type: ignore
             limiter = AccountLimiter(account)
 
             # Создаём менеджер диалогов
@@ -137,18 +137,19 @@ async def dialog_task(input: DialogIn, ctx: Context):
                     break
 
                 # Задержка между отправками
-                await asyncio.sleep(random.randint(60, 180))
+                await asyncio.sleep(random.randint(60, 180)) """
 
             # Основной цикл – держим соединение
             logger.info(f"Account {account.id} вошёл в режим ожидания сообщений")
 
             while tz.now() < end_time and not stop_event.is_set():
-                # await client.connect() """
                 if not client.is_connected():
+                    # await client.connect() """
                     logger.error("Потеряно соединение, завершаем задачу")
                     await release_account(account, error="Connection lost")
                     return
                 await asyncio.sleep(30)  # ping каждые 30 сек
+                print("ТИКАЕМ")
 
             if stop_event.is_set():
                 logger.info(f"Account {account.id} остановлен: достигнут лимит")
@@ -170,12 +171,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     finally:
         try:
-            if client and client.is_connected():
-                await client.disconnect()  # type: ignore
-                logger.info("Клиент корректно отключён")
+            await client.disconnect()  # type: ignore
+            logger.info("Клиент корректно отключён")
         except Exception as e:
             logger.error(f"Ошибка при отключении клиента: {e}")
 
-        # Если не было ошибки выше – делаем нормальный release
-        if not account.last_error:
-            await release_account(account)
+        await release_account(account)

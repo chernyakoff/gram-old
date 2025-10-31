@@ -1,21 +1,26 @@
 import asyncio
-from io import BytesIO
+import json
 from typing import cast
 
+import aiohttp
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient, types
-from telethon.tl.types import DataJSON, InputInvoiceMessage, InputPaymentCredentials
+from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
+from telethon.tl.types import (
+    DataJSON,
+    InputInvoiceMessage,
+    InputPaymentCredentials,
+    MessageMediaInvoice,
+)
 from telethon.tl.types.payments import PaymentVerificationNeeded
 
 from app.client import hatchet
 from app.common.models import orm
-from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
 from app.tasks.accounts.model import Account
 from app.tasks.proxies.pool import ProxyPool
 from app.tasks.proxies.utils import get_user_proxies
-from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -33,6 +38,35 @@ class BuyPremiumIn(BaseModel):
     card: CardDetails
 
 
+async def tokenize_card(public_token: str, card: CardDetails):
+    card_info = {
+        "card": {
+            "number": card.number,
+            "expiration_month": card.month,
+            "expiration_year": card.year,
+            "security_code": card.cvv,
+        }
+    }
+
+    tokenization_url = "https://tgb.smart-glocal.com/cds/v1/tokenize/card"
+    headers = {
+        "X-PUBLIC-TOKEN": public_token,
+        "Content-Type": "application/json",
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            tokenization_url, json=card_info, headers=headers
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                token = data["data"]["token"]
+                payment_json = json.dumps({"token": token, "type": "card"})
+                return True, payment_json
+            else:
+                return False, None
+
+
 @hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
 async def accounts_update(input: BuyPremiumIn, ctx: Context):
     print(input.model_dump())
@@ -40,6 +74,7 @@ async def accounts_update(input: BuyPremiumIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
 
     logger = StreamLogger(ctx)
+    card = input.card
 
     orm_account = await orm.Account.get(id=input.account_id)
 
@@ -66,26 +101,64 @@ async def accounts_update(input: BuyPremiumIn, ctx: Context):
                 if me.premium:
                     raise Exception("На этом аккаунте уже есть премиум")
 
+                # получаем invoice message
                 await client.send_message(PREMIUM_BOT, "/start")
                 await asyncio.sleep(2)
-                messages = await client.get_messages(
-                    PREMIUM_BOT, limit=4
-                )  #  messages: TotalList | Message | None
+                messages = await client.get_messages(PREMIUM_BOT, limit=4)
                 if not messages:
-                    raise Exception("PremiumBot не ответил на /start")
+                    await logger.error("PremiumBot не ответил на /start")
+                    return
+
                 if isinstance(messages, types.Message):
                     messages = [messages]
 
                 invoice_msg = next(
-                    (x for x in messages if x.invoice), None
-                )  # Cannot access attribute "invoice" for class "Message"
+                    (m for m in messages if isinstance(m.media, MessageMediaInvoice)),
+                    None,
+                )
 
                 if not invoice_msg:
-                    raise Exception("PremiumBot не дает ссылку на оплату")
+                    raise Exception("Не найдено сообщение с invoice")
 
-                """ invoice = InputInvoiceMessage(
-                    peer=invoice_msg.input_chat, msg_id=invoice_msg.id
-                ) """
+                # получаем public_token
+                public_token = None
+                peer = await client.get_input_entity(invoice_msg.peer_id)
+                invoice = InputInvoiceMessage(peer=peer, msg_id=invoice_msg.id)
+                form_info = await client(GetPaymentFormRequest(invoice=invoice))
+                native = getattr(form_info, "native_params", None)
+                if native:
+                    # Это telethon.tl.types.DataJSON
+                    try:
+                        data = json.loads(native.data)
+                        public_token = data.get("public_token") or data.get(
+                            "publicToken"
+                        )
+                    except:
+                        pass
+                if not public_token:
+                    raise Exception("Не удается получить public_token")
+
+                success, tokenized_card = await tokenize_card(public_token, card)
+                if not success or not tokenized_card:
+                    raise Exception("Не удалось токенизировать карту")
+
+                send_data = await client(
+                    SendPaymentFormRequest(
+                        form_id=form_info.form_id,
+                        invoice=invoice,
+                        credentials=InputPaymentCredentials(
+                            data=DataJSON(tokenized_card)
+                        ),
+                    )
+                )
+
+                if isinstance(send_data, PaymentVerificationNeeded):
+                    # Нужно перекинуть пользователя на send_data.url
+                    verification_url = send_data.url
+                    return {"status": "verification_required", "url": verification_url}
+                else:
+                    # Успешная мгновенная оплата
+                    return {"status": "success", "result": send_data}
 
             except SessionExpiredError as e:
                 await logger.error(str(e))
