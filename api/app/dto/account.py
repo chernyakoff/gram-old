@@ -1,9 +1,10 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 from tortoise_serializer import ContextType, Serializer
 
-from app.common.models import orm
+from app.common.models import enums, orm
 from app.config import config
 from app.dto.project import ProjectBase
 
@@ -45,6 +46,8 @@ class AccountOut(AccountBase):
     created_at: datetime
     photos: list[AccountPhotoOut]
     project: ProjectBase | None
+    status: enums.AccountStatus
+    muted_until: Optional[datetime]
 
     @classmethod
     async def resolve_photos(
@@ -69,3 +72,7 @@ class AccountListOut(Serializer):
     @classmethod
     async def resolve_name(cls, instance: orm.Account, context: ContextType):
         return " ".join([str(instance.first_name), str(instance.last_name)])
+
+
+class AccountsCheckIn(BaseModel):
+    account_ids: list[int]

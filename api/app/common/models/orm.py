@@ -6,6 +6,7 @@ from tortoise.models import Model
 
 from .enums import (
     AccountAction,
+    AccountStatus,
     DialogStatus,
     MailingStatus,
     MessageSender,
@@ -140,6 +141,10 @@ class Account(Model, TimestampMixin):
         related_name="accounts",
         null=True,
     )
+    status = fields.CharEnumField(
+        AccountStatus, default=AccountStatus.GOOD, max_length=64
+    )
+    muted_until = fields.DatetimeField(null=True)
     premium = fields.BooleanField(default=False)
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]

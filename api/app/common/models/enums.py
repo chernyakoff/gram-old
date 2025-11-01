@@ -15,6 +15,14 @@ class Role(IntEnum):
     ADMIN = 7
 
 
+class AccountStatus(StrEnum):
+    GOOD = "good"
+    BANNED = "banned"
+    MUTED = "muted"
+    FROZEN = "frozen"
+    EXITED = "exited"
+
+
 class AccountAction(StrEnum):
     RESOLVE_USERNAME = "resolve_username"
     NEW_DIALOG = "new_dialog"

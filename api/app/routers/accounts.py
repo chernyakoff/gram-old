@@ -11,6 +11,7 @@ from app.dto.account import (
     AccountListOut,
     AccountOut,
     AccountsBulkCreateIn,
+    AccountsCheckIn,
     BindProjectIn,
 )
 from app.dto.card import CardDetails
@@ -64,7 +65,7 @@ async def get_accounts(user=Depends(get_current_user)):
 
 
 async def delete_accounts_photos(paths: list[str]):
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client() as s3:  # type: ignore
         await s3.delete_many(paths)
 
 
@@ -87,7 +88,7 @@ async def update_accounts(
     ref = await tasks.accounts_update.aio_run_no_wait(
         input=models.AccountsUpdateIn(**params)
     )
-    asyncio.create_task(watch_job(ref.workflow_run_id))
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
     return {"id": ref.workflow_run_id}
 
 
@@ -113,3 +114,14 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
     )
     response = await tasks.buy_premium.aio_run(input=input_model)
     return response
+
+
+@router.post("/check", response_model=WorkflowOut)
+async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
+    accounts = await orm.Account.filter(id__in=data.account_ids, user_id=user.id).all()
+    ids = [a.id for a in accounts]
+    ref = await tasks.accounts_check.aio_run_no_wait(
+        input=models.AccountsCheckIn(ids=ids)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}

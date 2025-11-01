@@ -5,6 +5,7 @@ from tortoise import BaseDBAsyncClient
 
 from app.client import hatchet
 from app.config import init_db, shutdown_db, worker_config
+from app.tasks.accounts.check import accounts_check
 from app.tasks.accounts.premium import buy_premium
 from app.tasks.accounts.update import accounts_update
 from app.tasks.accounts.upload import accounts_upload
@@ -36,6 +37,7 @@ worker = hatchet.worker(
         proxies_upload,
         accounts_upload,
         accounts_update,
+        accounts_check,
         buy_premium,
         heartbeat,
     ],

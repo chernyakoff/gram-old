@@ -12,6 +12,7 @@
     </template>
     <template #body>
       <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <CheckModal :selected-ids="selectedIds" @completed="refresh" />
         <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
         <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
       </div>
@@ -31,6 +32,9 @@
           td: 'border-b border-default',
         }"
       >
+        <template #status-cell="{ row }">
+          <AccoustStatusBadge :account="row.original" />
+        </template>
         <template #project-cell="{ row }">
           {{ row.original.project?.name ?? 'не назначен' }}
         </template>
@@ -96,8 +100,10 @@
 import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vue'
 import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
 import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
+import CheckModal from '@/components/dashboard/accounts/check-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
 import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
+import AccoustStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useDateFormat } from '@vueuse/core'
@@ -148,11 +154,25 @@ const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>
   isSelectable: (row) => !row.busy,
 })
 
+const columnCentered = {
+  meta: {
+    class: {
+      th: 'text-center',
+      td: 'text-center',
+    },
+  },
+}
+
 const columns: TableColumn<AccountOut>[] = [
   selectionColumn(),
   {
     accessorKey: 'id',
     header: 'ID',
+  },
+  {
+    accessorKey: 'status',
+    header: 'Статус',
+    ...columnCentered,
   },
   {
     accessorKey: 'project',
@@ -173,12 +193,7 @@ const columns: TableColumn<AccountOut>[] = [
   {
     accessorKey: 'premium',
     header: 'Премиум',
-    meta: {
-      class: {
-        th: 'text-center',
-        td: 'text-center',
-      },
-    },
+    ...columnCentered,
   },
   /*  {
     accessorKey: 'about',

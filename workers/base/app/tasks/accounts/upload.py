@@ -133,7 +133,7 @@ async def save_account(
             except Exception as e:
                 await logger.error(f"{account.phone} {e}")
             finally:
-                await client.disconnect()
+                await client.disconnect()  # type: ignore
 
     except TimeoutError:
         await logger.warning(f"{account.phone} нет доступного прокси")

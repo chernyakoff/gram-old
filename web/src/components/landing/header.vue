@@ -10,7 +10,8 @@
         icon="i-lucide-log-in"
         variant="subtle"
         class="hidden lg:block"
-        @click="showLoginModal = true" />
+        @click="showLoginModal = true"
+      />
       <UColorModeButton />
     </template>
     <template #body>
@@ -20,7 +21,8 @@
         label="Войти"
         variant="subtle"
         block
-        @click="showLoginModal = true" />
+        @click="showLoginModal = true"
+      />
     </template>
   </UHeader>
   <!-- Один модальный компонент для обеих кнопок -->
@@ -66,11 +68,11 @@ const rawMock = `{
     "last_name": "С",
     "username": "chernyakoff",
     "photo_url": "https://t.me/i/userpic/320/E5CF1DXAc92hvxFoNm0Z4y4Z4ycjpk6DqbKdvmjyVyw.jpg",
-    "auth_date": 1761914248,
-    "hash": "50b14a46baa23a216dc779d697499f1d21e8b66d32b8f74e016e8da7df91ad8c"
+    "auth_date": 1762011493,
+    "hash": "636f3d454a223c7e04bdc615f107a5f47ff543bcc5062314b4c545d6570f48cc"
 }`
 
-function parseUserLogin (raw: string): UserLoginIn {
+function parseUserLogin(raw: string): UserLoginIn {
   const data = JSON.parse(raw)
   return {
     id: data.id,

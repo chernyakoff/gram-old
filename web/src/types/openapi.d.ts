@@ -29,6 +29,8 @@ export interface components {
             createdAt: string;
             photos: components["schemas"]["AccountPhotoOut"][];
             project: components["schemas"]["ProjectBase"] | null;
+            status: components["schemas"]["AccountStatus"];
+            mutedUntil: string;
         };
         AccountPhotoOut: {
             id: number;
@@ -38,8 +40,12 @@ export interface components {
             delete: number[];
             upload: string[];
         };
+        AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited";
         AccountsBulkCreateIn: {
             s3path: string;
+        };
+        AccountsCheckIn: {
+            accountIds: number[];
         };
         BindProjectIn: {
             projectId: number;
@@ -242,7 +248,9 @@ export type AccountListOut = components['schemas']['AccountListOut'];
 export type AccountOut = components['schemas']['AccountOut'];
 export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
+export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
+export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];

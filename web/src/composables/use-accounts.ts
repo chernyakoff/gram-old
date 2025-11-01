@@ -6,6 +6,7 @@ import type {
   AccountIn,
   AccountListOut,
   AccountOut,
+  AccountsCheckIn,
   BindProjectIn,
   BuyPremiumOut,
   CardDetails,
@@ -60,9 +61,26 @@ export function useAccounts() {
     return await api(`accounts/bind-project`, { method: 'POST', body })
   }
 
+  async function check(body: AccountsCheckIn): Promise<WorkflowOut> {
+    return await api(`accounts/check`, { method: 'POST', body })
+  }
+
   async function list() {
     return await api<AccountListOut[]>('accounts/list', { method: 'GET' })
   }
 
-  return { upload, premium, list, update, get, del, accounts, bindProject, loading, error, success }
+  return {
+    upload,
+    premium,
+    list,
+    update,
+    check,
+    get,
+    del,
+    accounts,
+    bindProject,
+    loading,
+    error,
+    success,
+  }
 }
