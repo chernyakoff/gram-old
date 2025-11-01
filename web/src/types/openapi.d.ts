@@ -45,6 +45,11 @@ export interface components {
             projectId: number;
             accountIds: number[];
         };
+        BuyPremiumOut: {
+            status: "error" | "success";
+            message?: string | null;
+            verificationUrl?: string | null;
+        };
         CardDetails: {
             number: string;
             month: number;
@@ -239,6 +244,7 @@ export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
+export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];

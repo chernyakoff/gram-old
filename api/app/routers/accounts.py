@@ -102,7 +102,7 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
     )
 
 
-@router.post("/{id}/premium", response_model=WorkflowOut)
+@router.post("/{id}/premium", response_model=models.BuyPremiumOut)
 async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)):
     account = await orm.Account.get_or_none(user_id=user.id, id=id)
     if not account:
@@ -111,6 +111,5 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
     input_model = models.BuyPremiumIn(
         account_id=id, card=models.CardDetails(**card.model_dump())
     )
-    ref = await tasks.buy_premium.aio_run_no_wait(input=input_model)
-    asyncio.create_task(watch_job(ref.workflow_run_id))
-    return {"id": ref.workflow_run_id}
+    response = await tasks.buy_premium.aio_run(input=input_model)
+    return response

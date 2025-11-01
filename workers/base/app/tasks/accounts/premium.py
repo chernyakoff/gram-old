@@ -1,11 +1,11 @@
 import asyncio
 import json
-from typing import cast
+from typing import Literal, Optional, cast
 
 import aiohttp
 from hatchet_sdk import Context
 from pydantic import BaseModel
-from telethon import TelegramClient, types
+from telethon import types
 from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
 from telethon.tl.types import (
     DataJSON,
@@ -38,12 +38,18 @@ class BuyPremiumIn(BaseModel):
     card: CardDetails
 
 
+class BuyPremiumOut(BaseModel):
+    status: Literal["error", "success"]
+    message: Optional[str] = None
+    verification_url: Optional[str] = None
+
+
 async def tokenize_card(public_token: str, card: CardDetails):
     card_info = {
         "card": {
             "number": card.number,
-            "expiration_month": card.month,
-            "expiration_year": card.year,
+            "expiration_month": f"{int(card.month):02d}",  # 7 -> "07"
+            "expiration_year": str(card.year)[-2:],  # 2025 -> "25"
             "security_code": card.cvv,
         }
     }
@@ -58,21 +64,36 @@ async def tokenize_card(public_token: str, card: CardDetails):
         async with session.post(
             tokenization_url, json=card_info, headers=headers
         ) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                token = data["data"]["token"]
-                payment_json = json.dumps({"token": token, "type": "card"})
-                return True, payment_json
-            else:
+            raw_text = (
+                await resp.text()
+            )  # читаем ответ без попытки парсинга, чтобы видеть реальное
+            print("STATUS:", resp.status)
+            print("HEADERS:", resp.headers)
+            print("RAW RESPONSE:", raw_text)
+
+            if resp.status != 200:
+                print("❌ Server returned non-200 response, stopping.")
                 return False, None
+
+            try:
+                data = await resp.json()
+            except Exception as e:
+                print("❌ JSON decode error:", e)
+                return False, None
+
+            print("✅ Parsed JSON:", data)
+
+            token = data.get("data", {}).get("token")
+            if not token:
+                print("❌ Token not found in response")
+                return False, None
+
+            payment_json = json.dumps({"token": token, "type": "card"})
+            return True, payment_json
 
 
 @hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
-async def buy_premium(input: BuyPremiumIn, ctx: Context):
-    print(input.model_dump())
-
-    await asyncio.sleep(2)  # эмуляция задержки
-
+async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     logger = StreamLogger(ctx)
     card = input.card
 
@@ -83,7 +104,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context):
     proxies = await get_user_proxies(user_id)
     if not proxies:
         await logger.error("отсутствуют валидные прокси")
-        return
+        return BuyPremiumOut(status="error", message="отсутствуют валидные прокси")
 
     pool = ProxyPool(user_id)
     account = await Account.from_orm(orm_account)
@@ -106,8 +127,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context):
                 await asyncio.sleep(2)
                 messages = await client.get_messages(PREMIUM_BOT, limit=4)
                 if not messages:
-                    await logger.error("PremiumBot не ответил на /start")
-                    return
+                    raise Exception("PremiumBot не ответил на /start")
 
                 if isinstance(messages, types.Message):
                     messages = [messages]
@@ -116,6 +136,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context):
                     (m for m in messages if isinstance(m.media, MessageMediaInvoice)),
                     None,
                 )
+                print(invoice_msg)
 
                 if not invoice_msg:
                     raise Exception("Не найдено сообщение с invoice")
@@ -144,30 +165,34 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context):
 
                 send_data = await client(
                     SendPaymentFormRequest(
-                        form_id=form_info.form_id,
+                        form_id=form_info.form_id,  # type: ignore
                         invoice=invoice,
                         credentials=InputPaymentCredentials(
                             data=DataJSON(tokenized_card)
                         ),
                     )
                 )
-
+                orm_account.premium = True
+                await orm_account.save()
                 if isinstance(send_data, PaymentVerificationNeeded):
-                    # Нужно перекинуть пользователя на send_data.url
-                    verification_url = send_data.url
-                    return {"status": "verification_required", "url": verification_url}
+                    return BuyPremiumOut(
+                        status="success", verification_url=send_data.url
+                    )
                 else:
-                    # Успешная мгновенная оплата
-                    return {"status": "success", "result": send_data}
+                    return BuyPremiumOut(status="success")
 
             except SessionExpiredError as e:
                 await logger.error(str(e))
+                return BuyPremiumOut(status="error", message=str(e))
             except Exception as e:
                 await logger.error(f"ошибка: {e}")
+                return BuyPremiumOut(status="error", message=str(e))
             finally:
                 await client.disconnect()  # type: ignore
 
     except TimeoutError:
         await logger.warning("нет доступного прокси")
+        return BuyPremiumOut(status="error", message="нет доступного прокси")
     except Exception as e:
         await logger.error(f"неизвестная ошибка: {e}")
+        return BuyPremiumOut(status="error", message=f"неизвестная ошибка: {e}")

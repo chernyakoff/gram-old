@@ -1,5 +1,12 @@
 <template>
-  <UDrawer direction="right" class="w-160" :handle="false" v-model:open="open" :handleOnly="true">
+  <UDrawer
+    direction="right"
+    class="w-160"
+    :handle="false"
+    v-model:open="open"
+    :handleOnly="true"
+    :prevent-close="isSubmitting || loading"
+  >
     <template #title>
       <div class="flex justify-center px-4">
         <div class="space-y-5 w-2/3 max-w-[500px]">Покупка премиум</div>
@@ -27,6 +34,7 @@
               class="w-full"
               :error="!!errors.number"
               :ui="errors.number ? errorInputUi : {}"
+              :disabled="isSubmitting"
             />
           </div>
 
@@ -45,6 +53,7 @@
                   class="w-full"
                   :error="!!errors.month"
                   :ui="errors.month ? errorSelectUi : {}"
+                  :disabled="isSubmitting"
                 />
               </div>
               <div></div>
@@ -61,6 +70,7 @@
                   class="w-full"
                   :error="!!errors.year"
                   :ui="errors.year ? errorSelectUi : {}"
+                  :disabled="isSubmitting"
                 />
               </div>
             </div>
@@ -79,6 +89,7 @@
                 size="lg"
                 :error="!!errors.cvv"
                 :ui="errors.cvv ? errorInputUi : {}"
+                :disabled="isSubmitting"
               />
             </div>
           </div>
@@ -90,18 +101,106 @@
           <p v-for="(error, index) in activeErrors" :key="index" class="my-1 text-sm text-red-500">
             {{ error }}
           </p>
+
+          <!-- Состояние загрузки -->
+          <div
+            v-if="loading && isSubmitting"
+            class="flex flex-col items-center justify-center py-6 space-y-3"
+          >
+            <div
+              class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"
+            ></div>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Обработка запроса... Это может занять несколько секунд
+            </p>
+          </div>
+
+          <!-- Результат запроса -->
+          <div v-if="purchaseResponse && !loading" class="space-y-4 py-4">
+            <!-- Ошибка -->
+            <div v-if="purchaseResponse.status === 'error'" class="space-y-3">
+              <div
+                class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+              >
+                <p class="text-sm text-red-600 dark:text-red-400">
+                  {{ purchaseResponse.message }}
+                </p>
+              </div>
+              <UButton
+                label="Закрыть"
+                color="neutral"
+                variant="outline"
+                class="justify-center w-full"
+                @click="closeDrawer"
+              />
+            </div>
+
+            <!-- Успех с верификацией -->
+            <div
+              v-else-if="purchaseResponse.status === 'success' && purchaseResponse.verificationUrl"
+              class="space-y-3"
+            >
+              <div
+                class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+              >
+                <p class="text-sm text-blue-600 dark:text-blue-400">
+                  Для завершения покупки необходимо пройти верификацию
+                </p>
+              </div>
+              <UButton
+                label="Перейти к верификации"
+                color="primary"
+                class="justify-center w-full"
+                @click="openVerificationUrl"
+              />
+              <UButton
+                label="Закрыть"
+                color="neutral"
+                variant="outline"
+                class="justify-center w-full"
+                @click="closeDrawer"
+              />
+            </div>
+
+            <!-- Успех без верификации -->
+            <div v-else-if="purchaseResponse.status === 'success'" class="space-y-3">
+              <div
+                class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
+              >
+                <p class="text-sm text-green-600 dark:text-green-400">
+                  Premium успешно приобретен!
+                </p>
+              </div>
+              <UButton
+                label="Закрыть"
+                color="neutral"
+                variant="outline"
+                class="justify-center w-full"
+                @click="closeDrawer"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </template>
 
     <template #footer>
-      <UButton label="Купить" color="neutral" class="justify-center" @click="onSubmit" />
       <UButton
+        v-if="!isSubmitting && !purchaseResponse"
+        label="Купить"
+        color="neutral"
+        class="justify-center"
+        @click="onSubmit"
+        :disabled="loading"
+      />
+      <UButton
+        v-if="!isSubmitting && !purchaseResponse"
         label="Закрыть"
         color="neutral"
         variant="outline"
         class="justify-center"
-        @click="open = false"
+        @click="closeDrawer"
+        :disabled="loading"
       />
     </template>
   </UDrawer>
@@ -111,8 +210,7 @@
 import { reactive, watch, ref, computed } from 'vue'
 import { safeParse } from 'valibot'
 import { useAccounts } from '@/composables/use-accounts'
-import { useBackgroundJobs } from '@/stores/jobs-store'
-import type { AccountOut } from '@/types/openapi'
+import type { AccountOut, BuyPremiumOut } from '@/types/openapi'
 import { cardDetailsSchema } from '@/schemas/card'
 
 const props = defineProps<{ accountId: number }>()
@@ -122,13 +220,11 @@ const emit = defineEmits<{
   (e: 'completed'): void
 }>()
 
-const toast = useToast()
-
-const { get, premium } = useAccounts()
-
-const jobsStore = useBackgroundJobs()
+const { get, premium, loading } = useAccounts()
 
 const account = ref<AccountOut | undefined>()
+const purchaseResponse = ref<BuyPremiumOut | null>(null)
+const isSubmitting = ref(false)
 
 const state = reactive({
   number: '',
@@ -192,16 +288,23 @@ watch(
   async ([isOpen, id]) => {
     if (isOpen && id) {
       account.value = await get(id)
-      // Сброс ошибок при открытии
+      // Сброс ошибок и состояния при открытии
       Object.keys(errors).forEach((key) => {
         errors[key as keyof typeof errors] = ''
       })
+      purchaseResponse.value = null
+      isSubmitting.value = false
     }
   },
   { immediate: true },
 )
 
 const onSubmit = async () => {
+  // Предотвращение повторных запросов
+  if (isSubmitting.value || loading.value) {
+    return
+  }
+
   // Сброс ошибок
   Object.keys(errors).forEach((key) => {
     errors[key as keyof typeof errors] = ''
@@ -227,19 +330,22 @@ const onSubmit = async () => {
     return
   }
 
-  toast.add({
-    title: 'Покупка премиума запущена',
-    description: 'Можно посмотреть ход выполнения в разделе «задачи»',
-    color: 'success',
-  })
+  isSubmitting.value = true
+  const response = await premium(props.accountId, result.output)
+  purchaseResponse.value = response
+}
 
-  const { id } = await premium(props.accountId, result.output)
+const openVerificationUrl = () => {
+  if (purchaseResponse.value?.verificationUrl) {
+    window.open(purchaseResponse.value.verificationUrl, '_blank')
+  }
+}
 
-  jobsStore.add({
-    id,
-    name: 'Покупка премиума',
-    onComplete: () => emit('completed'),
-  })
+const closeDrawer = () => {
+  open.value = false
+  if (purchaseResponse.value?.status === 'success') {
+    emit('completed')
+  }
 }
 </script>
 <style scoped>

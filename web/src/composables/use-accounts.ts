@@ -7,6 +7,7 @@ import type {
   AccountListOut,
   AccountOut,
   BindProjectIn,
+  BuyPremiumOut,
   CardDetails,
   WorkflowOut,
 } from '@/types/openapi'
@@ -25,8 +26,8 @@ export function useAccounts() {
     return response
   }
 
-  async function premium(id: number, body: CardDetails): Promise<WorkflowOut> {
-    return await api<WorkflowOut>(`accounts/${id}/premium`, { method: 'POST', body })
+  async function premium(id: number, body: CardDetails): Promise<BuyPremiumOut> {
+    return await api<BuyPremiumOut>(`accounts/${id}/premium`, { method: 'POST', body })
   }
 
   async function del(ids: number[]) {
