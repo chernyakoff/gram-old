@@ -21,7 +21,7 @@ dialog_task = hatchet.stubs.task(
 )
 
 
-LEASE_HOURS = 6  # сколько "занятый" аккаунт считается занятым
+LEASE_HOURS = 2  # сколько "занятый" аккаунт считается занятым
 MAX_ACCOUNTS_PER_CYCLE = 50  # сколько аккаунтов проверяем за 1 тик
 RECIPIENT_LEASE_MINUTES = 30  # время аренды recipient перед отправкой в таск
 
