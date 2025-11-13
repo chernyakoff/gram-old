@@ -25,7 +25,7 @@ LEASE_HOURS = 2  # сколько "занятый" аккаунт считает
 MAX_ACCOUNTS_PER_CYCLE = 50  # сколько аккаунтов проверяем за 1 тик
 RECIPIENT_LEASE_MINUTES = 30  # время аренды recipient перед отправкой в таск
 
-heartbeat = hatchet.workflow(name="heartbeat", on_crons=["* * * * *"])
+heartbeat = hatchet.workflow(name="heartbeat", on_crons=["15 * * * *"])
 
 
 async def get_active_projects() -> list[orm.Project]:
@@ -181,8 +181,10 @@ async def task(input: EmptyModel, ctx: Context):
                 # Проверяем дневной лимит
                 dialogs_left = await check_daily_limit(acc, project, now, conn)
 
-                if dialogs_left <= 0:
-                    continue
+                # Даже если исчерпан лимит на новые, то все равно запускаем, так как могут быть старые
+                # старые уже закрепелены за этим аккаунтом и их никто не  возьмет в обработку
+                # if dialogs_left <= 0:
+                #    continue
 
                 # Собираем recipients из активных mailings
                 recipients_to_assign = await get_recipients_for_mailings(
@@ -190,6 +192,8 @@ async def task(input: EmptyModel, ctx: Context):
                 )
 
                 if not recipients_to_assign:
+                    # можно тут потом поставить проверку на то, есть ли у акканта незавершенноые диалоги, но мне кажется это излишне
+
                     continue
 
                 # Атомарно блокируем аккаунт и recipients

@@ -4,7 +4,10 @@ from datetime import timedelta
 
 from hatchet_sdk import Context
 from pydantic import BaseModel
+from telethon.types import User as TelethonUser
+from tortoise import Tortoise
 from tortoise import timezone as tz
+from tortoise.expressions import Subquery
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
@@ -16,7 +19,8 @@ from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
 from app.utils.proxy_pool import ProxyPool
 
-SESSION_LIFETIME_HOURS = 2
+# Максимальное время на случай если что-то пойдет не так
+MAX_SESSION_HOURS = 6
 
 
 class DialogIn(BaseModel):
@@ -42,8 +46,8 @@ async def release_account(account: orm.Account, error: str | None = None):
 @hatchet.task(
     name="dialog",
     input_validator=DialogIn,
-    execution_timeout=timedelta(hours=SESSION_LIFETIME_HOURS),
-    schedule_timeout=timedelta(hours=SESSION_LIFETIME_HOURS),
+    execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
 )
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
@@ -56,7 +60,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     client = None
     start_time = tz.now()
-    end_time = start_time + timedelta(hours=SESSION_LIFETIME_HOURS)
+    end_time = start_time + timedelta(hours=MAX_SESSION_HOURS)
     stop_event = asyncio.Event()
 
     try:
@@ -84,7 +88,16 @@ async def dialog_task(input: DialogIn, ctx: Context):
             )
             manager.setup_event_handlers()
 
-            # Отправляем первые сообщения
+            # Проверяем старые диалоги на новые сообщения
+            old_dialogs_with_messages = (
+                await manager.check_old_dialogs_for_new_messages()
+            )
+            logger.info(
+                f"Старых диалогов с новыми сообщениями: {old_dialogs_with_messages}"
+            )
+
+            # Отправляем первые сообщения новым получателям
+            new_dialogs_started = 0
             first_message = generate_message(project.first_message)
 
             for recipient_id in input.recipients_id:
@@ -97,6 +110,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 if not entity:
                     continue
 
+                # Проверяем, не существует ли уже диалог
                 dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
                 if dialog_exists:
                     continue
@@ -109,16 +123,20 @@ async def dialog_task(input: DialogIn, ctx: Context):
                     continue
 
                 # Создаём диалог
-                dialog, created = await orm.Dialog.get_or_create(
+                dialog = await orm.Dialog.create(
                     recipient=recipient,
-                    defaults={
-                        "status": enums.DialogStatus.INIT,
-                        "account_id": account.id,
-                    },
+                    status=enums.DialogStatus.INIT,
+                    account_id=account.id,
                 )
 
-                if created:
-                    logger.info(f"[{recipient.username}] Создан диалог")
+                if isinstance(entity, TelethonUser):
+                    dialog.update_from_dict(
+                        {
+                            "recipient_peer_id": entity.id,
+                            "recipient_access_hash": entity.access_hash,
+                        }
+                    )
+                    await dialog.save()
 
                 # Сохраняем сообщение
                 await orm.Message.create(
@@ -129,6 +147,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 )
 
                 await limiter.increment(enums.AccountAction.NEW_DIALOG)
+                new_dialogs_started += 1
+
+                # Увеличиваем счетчик активных диалогов (ждём ответа)
+                manager.active_dialogs_count += 1
 
                 if stop_event.is_set() or tz.now() > end_time:
                     break
@@ -136,22 +158,52 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 # Задержка между отправками
                 await asyncio.sleep(random.randint(60, 180))
 
-            # Основной цикл – держим соединение
-            logger.info(f"Account {account.id} вошёл в режим ожидания сообщений")
+            logger.info(f"Новых диалогов начато: {new_dialogs_started}")
+
+            # Если не было ни новых диалогов, ни ответов в старых - сразу выключаемся
+            if new_dialogs_started == 0 and old_dialogs_with_messages == 0:
+                logger.info(
+                    "🛑 Нет новых диалогов и нет ответов в старых - завершаем работу"
+                )
+                await release_account(account)
+                return
+
+            # Основной цикл - держим соединение пока есть активные диалоги
+            logger.info(
+                f"Account {account.id} вошёл в режим ожидания. "
+                f"Активных диалогов: {manager.active_dialogs_count}"
+            )
+
+            # Периодически проверяем состояние
+            last_check = tz.now()
+            CHECK_INTERVAL_SEC = 30
 
             while tz.now() < end_time and not stop_event.is_set():
                 if not client.is_connected():
-                    # await client.connect() """
                     logger.error("Потеряно соединение, завершаем задачу")
                     await release_account(account, error="Connection lost")
                     return
-                await asyncio.sleep(30)  # ping каждые 30 сек
-                print("ТИКАЕМ")
+
+                # Каждые 30 секунд логируем состояние
+                if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
+                    logger.info(
+                        f"Статус: активных_диалогов={manager.active_dialogs_count}, "
+                        f"ожидающих_обработки={len(manager.waiting_dialogs)}"
+                    )
+                    last_check = tz.now()
+
+                await asyncio.sleep(10)
 
             if stop_event.is_set():
-                logger.info(f"Account {account.id} остановлен: достигнут лимит")
+                logger.info(
+                    f"Account {account.id} остановлен: "
+                    f"все диалоги завершены или достигнут лимит"
+                )
             else:
-                logger.info(f"Account {account.id} остановлен: истекло время сессии")
+                logger.info(
+                    f"Account {account.id} остановлен: "
+                    f"истекло максимальное время сессии ({MAX_SESSION_HOURS}ч)"
+                )
 
     except asyncio.TimeoutError:
         msg = "Прокси не ответил вовремя"
@@ -168,8 +220,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     finally:
         try:
-            await client.disconnect()  # type: ignore
-            logger.info("Клиент корректно отключён")
+            if client:
+                await client.disconnect()  # type: ignore
+                logger.info("Клиент корректно отключён")
         except Exception as e:
             logger.error(f"Ошибка при отключении клиента: {e}")
 

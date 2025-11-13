@@ -1,5 +1,6 @@
 import asyncio
 import random
+from datetime import timedelta
 from functools import partial
 
 from telethon import TelegramClient
@@ -12,6 +13,11 @@ from app.utils.logger import Logger
 
 from .ai_service import AIService
 from .telegram_service import TelegramService
+
+# Константы
+WAIT_FOR_REPLY_MINUTES = 5
+WAIT_BEFORE_REPLY_MIN_SEC = 30
+WAIT_BEFORE_REPLY_MAX_SEC = 60
 
 
 async def get_last_active_dialog(username: str, account_id: int) -> orm.Dialog | None:
@@ -52,6 +58,15 @@ class DialogManager:
         self.session_recipients_ids: set[int] = set()
         self.session_start_time = tz.now()
 
+        # Для отслеживания ожидания ответов
+        self.waiting_dialogs: dict[int, asyncio.Task] = {}  # dialog_id -> waiting task
+
+        # Буфер для накопления сообщений
+        self.message_buffers: dict[int, list] = {}  # dialog_id -> list of messages
+
+        # Счетчик активных диалогов (тех, что ждут ответа)
+        self.active_dialogs_count = 0
+
     def register_session_recipient(self, recipient_id: int):
         """Регистрирует recipient как часть текущей сессии"""
         self.session_recipients_ids.add(recipient_id)
@@ -59,25 +74,103 @@ class DialogManager:
     def setup_event_handlers(self):
         """Регистрирует обработчики событий"""
         self.client.add_event_handler(
-            partial(
-                self._on_new_message,
-            ),
+            partial(self._on_new_message),
             NewMessage(),
         )
 
-    async def _on_new_message(
-        self,
-        event: NewMessage.Event,
-    ):
+    async def check_old_dialogs_for_new_messages(self) -> int:
+        """
+        Проверяет старые незавершенные диалоги на новые сообщения.
+        Возвращает количество диалогов, в которых найдены новые сообщения.
+        """
+        dialogs_with_messages = 0
+
+        try:
+            # Получаем все незавершенные диалоги для этого аккаунта
+            dialogs = (
+                await orm.Dialog.filter(
+                    account_id=self.account.id,
+                )
+                .exclude(status=enums.DialogStatus.COMPLETE)
+                .prefetch_related("recipient", "messages")
+            )
+
+            self.logger.info(
+                f"Проверка {len(dialogs)} старых диалогов на новые сообщения"
+            )
+
+            for dialog in dialogs:
+                try:
+                    # Получаем последнее сообщение из БД
+                    last_db_message = (
+                        await orm.Message.filter(dialog=dialog)
+                        .order_by("-created_at")
+                        .first()
+                    )
+
+                    if not last_db_message or not last_db_message.tg_message_id:
+                        continue
+
+                    # Получаем новые сообщения из Telegram
+                    new_messages = []
+                    async for msg in self.client.iter_messages(
+                        dialog.recipient.username, min_id=last_db_message.tg_message_id
+                    ):
+                        # Пропускаем само последнее сообщение
+                        if msg.id == last_db_message.tg_message_id:
+                            continue
+                        # Пропускаем исходящие (наши) сообщения
+                        if msg.out:
+                            continue
+                        new_messages.append(msg)
+
+                    if new_messages:
+                        # Сортируем по времени (от старых к новым)
+                        new_messages.sort(key=lambda m: m.date)
+
+                        self.logger.info(
+                            f"[{dialog.recipient.username}] Найдено {len(new_messages)} новых сообщений"
+                        )
+
+                        # Сохраняем все новые сообщения в БД
+                        for msg in new_messages:
+                            await orm.Message.create(
+                                dialog=dialog,
+                                sender=enums.MessageSender.RECIPIENT,
+                                tg_message_id=msg.id,
+                                text=msg.text or "",
+                            )
+
+                        # Отвечаем на новые сообщения
+                        await self._process_dialog_reply(
+                            dialog, dialog.recipient, new_messages
+                        )
+                        dialogs_with_messages += 1
+
+                except Exception as e:
+                    self.logger.error(f"Ошибка при проверке диалога {dialog.id}: {e}")
+                    continue
+
+            return dialogs_with_messages
+
+        except Exception as e:
+            self.logger.error(f"Ошибка при проверке старых диалогов: {e}")
+            return 0
+
+    async def _on_new_message(self, event: NewMessage.Event):
         """Обработчик входящих сообщений"""
         try:
+            # Пропускаем исходящие сообщения
+            if event.out:
+                return
+
             sender = await event.get_sender()
             if not sender.username:
                 return
 
             text = event.raw_text
 
-            # Находим recipient
+            # Находим диалог
             dialog = await get_last_active_dialog(sender.username, self.account.id)
             if not dialog:
                 self.logger.info(
@@ -97,6 +190,71 @@ class DialogManager:
 
             self.logger.info(f"[{recipient.username}] Получено новое сообщение")
 
+            # Если уже есть задача ожидания для этого диалога - отменяем её
+            if dialog.id in self.waiting_dialogs:
+                self.waiting_dialogs[dialog.id].cancel()
+                del self.waiting_dialogs[dialog.id]
+
+            # Добавляем сообщение в буфер
+            if dialog.id not in self.message_buffers:
+                self.message_buffers[dialog.id] = []
+            self.message_buffers[dialog.id].append(event)
+
+            # Создаём задачу ожидания дополнительных сообщений
+            wait_task = asyncio.create_task(
+                self._wait_and_process_messages(dialog, recipient)
+            )
+            self.waiting_dialogs[dialog.id] = wait_task
+
+        except Exception as e:
+            self.logger.error(f"Ошибка в on_new_message: {e}")
+            import traceback
+
+            self.logger.error(traceback.format_exc())
+
+    async def _wait_and_process_messages(
+        self, dialog: orm.Dialog, recipient: orm.Recipient
+    ):
+        """Ждёт 30-60 секунд, затем обрабатывает накопленные сообщения"""
+        try:
+            wait_time = random.randint(
+                WAIT_BEFORE_REPLY_MIN_SEC, WAIT_BEFORE_REPLY_MAX_SEC
+            )
+            self.logger.info(f"[{recipient.username}] Ждём {wait_time}с перед ответом")
+
+            await asyncio.sleep(wait_time)
+
+            # Получаем накопленные сообщения
+            events = self.message_buffers.get(dialog.id, [])
+            if not events:
+                return
+
+            # Очищаем буфер
+            del self.message_buffers[dialog.id]
+
+            self.logger.info(
+                f"[{recipient.username}] Обработка {len(events)} накопленных сообщений"
+            )
+
+            # Обрабатываем диалог
+            await self._process_dialog_reply(dialog, recipient, events)
+
+        except asyncio.CancelledError:
+            self.logger.info(
+                f"[{recipient.username}] Ожидание отменено (пришло новое сообщение)"
+            )
+        except Exception as e:
+            self.logger.error(f"Ошибка в _wait_and_process_messages: {e}")
+        finally:
+            # Удаляем задачу из словаря
+            if dialog.id in self.waiting_dialogs:
+                del self.waiting_dialogs[dialog.id]
+
+    async def _process_dialog_reply(
+        self, dialog: orm.Dialog, recipient: orm.Recipient, events: list
+    ):
+        """Обрабатывает диалог и отправляет ответ"""
+        try:
             # Проверяем лимит сообщений
             messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
 
@@ -105,14 +263,60 @@ class DialogManager:
                 await self._check_and_stop_if_needed()
                 return
 
-            # Генерируем и отправляем ответ
-            await self._generate_and_send_response(event, dialog, recipient, messages)
+            # Генерируем ответ от AI
+            await self._generate_and_send_response(
+                events[0], dialog, recipient, messages
+            )
+
+            # Увеличиваем счетчик активных диалогов
+            self.active_dialogs_count += 1
+
+            # Запускаем ожидание ответа (5 минут)
+            await self._wait_for_reply(dialog, recipient)
 
         except Exception as e:
-            self.logger.error(f"Ошибка в on_new_message: {e}")
-            import traceback
+            self.logger.error(f"Ошибка в _process_dialog_reply: {e}")
 
-            self.logger.error(traceback.format_exc())
+    async def _wait_for_reply(self, dialog: orm.Dialog, recipient: orm.Recipient):
+        """Ждёт ответа в течение WAIT_FOR_REPLY_MINUTES минут"""
+        try:
+            wait_until = tz.now() + timedelta(minutes=WAIT_FOR_REPLY_MINUTES)
+            self.logger.info(
+                f"[{recipient.username}] Ожидание ответа {WAIT_FOR_REPLY_MINUTES} минут"
+            )
+
+            while tz.now() < wait_until:
+                # Проверяем, не пришло ли новое сообщение
+                if dialog.id in self.message_buffers:
+                    self.logger.info(
+                        f"[{recipient.username}] Получен ответ, продолжаем диалог"
+                    )
+                    # Уменьшаем счетчик (диалог продолжается, но это ожидание завершено)
+                    self.active_dialogs_count -= 1
+                    return
+
+                # Проверяем, не остановлена ли задача
+                if self.stop_event.is_set():
+                    self.active_dialogs_count -= 1
+                    return
+
+                await asyncio.sleep(5)  # Проверяем каждые 5 секунд
+
+            # Если не дождались ответа - закрываем диалог
+            self.logger.info(
+                f"[{recipient.username}] Не получен ответ за {WAIT_FOR_REPLY_MINUTES} минут, закрываем диалог"
+            )
+            await self._close_dialog(dialog, recipient, "нет ответа")
+
+            # Уменьшаем счетчик активных диалогов
+            self.active_dialogs_count -= 1
+
+            # Проверяем, может пора завершаться
+            await self._check_and_stop_if_needed()
+
+        except Exception as e:
+            self.logger.error(f"Ошибка в _wait_for_reply: {e}")
+            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
 
     async def _generate_and_send_response(
         self,
@@ -123,7 +327,6 @@ class DialogManager:
     ):
         """Генерирует ответ от AI и отправляет его"""
 
-        # Показываем "печатает..."
         MAX_RETRIES = 3
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -140,26 +343,27 @@ class DialogManager:
                         f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
                     )
                     if attempt == MAX_RETRIES:
-                        self.stop_event.set()
+                        # Закрываем диалог при критической ошибке AI
+                        await self._close_dialog(dialog, recipient, "AI error")
                         return
                     else:
-                        await asyncio.sleep(2)  # пауза перед повтором
-                        continue  # пробуем снова
+                        await asyncio.sleep(2)
+                        continue
 
-                # Имитация печатания
-                break  # получили ответ, выходим из цикла
+                break
 
             except asyncio.TimeoutError:
                 self.logger.warning(
                     f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
                 )
                 if attempt == MAX_RETRIES:
-                    self.stop_event.set()
+                    # Закрываем диалог при критической ошибке AI
+                    await self._close_dialog(dialog, recipient, "AI timeout")
                     return
                 else:
-                    await asyncio.sleep(2)  # пауза перед повтором
+                    await asyncio.sleep(2)
 
-        if not ai_response:  # такого не может быть - добавил для type check
+        if not ai_response:
             return
 
         # Обновляем статус диалога
@@ -168,11 +372,12 @@ class DialogManager:
         if ai_response == "COMPLETE":
             return
 
+        # Отправляем read acknowledge
         await asyncio.sleep(random.randint(3, 10))
-        await self.client.send_read_acknowledge(event.chat_id)  # type: ignore
+        await self.client.send_read_acknowledge(event.chat_id)
 
+        # Показываем "печатает..."
         async with self.client.action(event.chat_id, "typing"):  # type: ignore
-            # Отправляем сообщение
             await asyncio.sleep(random.randint(3, 10))
             msg = await self.telegram_service.send_message(recipient, ai_response)
 
@@ -234,6 +439,15 @@ class DialogManager:
         await dialog.save()
         self.logger.info(f"[{recipient.username}] Диалог закрыт: {reason}")
 
+        # Отменяем задачу ожидания если она есть
+        if dialog.id in self.waiting_dialogs:
+            self.waiting_dialogs[dialog.id].cancel()
+            del self.waiting_dialogs[dialog.id]
+
+        # Очищаем буфер сообщений
+        if dialog.id in self.message_buffers:
+            del self.message_buffers[dialog.id]
+
     async def _check_and_stop_if_needed(self):
         """Проверяет условия для остановки task"""
 
@@ -253,11 +467,14 @@ class DialogManager:
             self.stop_event.set()
             return
 
-        # 2. Проверяем статус диалогов ТЕКУЩЕЙ СЕССИИ
+        # 2. Проверяем активные диалоги текущей сессии
         if not self.session_recipients_ids:
+            # Если нет диалогов в сессии - завершаемся
+            self.logger.info("🛑 Нет диалогов в текущей сессии")
+            self.stop_event.set()
             return
 
-        # Считаем активные и закрытые диалоги только для recipients текущей сессии
+        # Считаем незавершенные диалоги сессии
         active_session_dialogs = await orm.Dialog.filter(
             recipient_id__in=self.session_recipients_ids,
             status__not_in=[enums.DialogStatus.COMPLETE],
@@ -273,14 +490,14 @@ class DialogManager:
         self.logger.info(
             f"[Аккаунт {self.account.id}] Сессия: "
             f"активных={active_session_dialogs}/{total_session_dialogs}, "
-            f"закрытых={closed_session_dialogs}/{total_session_dialogs}"
+            f"закрытых={closed_session_dialogs}/{total_session_dialogs}, "
+            f"ожидающих_ответа={self.active_dialogs_count}"
         )
 
-        # КЛЮЧЕВАЯ ПРОВЕРКА: Если все диалоги сессии завершены
-        if active_session_dialogs == 0 and closed_session_dialogs > 0:
+        # 3. Проверяем: если все диалоги завершены И нет ожидающих ответа
+        if active_session_dialogs == 0 and self.active_dialogs_count == 0:
             self.logger.info(
-                f"🛑 Все диалоги текущей сессии завершены "
-                f"({closed_session_dialogs}/{total_session_dialogs})"
+                "🛑 Все диалоги текущей сессии завершены, ожидающих ответа нет"
             )
             self.stop_event.set()
             return

@@ -304,6 +304,9 @@ class Dialog(Model):
     started_at = fields.DatetimeField(auto_now_add=True)
     finished_at = fields.DatetimeField(null=True)
 
+    recipient_access_hash = fields.BigIntField(null=True)
+    recipient_peer_id = fields.BigIntField(null=True)
+
     messages: fields.ReverseRelation["Message"]
 
     class Meta:
