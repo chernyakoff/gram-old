@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from tortoise.functions import Max
 
 from app.common.models import orm
 from app.dto.dialog import DialogMessageOut, DialogOut
@@ -9,11 +10,13 @@ router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 
 @router.get("/", response_model=list[DialogOut])
 async def get_dialogs(user=Depends(get_current_user)):
-    return await DialogOut.from_queryset(
+    qs = (
         orm.Dialog.filter(recipient__mailing__user_id=user.id)
+        .annotate(last_msg_at=Max("messages__created_at"))
         .prefetch_related("recipient", "recipient__mailing")
-        .order_by("-started_at")
+        .order_by("-last_msg_at", "-started_at")
     )
+    return await DialogOut.from_queryset(qs)
 
 
 @router.get("/{id}", response_model=list[DialogMessageOut])
