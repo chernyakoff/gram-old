@@ -136,6 +136,7 @@ async def lock_account_and_recipients(
     if updated_accounts == 0:
         return False
 
+
     # Блокируем recipients
     await (
         orm.Recipient.filter(
@@ -191,10 +192,9 @@ async def task(input: EmptyModel, ctx: Context):
                     active_mailings, dialogs_left, now, conn
                 )
 
-                if not recipients_to_assign:
+                #if not recipients_to_assign:
                     # можно тут потом поставить проверку на то, есть ли у акканта незавершенноые диалоги, но мне кажется это излишне
-
-                    continue
+                #    continue
 
                 # Атомарно блокируем аккаунт и recipients
                 locked = await lock_account_and_recipients(
