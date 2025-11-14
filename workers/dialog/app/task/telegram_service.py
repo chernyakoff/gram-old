@@ -12,6 +12,7 @@ from telethon.errors import (
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
+from telethon.tl.types import InputPeerUser
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
@@ -59,13 +60,21 @@ class TelegramService:
             await self._handle_unexpected_error(recipient, e)
             return None
 
-    async def send_message(self, recipient: orm.Recipient, text: str):
+    async def send_message(
+        self, recipient: orm.Recipient, text: str, dialog: orm.Dialog | None = None
+    ):
         """Отправляет сообщение получателю"""
         recipient.attempts += 1
         recipient.last_attempt_at = tz.now()
-
         try:
-            msg = await self.client.send_message(recipient.username, text)
+            # Пытаемся использовать InputPeerUser если есть dialog с данными
+            target = recipient.username
+            if dialog:
+                peer = self._get_peer_from_dialog(dialog)
+                if peer:
+                    target = peer
+
+            msg = await self.client.send_message(target, text)
             recipient.status = enums.RecipientStatus.SENT
             recipient.last_error = None  # type: ignore
             await recipient.save(
@@ -180,3 +189,12 @@ class TelegramService:
         self.logger.error(
             f"[{recipient.username}] Неизвестная ошибка при send_message: {error}"
         )
+
+    def _get_peer_from_dialog(self, dialog: orm.Dialog):
+        """Создаёт InputPeerUser из данных диалога если они есть"""
+        if dialog.recipient_peer_id and dialog.recipient_access_hash:
+            return InputPeerUser(
+                user_id=dialog.recipient_peer_id,
+                access_hash=dialog.recipient_access_hash,
+            )
+        return None

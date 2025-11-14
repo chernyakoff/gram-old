@@ -64,9 +64,7 @@ async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Ac
     )
 
 
-async def check_daily_limit(
-    account: orm.Account, project: orm.Project, now, conn
-) -> int:
+async def check_daily_limit(account: orm.Account, now, conn) -> int:
     """Проверяет дневной лимит аккаунта и возвращает количество оставшихся диалогов."""
     counter = (
         await orm.AccountActionCounter.filter(
@@ -78,7 +76,8 @@ async def check_daily_limit(
         .first()
     )
 
-    dialogs_left = project.out_daily_limit - (counter.count if counter else 0)
+    # ИЗМЕНЕНИЕ: используем account.out_daily_limit вместо project.out_daily_limit
+    dialogs_left = account.out_daily_limit - (counter.count if counter else 0)
     return max(0, dialogs_left)
 
 
@@ -136,7 +135,6 @@ async def lock_account_and_recipients(
     if updated_accounts == 0:
         return False
 
-
     # Блокируем recipients
     await (
         orm.Recipient.filter(
@@ -180,7 +178,7 @@ async def task(input: EmptyModel, ctx: Context):
             # Обрабатываем каждый аккаунт
             for acc in free_accounts:
                 # Проверяем дневной лимит
-                dialogs_left = await check_daily_limit(acc, project, now, conn)
+                dialogs_left = await check_daily_limit(acc, now, conn)
 
                 # Даже если исчерпан лимит на новые, то все равно запускаем, так как могут быть старые
                 # старые уже закрепелены за этим аккаунтом и их никто не  возьмет в обработку
@@ -192,8 +190,8 @@ async def task(input: EmptyModel, ctx: Context):
                     active_mailings, dialogs_left, now, conn
                 )
 
-                #if not recipients_to_assign:
-                    # можно тут потом поставить проверку на то, есть ли у акканта незавершенноые диалоги, но мне кажется это излишне
+                # if not recipients_to_assign:
+                # можно тут потом поставить проверку на то, есть ли у акканта незавершенноые диалоги, но мне кажется это излишне
                 #    continue
 
                 # Атомарно блокируем аккаунт и recipients

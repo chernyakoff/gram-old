@@ -12,6 +12,7 @@
     </template>
     <template #body>
       <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <SetLimitmodal :selected-ids="selectedIds" @close="refresh" />
         <CheckModal :selected-ids="selectedIds" @completed="refresh" />
         <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
         <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
@@ -100,6 +101,7 @@
 import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vue'
 import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
 import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
+import SetLimitmodal from '@/components/dashboard/accounts/limit-modal.vue'
 import CheckModal from '@/components/dashboard/accounts/check-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
 import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
@@ -193,6 +195,11 @@ const columns: TableColumn<AccountOut>[] = [
   {
     accessorKey: 'premium',
     header: 'Премиум',
+    ...columnCentered,
+  },
+  {
+    accessorKey: 'outDailyLimit',
+    header: 'Лимит',
     ...columnCentered,
   },
   /*  {

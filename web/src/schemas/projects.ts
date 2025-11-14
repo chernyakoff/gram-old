@@ -23,7 +23,6 @@ export const projectInSchema = v.object({
     v.maxLength(64, 'должно содержать не более 64 символов'),
   ),
   dialogLimit: limitShema,
-  outDailyLimit: limitShema,
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
   firstMessage: textSchema,

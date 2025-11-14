@@ -118,10 +118,18 @@ class DialogManager:
                     if not last_db_message or not last_db_message.tg_message_id:
                         continue
 
+                    target = dialog.recipient.username
+                    if dialog.recipient_peer_id and dialog.recipient_access_hash:
+                        from telethon.tl.types import InputPeerUser
+
+                        target = InputPeerUser(
+                            user_id=dialog.recipient_peer_id,
+                            access_hash=dialog.recipient_access_hash,
+                        )
                     # Получаем новые сообщения из Telegram
                     new_messages = []
                     async for msg in self.client.iter_messages(
-                        dialog.recipient.username, min_id=last_db_message.tg_message_id
+                        target, min_id=last_db_message.tg_message_id
                     ):
                         # Пропускаем само последнее сообщение
                         if msg.id == last_db_message.tg_message_id:
@@ -386,7 +394,9 @@ class DialogManager:
         # Показываем "печатает..."
         async with self.client.action(event.chat_id, "typing"):  # type: ignore
             await asyncio.sleep(random.randint(3, 10))
-            msg = await self.telegram_service.send_message(recipient, ai_response)
+            msg = await self.telegram_service.send_message(
+                recipient, ai_response, dialog
+            )
 
         if msg:
             await orm.Message.create(
@@ -467,9 +477,9 @@ class DialogManager:
 
         dialogs_today = counter.count if counter else 0
 
-        if dialogs_today >= self.project.out_daily_limit:
+        if dialogs_today >= self.account.out_daily_limit:
             self.logger.info(
-                f"🛑 Достигнут дневной лимит: {dialogs_today}/{self.project.out_daily_limit}"
+                f"🛑 Достигнут дневной лимит: {dialogs_today}/{self.account.out_daily_limit}"
             )
             self.stop_event.set()
             return

@@ -17,7 +17,6 @@ class ProjectStatusIn(BaseModel):
 class ProjectIn(BaseModel):
     name: str
     dialog_limit: int
-    out_daily_limit: int
     send_time_start: int
     send_time_end: int
     first_message: str
@@ -53,7 +52,6 @@ class ProjectIn(BaseModel):
         kwargs = dict(
             name=project.name,
             dialog_limit=project.dialog_limit,
-            out_daily_limit=project.out_daily_limit,
             send_time_start=project.send_time_start,
             send_time_end=project.send_time_end,
             first_message=project.first_message,
@@ -83,7 +81,6 @@ async def create_default_project() -> ProjectIn:
     project = {
         "name": "Мой проект",
         "dialog_limit": 50,
-        "out_daily_limit": 5,
         "send_time_start": 0,
         "send_time_end": 23,
     }

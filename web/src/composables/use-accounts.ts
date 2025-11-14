@@ -10,6 +10,7 @@ import type {
   BindProjectIn,
   BuyPremiumOut,
   CardDetails,
+  SetLimitIn,
   WorkflowOut,
 } from '@/types/openapi'
 
@@ -61,6 +62,10 @@ export function useAccounts() {
     return await api(`accounts/bind-project`, { method: 'POST', body })
   }
 
+  async function setLimit(body: SetLimitIn) {
+    return await api(`accounts/set-limit`, { method: 'POST', body })
+  }
+
   async function check(body: AccountsCheckIn): Promise<WorkflowOut> {
     return await api(`accounts/check`, { method: 'POST', body })
   }
@@ -79,6 +84,7 @@ export function useAccounts() {
     del,
     accounts,
     bindProject,
+    setLimit,
     loading,
     error,
     success,

@@ -13,6 +13,7 @@ from app.dto.account import (
     AccountsBulkCreateIn,
     AccountsCheckIn,
     BindProjectIn,
+    SetLimitIn,
 )
 from app.dto.card import CardDetails
 from app.dto.common import WorkflowOut
@@ -32,7 +33,7 @@ async def upload_accounts(
         ref = await tasks.accounts_upload.aio_run_no_wait(
             input=models.AccountsUploadIn(user_id=user.id, s3path=input.s3path)
         )
-        asyncio.create_task(watch_job(ref.workflow_run_id))
+        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
         return {"id": ref.workflow_run_id}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
@@ -125,3 +126,10 @@ async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
     return {"id": ref.workflow_run_id}
+
+
+@router.post("/set-limit")
+async def set_limit(data: SetLimitIn, user=Depends(get_current_user)):
+    await orm.Account.filter(id__in=data.account_ids, user_id=user.id).update(
+        out_daily_limit=data.out_daily_limit
+    )

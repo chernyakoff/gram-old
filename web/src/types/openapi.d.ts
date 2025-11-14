@@ -30,7 +30,8 @@ export interface components {
             photos: components["schemas"]["AccountPhotoOut"][];
             project: components["schemas"]["ProjectBase"] | null;
             status: components["schemas"]["AccountStatus"];
-            mutedUntil: string;
+            mutedUntil: string | null;
+            outDailyLimit: number;
         };
         AccountPhotoOut: {
             id: number;
@@ -144,7 +145,6 @@ export interface components {
         ProjectIn: {
             name: string;
             dialogLimit: number;
-            outDailyLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
@@ -160,7 +160,6 @@ export interface components {
         ProjectOut: {
             name: string;
             dialogLimit: number;
-            outDailyLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
@@ -193,6 +192,10 @@ export interface components {
             password: string;
             country: string;
             createdAt: string;
+        };
+        SetLimitIn: {
+            outDailyLimit: number;
+            accountIds: number[];
         };
         StatsIn: {
             dateFrom: string;
@@ -279,6 +282,7 @@ export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
+export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];

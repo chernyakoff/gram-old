@@ -158,6 +158,12 @@ class Account(Model, TimestampMixin):
     last_error = fields.TextField(null=True)
     last_attempt_at = fields.DatetimeField(null=True)
 
+    out_daily_limit = fields.IntField(
+        description="Исходящих сообщений с одного аккаунта в сутки",
+        null=False,
+        default=6,
+    )
+
     user_id: int
 
     @property
@@ -204,11 +210,7 @@ class Project(Model, TimestampMixin):
     dialog_limit = fields.IntField(
         description="Сообщений в одной переписке", null=False, default=10
     )
-    out_daily_limit = fields.IntField(
-        description="Исходящих сообщений с одного аккаунта в сутки",
-        null=False,
-        default=6,
-    )
+
     send_time_start = fields.IntField(
         description="Начало времени рассылки", null=False, default=0
     )

@@ -48,6 +48,7 @@ class AccountOut(AccountBase):
     project: ProjectBase | None
     status: enums.AccountStatus
     muted_until: Optional[datetime]
+    out_daily_limit: int
 
     @classmethod
     async def resolve_photos(
@@ -61,6 +62,11 @@ class AccountOut(AccountBase):
 
 class BindProjectIn(BaseModel):
     project_id: int
+    account_ids: list[int]
+
+
+class SetLimitIn(BaseModel):
+    out_daily_limit: int
     account_ids: list[int]
 
 

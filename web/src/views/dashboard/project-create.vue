@@ -32,14 +32,11 @@
               <UFormField label="Наименование" name="name" class="mb-4">
                 <UInput v-model="state.name" size="md" class="w-full" />
               </UFormField>
-              <div class="mb-4 flex items-center gap-2">
-                <UFormField label="Сообщений на одну переписку" name="dialogLimit">
-                  <UInputNumber v-model="state.dialogLimit" size="md" />
-                </UFormField>
-                <UFormField label="Лимит исходящих сообщений" name="outDailyLimit">
-                  <UInputNumber v-model="state.outDailyLimit" size="md" />
-                </UFormField>
-              </div>
+
+              <UFormField label="Сообщений на одну переписку" name="dialogLimit" class="mb-4">
+                <UInputNumber v-model="state.dialogLimit" size="md" />
+              </UFormField>
+
               <div class="mb-4 max-w-sm">
                 <label class="block text-sm mb-2">Время рассылки</label>
                 <div class="flex items-center gap-2">
