@@ -118,18 +118,10 @@ class DialogManager:
                     if not last_db_message or not last_db_message.tg_message_id:
                         continue
 
-                    target = dialog.recipient.username
-                    if dialog.recipient_peer_id and dialog.recipient_access_hash:
-                        from telethon.tl.types import InputPeerUser
-
-                        target = InputPeerUser(
-                            user_id=dialog.recipient_peer_id,
-                            access_hash=dialog.recipient_access_hash,
-                        )
                     # Получаем новые сообщения из Telegram
                     new_messages = []
                     async for msg in self.client.iter_messages(
-                        target, min_id=last_db_message.tg_message_id
+                        dialog.recipient.username, min_id=last_db_message.tg_message_id
                     ):
                         # Пропускаем само последнее сообщение
                         if msg.id == last_db_message.tg_message_id:
@@ -275,6 +267,8 @@ class DialogManager:
 
             if len(messages) >= self.project.dialog_limit:
                 await self._close_dialog(dialog, recipient, "лимит сообщений")
+                # Уменьшаем счётчик так как диалог больше не ждёт ответа
+                self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
                 await self._check_and_stop_if_needed()
                 return
 
@@ -319,7 +313,7 @@ class DialogManager:
 
             # Если не дождались ответа - закрываем диалог
             self.logger.info(
-                f"[{recipient.username}] Не получен ответ за {WAIT_FOR_REPLY_MINUTES} минут, закрываем диалог"
+                f"[{recipient.username}] Не получен ответ за {WAIT_FOR_REPLY_MINUTES} минут, останавливаем диалог"
             )
             await self._close_dialog(dialog, recipient, "нет ответа")
 
@@ -358,8 +352,12 @@ class DialogManager:
                         f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
                     )
                     if attempt == MAX_RETRIES:
-                        # Закрываем диалог при критической ошибке AI
+                        # Останавливаем диалог при критической ошибке AI
                         await self._close_dialog(dialog, recipient, "AI error")
+                        # Уменьшаем счётчик
+                        self.active_dialogs_count = max(
+                            0, self.active_dialogs_count - 1
+                        )
                         return
                     else:
                         await asyncio.sleep(2)
@@ -372,8 +370,10 @@ class DialogManager:
                     f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
                 )
                 if attempt == MAX_RETRIES:
-                    # Закрываем диалог при критической ошибке AI
+                    # Останавливаем диалог при критической ошибке AI
                     await self._close_dialog(dialog, recipient, "AI timeout")
+                    # Уменьшаем счётчик
+                    self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
                     return
                 else:
                     await asyncio.sleep(2)
@@ -384,7 +384,12 @@ class DialogManager:
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 
+        # Если AI вернул COMPLETE - диалог завершён
         if ai_response == "COMPLETE":
+            self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
+            # Уменьшаем счётчик активных диалогов
+            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+            await self._check_and_stop_if_needed()
             return
 
         # Отправляем read acknowledge
@@ -394,9 +399,7 @@ class DialogManager:
         # Показываем "печатает..."
         async with self.client.action(event.chat_id, "typing"):  # type: ignore
             await asyncio.sleep(random.randint(3, 10))
-            msg = await self.telegram_service.send_message(
-                recipient, ai_response, dialog
-            )
+            msg = await self.telegram_service.send_message(recipient, ai_response)
 
         if msg:
             await orm.Message.create(
@@ -414,21 +417,25 @@ class DialogManager:
         new_status: enums.DialogStatus | None,
         messages: list[orm.Message],
     ):
-        """Обновляет статус диалога"""
+        """
+        Обновляет статус диалога на основе ответа AI.
+        ВАЖНО: Только AI может менять статусы диалогов!
+        """
 
         if new_status and new_status != dialog.status:
             old_status = dialog.status
             dialog.status = new_status
 
+            # Только AI может установить статус COMPLETE
             if new_status == enums.DialogStatus.COMPLETE:
                 dialog.finished_at = tz.now()
 
             await dialog.save()
             self.logger.info(
-                f"[{recipient.username}] Статус: {old_status.value} -> {new_status.value}"
+                f"[{recipient.username}] AI изменил статус: {old_status.value} -> {new_status.value}"
             )
 
-            # Проверяем лимиты только при закрытии
+            # Если AI установил COMPLETE - проверяем условия завершения
             if new_status == enums.DialogStatus.COMPLETE:
                 await self._check_and_stop_if_needed()
 
@@ -450,11 +457,13 @@ class DialogManager:
     async def _close_dialog(
         self, dialog: orm.Dialog, recipient: orm.Recipient, reason: str
     ):
-        """Закрывает диалог"""
-        dialog.status = enums.DialogStatus.COMPLETE
-        dialog.finished_at = tz.now()
-        await dialog.save()
-        self.logger.info(f"[{recipient.username}] Диалог закрыт: {reason}")
+        """Закрывает диалог без изменения статуса (статус меняет только AI)"""
+        # НЕ меняем статус! Статусы может менять только AI
+        # dialog.status = enums.DialogStatus.COMPLETE  # УДАЛЕНО
+        # dialog.finished_at = tz.now()  # УДАЛЕНО
+        # await dialog.save()  # УДАЛЕНО
+
+        self.logger.info(f"[{recipient.username}] Диалог остановлен: {reason}")
 
         # Отменяем задачу ожидания если она есть
         if dialog.id in self.waiting_dialogs:
@@ -491,44 +500,17 @@ class DialogManager:
             return
 
         # 3. Считаем незавершенные диалоги сессии
-        active_session_dialogs = await orm.Dialog.filter(
-            recipient_id__in=self.session_recipients_ids,
-            status__not_in=[enums.DialogStatus.COMPLETE],
-        ).count()
-
-        closed_session_dialogs = await orm.Dialog.filter(
-            recipient_id__in=self.session_recipients_ids,
-            status=enums.DialogStatus.COMPLETE,
-        ).count()
-
+        # Теперь полагаемся только на счётчик в памяти, так как статус COMPLETE ставит только AI
         total_session_dialogs = len(self.session_recipients_ids)
 
         self.logger.info(
             f"[Аккаунт {self.account.id}] Проверка завершения: "
-            f"незавершённых_в_БД={active_session_dialogs}/{total_session_dialogs}, "
-            f"завершённых_в_БД={closed_session_dialogs}/{total_session_dialogs}, "
+            f"всего_в_сессии={total_session_dialogs}, "
             f"ожидающих_ответа_в_памяти={self.active_dialogs_count}"
         )
 
-        # 4. КЛЮЧЕВАЯ ПРОВЕРКА: если все диалоги завершены И нет ожидающих ответа
-        if active_session_dialogs == 0 and self.active_dialogs_count == 0:
-            self.logger.info(
-                f"🛑 Все диалоги завершены: "
-                f"в БД нет незавершённых ({active_session_dialogs}), "
-                f"в памяти нет ожидающих ответа ({self.active_dialogs_count})"
-            )
+        # 4. КЛЮЧЕВАЯ ПРОВЕРКА: если нет диалогов ожидающих ответа
+        if self.active_dialogs_count == 0 and total_session_dialogs > 0:
+            self.logger.info("🛑 Нет диалогов ожидающих ответа (сессия завершена)")
             self.stop_event.set()
             return
-
-        # 5. Проверка на рассинхронизацию (если счётчик в памяти не совпадает с БД)
-        if self.active_dialogs_count > active_session_dialogs:
-            self.logger.warning(
-                f"⚠️ Рассинхронизация: ожидающих_в_памяти={self.active_dialogs_count} > "
-                f"незавершённых_в_БД={active_session_dialogs}. Корректируем счётчик."
-            )
-            self.active_dialogs_count = active_session_dialogs
-
-            # Если после корректировки всё равно 0 - завершаемся
-            if self.active_dialogs_count == 0 and active_session_dialogs == 0:
-                self.logger.info("🛑 После корректировки все диалоги завершены")
-                self.stop_event.set()
