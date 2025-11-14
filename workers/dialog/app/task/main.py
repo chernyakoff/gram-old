@@ -20,7 +20,7 @@ from app.utils.logger import Logger
 from app.utils.proxy_pool import ProxyPool
 
 # Максимальное время на случай если что-то пойдет не так
-MAX_SESSION_HOURS = 6
+MAX_SESSION_HOURS = 2
 
 
 class DialogIn(BaseModel):
@@ -149,8 +149,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 await limiter.increment(enums.AccountAction.NEW_DIALOG)
                 new_dialogs_started += 1
 
-                # Увеличиваем счетчик активных диалогов (ждём ответа)
-                manager.active_dialogs_count += 1
+                # Запускаем ожидание ответа на первое сообщение
+                asyncio.create_task(
+                    manager.start_waiting_for_first_reply(dialog, recipient)
+                )
 
                 if stop_event.is_set() or tz.now() > end_time:
                     break
@@ -176,7 +178,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
             # Периодически проверяем состояние
             last_check = tz.now()
+            last_full_check = tz.now()
             CHECK_INTERVAL_SEC = 30
+            FULL_CHECK_INTERVAL_SEC = 60
 
             while tz.now() < end_time and not stop_event.is_set():
                 if not client.is_connected():
@@ -191,6 +195,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
                         f"ожидающих_обработки={len(manager.waiting_dialogs)}"
                     )
                     last_check = tz.now()
+
+                # Каждую минуту делаем полную проверку
+                if (
+                    tz.now() - last_full_check
+                ).total_seconds() >= FULL_CHECK_INTERVAL_SEC:
+                    await manager._check_and_stop_if_needed()
+                    last_full_check = tz.now()
 
                 await asyncio.sleep(10)
 

@@ -71,6 +71,13 @@ class DialogManager:
         """Регистрирует recipient как часть текущей сессии"""
         self.session_recipients_ids.add(recipient_id)
 
+    async def start_waiting_for_first_reply(
+        self, dialog: orm.Dialog, recipient: orm.Recipient
+    ):
+        """Запускает ожидание ответа на первое сообщение"""
+        self.active_dialogs_count += 1
+        await self._wait_for_reply(dialog, recipient)
+
     def setup_event_handlers(self):
         """Регистрирует обработчики событий"""
         self.client.add_event_handler(
@@ -467,14 +474,13 @@ class DialogManager:
             self.stop_event.set()
             return
 
-        # 2. Проверяем активные диалоги текущей сессии
+        # 2. Если нет диалогов в сессии - завершаемся
         if not self.session_recipients_ids:
-            # Если нет диалогов в сессии - завершаемся
             self.logger.info("🛑 Нет диалогов в текущей сессии")
             self.stop_event.set()
             return
 
-        # Считаем незавершенные диалоги сессии
+        # 3. Считаем незавершенные диалоги сессии
         active_session_dialogs = await orm.Dialog.filter(
             recipient_id__in=self.session_recipients_ids,
             status__not_in=[enums.DialogStatus.COMPLETE],
@@ -488,16 +494,31 @@ class DialogManager:
         total_session_dialogs = len(self.session_recipients_ids)
 
         self.logger.info(
-            f"[Аккаунт {self.account.id}] Сессия: "
-            f"активных={active_session_dialogs}/{total_session_dialogs}, "
-            f"закрытых={closed_session_dialogs}/{total_session_dialogs}, "
-            f"ожидающих_ответа={self.active_dialogs_count}"
+            f"[Аккаунт {self.account.id}] Проверка завершения: "
+            f"незавершённых_в_БД={active_session_dialogs}/{total_session_dialogs}, "
+            f"завершённых_в_БД={closed_session_dialogs}/{total_session_dialogs}, "
+            f"ожидающих_ответа_в_памяти={self.active_dialogs_count}"
         )
 
-        # 3. Проверяем: если все диалоги завершены И нет ожидающих ответа
+        # 4. КЛЮЧЕВАЯ ПРОВЕРКА: если все диалоги завершены И нет ожидающих ответа
         if active_session_dialogs == 0 and self.active_dialogs_count == 0:
             self.logger.info(
-                "🛑 Все диалоги текущей сессии завершены, ожидающих ответа нет"
+                f"🛑 Все диалоги завершены: "
+                f"в БД нет незавершённых ({active_session_dialogs}), "
+                f"в памяти нет ожидающих ответа ({self.active_dialogs_count})"
             )
             self.stop_event.set()
             return
+
+        # 5. Проверка на рассинхронизацию (если счётчик в памяти не совпадает с БД)
+        if self.active_dialogs_count > active_session_dialogs:
+            self.logger.warning(
+                f"⚠️ Рассинхронизация: ожидающих_в_памяти={self.active_dialogs_count} > "
+                f"незавершённых_в_БД={active_session_dialogs}. Корректируем счётчик."
+            )
+            self.active_dialogs_count = active_session_dialogs
+
+            # Если после корректировки всё равно 0 - завершаемся
+            if self.active_dialogs_count == 0 and active_session_dialogs == 0:
+                self.logger.info("🛑 После корректировки все диалоги завершены")
+                self.stop_event.set()
