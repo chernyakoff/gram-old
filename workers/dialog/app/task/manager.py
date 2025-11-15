@@ -10,6 +10,7 @@ from tortoise.expressions import Q
 
 from app.common.models import enums, orm
 from app.utils.logger import Logger
+from app.utils.notify import notify_complete_dialog
 
 from .ai_service import AIService
 from .telegram_service import TelegramService
@@ -387,6 +388,7 @@ class DialogManager:
         # Если AI вернул COMPLETE - диалог завершён
         if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
+            asyncio.create_task(notify_complete_dialog(dialog, self.account))
             # Уменьшаем счётчик активных диалогов
             self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
             await self._check_and_stop_if_needed()
