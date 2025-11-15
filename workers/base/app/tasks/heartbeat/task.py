@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel
+from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
 from pydantic import BaseModel
 from tortoise import timezone as tz
 from tortoise.expressions import F, Q
@@ -204,8 +204,10 @@ async def task(input: EmptyModel, ctx: Context):
 
                 # Отправляем в таск
                 recipients_id = [r.id for r in recipients_to_assign]
+
                 await dialog_task.aio_run_no_wait(
-                    DialogIn(account_id=acc.id, recipients_id=recipients_id)
+                    DialogIn(account_id=acc.id, recipients_id=recipients_id),
+                    TriggerWorkflowOptions(sticky=True, key=f"dialog-{acc.id}"),
                 )
 
                 planned_tasks += len(recipients_id)
