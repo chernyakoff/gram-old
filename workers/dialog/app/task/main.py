@@ -20,7 +20,7 @@ from app.utils.logger import Logger
 from app.utils.proxy_pool import ProxyPool
 
 # Максимальное время на случай если что-то пойдет не так
-MAX_SESSION_HOURS = 2
+MAX_SESSION_HOURS = 6
 
 
 class DialogIn(BaseModel):
@@ -64,13 +64,34 @@ async def dialog_task(input: DialogIn, ctx: Context):
     stop_event = asyncio.Event()
 
     try:
-        async with pool.proxy(account.country, timeout=30) as proxy:
+        async with pool.proxy(
+            account.country, timeout=30, account_id=account.id
+        ) as proxy:
             client = account_util.create_client(proxy)
-            await client.connect()
 
-            if not await client.is_user_authorized():
-                logger.error(f"Account {account.id} не авторизован")
-                await release_account(account, error="Account not authorized")
+            try:
+                # Подключение с таймаутом
+                await asyncio.wait_for(client.connect(), timeout=30)
+            except asyncio.TimeoutError:
+                logger.error("Таймаут подключения клиента (30 сек)")
+                await release_account(account, error="Client connect timeout")
+                return
+            except Exception as e:
+                logger.error(f"Ошибка подключения клиента: {e}")
+                await release_account(account, error=f"Connection error: {e}")
+                return
+
+            try:
+                is_authorized = await asyncio.wait_for(
+                    client.is_user_authorized(), timeout=10
+                )
+                if not is_authorized:
+                    logger.error(f"Account {account.id} не авторизован")
+                    await release_account(account, error="Account not authorized")
+                    return
+            except asyncio.TimeoutError:
+                logger.error("Таймаут проверки авторизации")
+                await release_account(account, error="Authorization check timeout")
                 return
 
             logger.info(f"Account {account.id} подключен к Telegram")
@@ -167,8 +188,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 logger.info(
                     "🛑 Нет новых диалогов и нет ответов в старых - завершаем работу"
                 )
-                await release_account(account)
-                return
+                return  # finally сработает и disconnect будет вызван
 
             # Основной цикл - держим соединение пока есть активные диалоги
             logger.info(
@@ -186,7 +206,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 if not client.is_connected():
                     logger.error("Потеряно соединение, завершаем задачу")
                     await release_account(account, error="Connection lost")
-                    return
+                    return  # finally сработает
 
                 # Каждые 30 секунд логируем состояние
                 if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
@@ -227,14 +247,58 @@ async def dialog_task(input: DialogIn, ctx: Context):
         import traceback
 
         logger.error(traceback.format_exc())
+
+        # Специальная обработка для AuthKeyDuplicatedError
+        if "AuthKeyDuplicatedError" in str(type(e).__name__):
+            logger.error(
+                "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
+            )
+            # Деактивируем аккаунт чтобы он больше не использовался
+            account.active = False
+            account.status = enums.AccountStatus.FROZEN
+            await account.save(update_fields=["active", "status"])
+
         await release_account(account, error=msg)
 
     finally:
-        try:
-            if client:
-                await client.disconnect()  # type: ignore
-                logger.info("Клиент корректно отключён")
-        except Exception as e:
-            logger.error(f"Ошибка при отключении клиента: {e}")
+        # КРИТИЧЕСКИ ВАЖНО: всегда отключаем клиента
+        if client is not None:
+            disconnect_attempts = 0
+            max_disconnect_attempts = 3
+
+            while disconnect_attempts < max_disconnect_attempts:
+                try:
+                    if client.is_connected():
+                        logger.info(
+                            f"Отключение клиента (попытка {disconnect_attempts + 1}/{max_disconnect_attempts})"
+                        )
+                        await asyncio.wait_for(client.disconnect(), timeout=10)  # type: ignore
+                        logger.info("✅ Клиент корректно отключён")
+                        break
+                    else:
+                        logger.info("Клиент уже был отключён")
+                        break
+                except asyncio.TimeoutError:
+                    disconnect_attempts += 1
+                    logger.warning(
+                        f"Таймаут отключения клиента (попытка {disconnect_attempts})"
+                    )
+                    if disconnect_attempts >= max_disconnect_attempts:
+                        logger.error("❌ Не удалось отключить клиента после 3 попыток")
+                except Exception as e:
+                    disconnect_attempts += 1
+                    logger.error(
+                        f"Ошибка при отключении клиента (попытка {disconnect_attempts}): {e}"
+                    )
+                    if disconnect_attempts >= max_disconnect_attempts:
+                        logger.error("❌ Критическая ошибка отключения клиента")
+                        # Последняя попытка - force disconnect
+                        try:
+                            await client.disconnect()  # type: ignore
+                        except:
+                            pass
+                        break
+
+                await asyncio.sleep(1)  # Пауза между попытками
 
         await release_account(account)

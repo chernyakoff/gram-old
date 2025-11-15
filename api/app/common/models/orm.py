@@ -149,6 +149,7 @@ class Account(Model, TimestampMixin):
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
     dialogs: fields.ReverseRelation["Dialog"]
+    last_proxy_id = fields.IntField(null=True)
 
     worker_id = fields.CharField(
         max_length=64, null=True

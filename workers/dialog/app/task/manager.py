@@ -398,7 +398,7 @@ class DialogManager:
 
         # Показываем "печатает..."
         async with self.client.action(event.chat_id, "typing"):  # type: ignore
-            await asyncio.sleep(random.randint(3, 10))
+            await asyncio.sleep(random.randint(10, 20))
             msg = await self.telegram_service.send_message(recipient, ai_response)
 
         if msg:
@@ -511,6 +511,6 @@ class DialogManager:
 
         # 4. КЛЮЧЕВАЯ ПРОВЕРКА: если нет диалогов ожидающих ответа
         if self.active_dialogs_count == 0 and total_session_dialogs > 0:
-            self.logger.info("🛑 Нет диалогов ожидающих ответа (сессия завершена)")
+            self.logger.info(f"🛑 Нет диалогов ожидающих ответа (сессия завершена)")
             self.stop_event.set()
             return
