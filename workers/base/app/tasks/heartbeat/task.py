@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
 from pydantic import BaseModel
+from tortoise import Tortoise
 from tortoise import timezone as tz
 from tortoise.expressions import F, Q
 from tortoise.transactions import in_transaction
@@ -26,6 +27,21 @@ MAX_ACCOUNTS_PER_CYCLE = 50  # сколько аккаунтов проверя�
 RECIPIENT_LEASE_MINUTES = 30  # время аренды recipient перед отправкой в таск
 
 heartbeat = hatchet.workflow(name="heartbeat", on_crons=["15 * * * *"])
+
+
+async def complete_old_dialogs():
+    await Tortoise.get_connection("default").execute_query("""
+UPDATE dialogs d
+SET status = 'complete'
+FROM (
+    SELECT dialog_id, MAX(created_at) AS last_msg_time
+    FROM messages
+    GROUP BY dialog_id
+) m
+WHERE d.id = m.dialog_id
+  AND d.status <> 'complete'
+  AND m.last_msg_time < NOW() - INTERVAL '2 days';
+""")
 
 
 async def get_active_projects() -> list[orm.Project]:
@@ -151,6 +167,8 @@ async def lock_account_and_recipients(
 
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
+    await complete_old_dialogs()
+
     now = tz.now()
     planned_tasks = 0
 
