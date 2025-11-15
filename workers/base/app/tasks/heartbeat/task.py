@@ -207,7 +207,7 @@ async def task(input: EmptyModel, ctx: Context):
 
                 await dialog_task.aio_run_no_wait(
                     DialogIn(account_id=acc.id, recipients_id=recipients_id),
-                    TriggerWorkflowOptions(sticky=True, key=f"dialog-{acc.id}"),
+                    TriggerWorkflowOptions(key=f"dialog-{acc.id}"),
                 )
 
                 planned_tasks += len(recipients_id)
