@@ -11,5 +11,4 @@ app = App(name="hatchet", help="hatched")
 async def list():
     # Получаем список всех тасков
     tasks = await hatchet.runs.aio_list()  # можно добавить фильтры
-
     print(tasks)

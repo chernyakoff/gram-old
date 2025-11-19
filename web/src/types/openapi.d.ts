@@ -52,6 +52,24 @@ export interface components {
             projectId: number;
             accountIds: number[];
         };
+        BriefIn: {
+            description: string;
+            offer: string;
+            client: string;
+            pains: string;
+            advantages: string;
+            mission: string;
+            focus: string;
+        };
+        BriefOut: {
+            description: string;
+            offer: string;
+            client: string;
+            pains: string;
+            advantages: string;
+            mission: string;
+            focus: string;
+        };
         BuyPremiumOut: {
             status: "error" | "success";
             message?: string | null;
@@ -141,6 +159,7 @@ export interface components {
         ProjectBase: {
             id: number;
             name: string;
+            promptExists: boolean;
         };
         ProjectIn: {
             name: string;
@@ -148,34 +167,22 @@ export interface components {
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
-            role: string;
-            context: string;
-            init: string;
-            engage: string;
-            offer: string;
-            closing: string;
-            instruction: string;
-            rules: string;
+            brief: components["schemas"]["BriefIn"];
         };
         ProjectOut: {
+            id: number;
             name: string;
             dialogLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
-            role: string;
-            context: string;
-            init: string;
-            engage: string;
-            offer: string;
-            closing: string;
-            instruction: string;
-            rules: string;
-            id: number;
+            status: boolean;
+            brief: components["schemas"]["BriefOut"];
         };
         ProjectShortOut: {
             id: number;
             name: string;
+            promptExists: boolean;
             status: boolean;
         };
         ProjectStatusIn: {
@@ -255,6 +262,8 @@ export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
+export type BriefIn = components['schemas']['BriefIn'];
+export type BriefOut = components['schemas']['BriefOut'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];

@@ -1,6 +1,12 @@
 import { useApi } from '@/composables/use-api'
 
-import type { ProjectBase, ProjectIn, ProjectOut, ProjectShortOut } from '@/types/openapi'
+import type {
+  ProjectBase,
+  ProjectIn,
+  ProjectOut,
+  ProjectShortOut,
+  WorkflowOut,
+} from '@/types/openapi'
 import { ref } from 'vue'
 
 export function useProjects() {
@@ -36,14 +42,14 @@ export function useProjects() {
   }
 
   async function update(id: number, body: ProjectIn) {
-    return await api<ProjectOut>(`projects/${id}`, {
+    return await api<WorkflowOut>(`projects/${id}`, {
       method: 'PATCH',
       body,
     })
   }
 
   async function create(body: ProjectIn) {
-    return await api<ProjectOut>('projects', {
+    return await api<WorkflowOut>('projects', {
       method: 'POST',
       body,
     })

@@ -1,5 +1,3 @@
-import re
-
 from openai import AsyncOpenAI
 
 from app.common.models import enums, orm

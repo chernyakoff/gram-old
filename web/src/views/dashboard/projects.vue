@@ -46,7 +46,15 @@
                 :modelValue="row.original.status"
                 @update:modelValue="(val: boolean) => toggleStatus(row.original, val)"
               />
-              <ChatModal :id="row.original.id" />
+              <ChatModal :id="row.original.id" v-if="row.original.promptExists" />
+              <UButton
+                v-else
+                variant="ghost"
+                icon="bx:message-detail"
+                @click="showAlert"
+                color="warning"
+                title="Промпт еще не сгенерирован"
+              />
               <UButton
                 title="Редактировать проект"
                 variant="ghost"
@@ -75,7 +83,7 @@ const { projects, get, loading, status } = useProjects()
 
 const title = 'Проекты'
 useTitle(title)
-
+const toast = useToast()
 onMounted(() => get())
 
 // - drawer
@@ -86,6 +94,13 @@ const columnVisibility = ref()
 
 const refresh = () => {
   get()
+}
+
+const showAlert = () => {
+  toast.add({
+    title: 'Промпт еще не сгенерирован',
+    color: 'warning',
+  })
 }
 
 const toggleStatus = async (project: ProjectShortOut, value: boolean) => {

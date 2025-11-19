@@ -37,8 +37,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # если сообщений нет, это первый вызов — просто возвращаем first_message
-
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         return ChatOut(text=first_message, status=chat.status)
@@ -49,15 +47,10 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
-                print(f"QUESTION=====\n{msg.text}\n====")
-
                 break
 
     prompt = await build_prompt(project.prompt, chat.status)
 
-    # print("PROMPT", prompt)
-
-    # иначе строим контекст для модели
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
@@ -67,8 +60,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     )
 
     response = completion.choices[0].message.content or ""
-
-    print(f"ANSWER=====\n{response}\n====")
 
     status = get_ooc_status(response)
     if not status:

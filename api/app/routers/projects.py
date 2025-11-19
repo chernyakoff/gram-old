@@ -1,6 +1,11 @@
+# app/router/projects.py
+
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.common.models import orm
+from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
     ProjectIn,
@@ -9,16 +14,45 @@ from app.dto.project import (
     ProjectStatusIn,
     create_default_project,
 )
+from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
+from app.routers.sse import watch_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.post("/")
+@router.post("/", response_model=WorkflowOut)
 async def create_project(data: ProjectIn, user=Depends(get_current_user)):
-    project = orm.Project(**await data.to_model_dict())
-    project.user_id = user.id
+    # Создаём проект
+    project = orm.Project(
+        name=data.name,
+        dialog_limit=data.dialog_limit,
+        send_time_start=data.send_time_start,
+        send_time_end=data.send_time_end,
+        first_message=data.first_message,
+        user_id=user.id,
+        prompt={},  # Пустой prompt, будет генерироваться из brief
+    )
     await project.save()
+
+    # Создаём связанный Brief
+    brief = orm.Brief(
+        project_id=project.id,
+        description=data.brief.description,
+        offer=data.brief.offer,
+        client=data.brief.client,
+        pains=data.brief.pains,
+        advantages=data.brief.advantages,
+        mission=data.brief.mission,
+        focus=data.brief.focus,
+    )
+    await brief.save()
+
+    ref = await tasks.generate_prompt.aio_run_no_wait(
+        input=models.GeneratePromptIn(project_id=project.id)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}
 
 
 @router.get("/", response_model=list[ProjectShortOut])
@@ -38,10 +72,14 @@ async def get_project_list(user=Depends(get_current_user)):
 
 @router.get("/{id}", response_model=ProjectOut)
 async def get_project(id: int, user=Depends(get_current_user)):
-    project = await orm.Project.get_or_none(id=id, user_id=user.id)
+    project = await orm.Project.get_or_none(id=id, user_id=user.id).prefetch_related(
+        "brief"
+    )
     if not project:
         raise HTTPException(status_code=404, detail="not found")
-    return ProjectOut.from_orm(project)
+
+    # Используем tortoise-serializer для сериализации с вложенным brief
+    return await ProjectOut.from_tortoise_orm(project)
 
 
 @router.delete("/")
@@ -52,12 +90,47 @@ async def delete_projects(id: list[int] = Query(...), user=Depends(get_current_u
 @router.patch("/{id}")
 async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user)):
     project = await orm.Project.get_or_none(id=id, user_id=user.id)
+
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    project.update_from_dict(await data.to_model_dict())
-    project.user_id = user.id
+    project.name = data.name
+    project.dialog_limit = data.dialog_limit
+    project.send_time_start = data.send_time_start
+    project.send_time_end = data.send_time_end
+    project.first_message = data.first_message
+
+    brief = await orm.Brief.get_or_none(project_id=id)
+    data_dict = data.brief.model_dump()
+
+    if brief:
+        changed = any(getattr(brief, k) != v for k, v in data_dict.items())
+    else:
+        changed = True
+
+    print(changed)
+
+    if brief:
+        for k, v in data_dict.items():
+            setattr(brief, k, v)
+        await brief.save()
+    else:
+        brief = orm.Brief(project_id=project.id, **data_dict)
+        await brief.save()
+
+    if changed:
+        project.prompt = {}
+
     await project.save()
+
+    if changed:
+        ref = await tasks.generate_prompt.aio_run_no_wait(
+            input=models.GeneratePromptIn(project_id=project.id)
+        )
+        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+        return {"id": ref.workflow_run_id}
+    else:
+        return {"id": "NONE"}
 
 
 @router.patch("/{id}/status")
@@ -68,5 +141,5 @@ async def update_project_status(
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    project.update_from_dict(data.model_dump())
+    project.status = data.status
     await project.save()

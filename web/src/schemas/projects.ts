@@ -16,6 +16,18 @@ const textSchema = v.pipe(
 
 const hourSchema = v.pipe(v.number('обязательное поле'), v.minValue(0), v.maxValue(24))
 
+export const briefInSchema = v.object({
+  description: textSchema,
+  client: textSchema,
+  offer: textSchema,
+  pains: textSchema,
+  advantages: textSchema,
+  mission: textSchema,
+  focus: textSchema,
+})
+
+export type BriefInSchema = v.InferOutput<typeof briefInSchema>
+
 export const projectInSchema = v.object({
   name: v.pipe(
     v.string(),
@@ -26,14 +38,7 @@ export const projectInSchema = v.object({
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
   firstMessage: textSchema,
-  role: textSchema,
-  context: textSchema,
-  init: textSchema,
-  engage: textSchema,
-  offer: textSchema,
-  closing: textSchema,
-  instruction: textSchema,
-  rules: textSchema,
+  brief: briefInSchema,
 }) as v.GenericSchema<ProjectIn>
 
 export type ProjectInSchema = v.InferOutput<typeof projectInSchema>

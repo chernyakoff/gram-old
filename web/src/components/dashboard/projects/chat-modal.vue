@@ -1,6 +1,6 @@
 <template>
   <UModal v-model:open="open" :ui="{ content: 'h-screen w-1/3 max-w-none min-w-160 p-6' }">
-    <UButton variant="ghost" icon="lucide:message-square-more" title="Протестировать промпт" />
+    <UButton variant="ghost" icon="bx:message-detail" title="Протестировать промпт" />
     <template #content>
       <UChatPalette>
         <UChatMessages

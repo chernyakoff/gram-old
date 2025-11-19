@@ -10,6 +10,7 @@ from app.tasks.accounts.premium import buy_premium
 from app.tasks.accounts.update import accounts_update
 from app.tasks.accounts.upload import accounts_upload
 from app.tasks.heartbeat.task import heartbeat
+from app.tasks.prompt.task import generate_prompt
 from app.tasks.proxies.upload import proxies_upload
 
 
@@ -39,6 +40,7 @@ worker = hatchet.worker(
         accounts_update,
         accounts_check,
         buy_premium,
+        generate_prompt,
         heartbeat,
     ],
     lifespan=lifespan,

@@ -222,7 +222,9 @@ class Project(Model, TimestampMixin):
     )
     first_message = fields.TextField(null=False)
     prompt = fields.JSONField(null=False)
+
     mailings: fields.ReverseRelation["Mailing"]
+    brief: fields.ReverseRelation["Brief"]
     user_id: int
 
     class Meta:
@@ -343,3 +345,20 @@ class AppSettings(Model):
         table = "app_settings"
         unique_together = ("section", "name")
         indexes = ("section", "name")
+
+
+class Brief(Model):
+    id = fields.IntField(pk=True)
+    project = fields.OneToOneField(
+        "models.Project", related_name="brief", on_delete=fields.CASCADE
+    )
+    description = fields.TextField(null=False)
+    offer = fields.TextField(null=False)
+    client = fields.TextField(null=False)
+    pains = fields.TextField(null=False)
+    advantages = fields.TextField(null=False)
+    mission = fields.TextField(null=False)
+    focus = fields.TextField(null=False)
+
+    class Meta:
+        table = "briefs"
