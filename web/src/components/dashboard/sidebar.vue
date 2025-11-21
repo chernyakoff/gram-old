@@ -13,7 +13,7 @@
     <template #default="{ collapsed }">
       <UNavigationMenu
         :collapsed="collapsed"
-        :items="links"
+        :items="filteredLinks"
         orientation="vertical"
         tooltip
         popover
@@ -28,9 +28,12 @@
 import AppUserMenu from '@/components/dashboard/user-menu.vue'
 import type { NavigationMenuItem } from '@nuxt/ui'
 import Logo from '@/components/shared/logo.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useAuth } from '@/composables/use-auth'
 
 const open = ref(false)
+
+const { user } = useAuth()
 
 const links = [
   {
@@ -76,5 +79,20 @@ const links = [
     icon: 'i-lucide-logs',
     onSelect: () => (open.value = false),
   },
+  {
+    label: 'Админка',
+    to: '/app/admin',
+    icon: 'bx:bxl-gitlab',
+    onSelect: () => (open.value = false),
+  },
 ] satisfies NavigationMenuItem[]
+
+const filteredLinks = computed(() => {
+  return links.filter((link) => {
+    if (link.to?.includes('admin')) {
+      return user.value?.role === 'ADMIN'
+    }
+    return true
+  })
+})
 </script>

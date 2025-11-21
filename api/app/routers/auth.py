@@ -4,15 +4,16 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from jose import ExpiredSignatureError, JWTError, jwt
 
-from app.common.models import orm
+from app.common.models import enums, orm
 from app.common.utils.functions import pick
 from app.config import config
 from app.dto.user import UserLoginIn, UserLoginOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
 
 def validate_telegram_data(data: dict):
     received_hash = data.pop("hash", None)
@@ -25,9 +26,7 @@ def validate_telegram_data(data: dict):
         raise HTTPException(400, "Telegram authentication session is expired.")
 
     # Исключаем пустые значения из проверки
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(data.items()) if v
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()) if v)
     secret_key = hashlib.sha256(
         config.api.bot.token.get_secret_value().encode()
     ).digest()
@@ -37,6 +36,7 @@ def validate_telegram_data(data: dict):
 
     if not hmac.compare_digest(generated_hash, received_hash):
         raise HTTPException(400, "Telegram data signature mismatch")
+
 
 # ----------------- JWT helpers -----------------
 
@@ -101,6 +101,12 @@ async def get_current_user(authorization: str = Header(...)) -> orm.User:
 
     if not user:
         raise HTTPException(404, "User not found")
+    return user
+
+
+def admin_required(user=Depends(get_current_user)):
+    if user.role != enums.Role.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
 
 

@@ -122,6 +122,14 @@ export interface components {
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
+        LicenseIn: {
+            username: string;
+            days: number;
+        };
+        LicenseOut: {
+            status: "success" | "error";
+            message: string;
+        };
         MailingIn: {
             name: string;
             projectId: number;
@@ -275,6 +283,8 @@ export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
+export type LicenseIn = components['schemas']['LicenseIn'];
+export type LicenseOut = components['schemas']['LicenseOut'];
 export type MailingIn = components['schemas']['MailingIn'];
 export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];

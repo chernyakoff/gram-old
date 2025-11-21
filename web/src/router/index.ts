@@ -21,6 +21,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'mailings', component: () => import('@/views/dashboard/mailings.vue') },
       { path: 'dialogs', component: () => import('@/views/dashboard/dialogs.vue') },
       { path: 'jobs', component: () => import('@/views/dashboard/jobs.vue') },
+      { path: 'admin', component: () => import('@/views/dashboard/admin.vue') },
       { path: 'projects', component: () => import('@/views/dashboard/projects.vue') },
       {
         path: 'project/:id?',
