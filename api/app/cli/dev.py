@@ -55,5 +55,5 @@ async def license():
     usernames = [u.strip().removeprefix("@") for u in raw_users.strip().splitlines()]
     orm_users = await User.filter(username__in=usernames).all()
     for orm_user in orm_users:
-        await orm_user.extend_license(60)
+        await orm_user.extend_license(3650)
         print(orm_user.username)
