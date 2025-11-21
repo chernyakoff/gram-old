@@ -1,7 +1,10 @@
 import datetime
+import math
+from datetime import timedelta
 from typing import Self
 
 from tortoise import fields
+from tortoise import timezone as tz
 from tortoise.models import Model
 
 from .enums import (
@@ -39,6 +42,32 @@ class User(Model, TimestampMixin):
     settings: fields.ReverseRelation["Settings"]
     mailings = fields.ReverseRelation["Mailing"]
     projects = fields.ReverseRelation["Project"]
+
+    async def extend_license(self, days: int) -> None:
+        """Продлевает лицензию на указанное число дней."""
+
+        now = tz.now()
+        if self.license_end_date is None or self.license_end_date < now:
+            self.license_end_date = now + timedelta(days=days)
+        else:
+            self.license_end_date += timedelta(days=days)
+
+        await self.save()
+
+    @property
+    def days_left(self) -> int:
+        """Сколько дней осталось до конца лицензии."""
+        if not self.license_end_date:
+            return 0
+
+        now = tz.now()
+        delta = self.license_end_date - now
+
+        # если уже просрочена → 0
+        if delta.total_seconds() <= 0:
+            return 0
+
+        return math.ceil(delta.total_seconds() / 86400)
 
     @property
     def display_name(self) -> str:
