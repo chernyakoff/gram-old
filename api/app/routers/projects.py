@@ -31,28 +31,22 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         send_time_end=data.send_time_end,
         first_message=data.first_message,
         user_id=user.id,
-        prompt={},  # Пустой prompt, будет генерироваться из brief
     )
     await project.save()
-
-    # Создаём связанный Brief
-    brief = orm.Brief(
-        project_id=project.id,
-        description=data.brief.description,
-        offer=data.brief.offer,
-        client=data.brief.client,
-        pains=data.brief.pains,
-        advantages=data.brief.advantages,
-        mission=data.brief.mission,
-        focus=data.brief.focus,
-    )
-    await brief.save()
-
-    ref = await tasks.generate_prompt.aio_run_no_wait(
-        input=models.GeneratePromptIn(project_id=project.id)
-    )
-    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-    return {"id": ref.workflow_run_id}
+    if data.generate_prompt:
+        brief_params = data.brief.model_dump()
+        brief_params["project_id"] = project.id
+        await orm.Brief.create(**brief_params)
+        ref = await tasks.generate_prompt.aio_run_no_wait(
+            input=models.GeneratePromptIn(project_id=project.id)
+        )
+        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+        return {"id": ref.workflow_run_id}
+    else:
+        prompt_params = data.prompt.model_dump()
+        prompt_params["project_id"] = project.id
+        await orm.Prompt.create(**prompt_params)
+        return {"id": "NONE"}
 
 
 @router.get("/", response_model=list[ProjectShortOut])
@@ -99,37 +93,23 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     project.send_time_start = data.send_time_start
     project.send_time_end = data.send_time_end
     project.first_message = data.first_message
-
-    brief = await orm.Brief.get_or_none(project_id=id)
-    data_dict = data.brief.model_dump()
-
-    if brief:
-        changed = any(getattr(brief, k) != v for k, v in data_dict.items())
-    else:
-        changed = True
-
-    print(changed)
-
-    if brief:
-        for k, v in data_dict.items():
-            setattr(brief, k, v)
-        await brief.save()
-    else:
-        brief = orm.Brief(project_id=project.id, **data_dict)
-        await brief.save()
-
-    if changed:
-        project.prompt = {}
-
     await project.save()
 
-    if changed:
+    if data.generate_prompt:
+        brief, _ = await orm.Brief.update_or_create(
+            project_id=id, defaults=data.brief.model_dump()
+        )
+        await brief.save()
         ref = await tasks.generate_prompt.aio_run_no_wait(
             input=models.GeneratePromptIn(project_id=project.id)
         )
         asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
         return {"id": ref.workflow_run_id}
     else:
+        prompt, _ = await orm.Prompt.update_or_create(
+            project_id=id, defaults=data.prompt.model_dump()
+        )
+        await prompt.save()
         return {"id": "NONE"}
 
 

@@ -26,6 +26,30 @@ class BriefOut(Serializer):
     focus: str
 
 
+class PromptIn(BaseModel):
+    role: str
+    context: str
+    init: str
+    engage: str
+    offer: str
+    closing: str
+    instruction: str
+    rules: str
+    transitions: str
+
+
+class PromptOut(Serializer):
+    role: str
+    context: str
+    init: str
+    engage: str
+    offer: str
+    closing: str
+    instruction: str
+    rules: str
+    transitions: str
+
+
 class ProjectBase(Serializer):
     id: int
     name: str
@@ -50,7 +74,8 @@ class ProjectIn(BaseModel):
     send_time_end: int
     first_message: str
     brief: BriefIn
-    prompt: dict
+    prompt: PromptIn
+    generate_prompt: bool
 
 
 class ProjectShortOut(ProjectBase):
@@ -66,7 +91,7 @@ class ProjectOut(Serializer):
     first_message: str
     status: bool
     brief: BriefOut
-    prompt: dict
+    prompt: PromptOut
 
 
 async def create_default_project() -> ProjectIn:
@@ -76,7 +101,18 @@ async def create_default_project() -> ProjectIn:
         send_time_start=0,
         send_time_end=23,
         first_message="",
-        prompt={},
+        generate_prompt=True,
+        prompt=PromptIn(
+            role="",
+            context="",
+            init="",
+            engage="",
+            offer="",
+            closing="",
+            instruction="",
+            rules="",
+            transitions="",
+        ),
         brief=BriefIn(
             description="",
             offer="",

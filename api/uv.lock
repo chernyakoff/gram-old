@@ -700,6 +700,17 @@ wheels = [
 ]
 
 [[package]]
+name = "html-to-markdown"
+version = "2.9.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/9d/48481a8d0b58bd8027bff353910c84ace10fcdf1be74bc5d065644a61335/html_to_markdown-2.9.1.tar.gz", hash = "sha256:dea6be19e69f6e4175af1f29ecdd0299aa771d0c5707865a47184bf96509295a", size = 127944, upload-time = "2025-11-21T20:34:45.727Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/f8/9d53a419c4ae801208678cc7b6160b317036d005521d8d71d6489202ff96/html_to_markdown-2.9.1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:b1ef4608ec61a3a55c021dde5ba2467ab4cf413bd7b04ec9b016bc83cf137075", size = 4493980, upload-time = "2025-11-21T20:34:40.298Z" },
+    { url = "https://files.pythonhosted.org/packages/97/ee/866d26a3b3289b5f53b0133d7094a98e68ad719896d53ca57b0d042ab567/html_to_markdown-2.9.1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:83e2ca6f74e924d361748504507317ae2f5ad6243095b7ef0430729db3f443e6", size = 5012519, upload-time = "2025-11-21T20:34:42.533Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/3c/f782b0eeaf56c9c6bbc626020c5f8463baf76462fc0cce231c8765cfef19/html_to_markdown-2.9.1-cp310-abi3-win_amd64.whl", hash = "sha256:97e3ac1ec9ee2737a38432a950466eeee7d4927186cbb2bd50e2acd2cecea749", size = 4920904, upload-time = "2025-11-21T20:34:44.204Z" },
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -881,6 +892,7 @@ dependencies = [
     { name = "emojis" },
     { name = "fastapi" },
     { name = "hatchet-sdk" },
+    { name = "html-to-markdown" },
     { name = "openai" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "python-dateutil" },
@@ -910,6 +922,7 @@ requires-dist = [
     { name = "emojis", specifier = ">=0.7.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "hatchet-sdk", specifier = ">=1.18.1" },
+    { name = "html-to-markdown", specifier = ">=2.9.1" },
     { name = "openai", specifier = ">=1.109.1" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },

@@ -7,6 +7,8 @@ from tortoise import fields
 from tortoise import timezone as tz
 from tortoise.models import Model
 
+from app.common.utils.functions import pick
+
 from .enums import (
     AccountAction,
     AccountStatus,
@@ -408,6 +410,22 @@ class Prompt(Model):
     instruction = fields.TextField(null=False)
     rules = fields.TextField(null=False)
     transitions = fields.TextField(null=False)
+
+    def to_dict(self) -> dict:
+        return pick(
+            [
+                "role",
+                "context",
+                "init",
+                "engage",
+                "offer",
+                "closing",
+                "instruction",
+                "rules",
+                "transitions",
+            ],
+            self,
+        )
 
     class Meta:
         table = "prompts"

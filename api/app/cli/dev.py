@@ -1,37 +1,15 @@
-import hashlib
-import hmac
-
 from cyclopts import App
+from html_to_markdown import convert
 from rich import print
 
-from app.common.models.orm import Project, Prompt, User
+from app.common.models.orm import Brief, Project, Prompt, User
 from app.common.utils.functions import pick
-from app.common.utils.prompt import build_prompt
-from app.config import config
 
 app = App(name="dev", help="dev tests etc")
 
 
-raw_users = """
-@happy_best
-@asn341
-@VadimSanychRu
-@trafic_garant
-@otvety_slav_bogov
-"""
-
-
 @app.command
-async def license():
-    usernames = [u.strip().removeprefix("@") for u in raw_users.strip().splitlines()]
-    orm_users = await User.filter(username__in=usernames).all()
-    for orm_user in orm_users:
-        await orm_user.extend_license(3650)
-        print(orm_user.username)
-
-
-@app.command
-async def migrate_prompts():
+async def migrate():
     required_keys = [
         "role",
         "context",
@@ -47,5 +25,20 @@ async def migrate_prompts():
     for p in projects:
         if p.old_prompt:
             prompt = pick(required_keys, p.old_prompt)
+            for k, v in prompt.items():
+                prompt[k] = convert(v)
             prompt["project_id"] = p.id
             await Prompt.create(**prompt)
+
+        brief_exists = await Brief.get_or_none(project_id=p.id)
+        if not brief_exists:
+            await Brief.create(
+                project_id=p.id,
+                description="",
+                offer="",
+                client="",
+                pains="",
+                advantages="",
+                mission="",
+                focus="",
+            )

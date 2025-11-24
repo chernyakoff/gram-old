@@ -176,9 +176,7 @@ export interface components {
             sendTimeEnd: number;
             firstMessage: string;
             brief: components["schemas"]["BriefIn"];
-            prompt: {
-                [key: string]: unknown;
-            };
+            prompt: components["schemas"]["PromptIn"];
         };
         ProjectOut: {
             id: number;
@@ -189,9 +187,7 @@ export interface components {
             firstMessage: string;
             status: boolean;
             brief: components["schemas"]["BriefOut"];
-            prompt: {
-                [key: string]: unknown;
-            };
+            prompt: components["schemas"]["PromptOut"];
         };
         ProjectShortOut: {
             id: number;
@@ -201,6 +197,28 @@ export interface components {
         };
         ProjectStatusIn: {
             status: boolean;
+        };
+        PromptIn: {
+            role: string;
+            context: string;
+            init: string;
+            engage: string;
+            offer: string;
+            closing: string;
+            instruction: string;
+            rules: string;
+            transitions: string;
+        };
+        PromptOut: {
+            role: string;
+            context: string;
+            init: string;
+            engage: string;
+            offer: string;
+            closing: string;
+            instruction: string;
+            rules: string;
+            transitions: string;
         };
         ProxiesBulkCreateIn: {
             proxies: string[];
@@ -306,6 +324,8 @@ export type ProjectIn = components['schemas']['ProjectIn'];
 export type ProjectOut = components['schemas']['ProjectOut'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
+export type PromptIn = components['schemas']['PromptIn'];
+export type PromptOut = components['schemas']['PromptOut'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];

@@ -42,12 +42,14 @@ class DialogManager:
         self,
         client: TelegramClient,
         project: orm.Project,
+        prompt: dict,
         account: orm.Account,
         logger: Logger,
         stop_event: asyncio.Event,
     ):
         self.client = client
         self.project = project
+        self.prompt = prompt
         self.account = account
         self.logger = logger
         self.stop_event = stop_event
@@ -343,7 +345,7 @@ class DialogManager:
             try:
                 ai_response, new_status = await asyncio.wait_for(
                     self.ai_service.get_response_with_status(
-                        self.project.prompt, dialog.status, messages, self.logger
+                        self.prompt, dialog.status, messages, self.logger
                     ),
                     timeout=60,
                 )

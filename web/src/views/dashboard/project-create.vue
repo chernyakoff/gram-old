@@ -55,6 +55,9 @@
           <UFormField name="firstMessage" class="w-full mb-4" label="Текст первого сообщения">
             <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
           </UFormField>
+          <UFormField class="w-full mb-4" label="Генерировать промпт" name="generatePrompt">
+            <UCheckbox v-model="state.generatePrompt" />
+          </UFormField>
           <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
             <template #generate>
               <UFormField name="brief.description" class="w-full mb-4" label="Описание">
@@ -113,11 +116,81 @@
                   class="w-full"
                 />
               </UFormField>
-              <UFormField class="w-full mb-4" label="Сгенерировать промпт">
-                <UCheckbox />
+            </template>
+            <template #edit>
+              <UFormField name="prompt.role" class="w-full mb-4" label="Роль">
+                <MTextrarea
+                  fullscreenTitle="Роль"
+                  :rows="8"
+                  v-model="state.prompt.role"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.context" class="w-full mb-4" label="Контекст">
+                <MTextrarea
+                  fullscreenTitle="Контекст"
+                  :rows="8"
+                  v-model="state.prompt.context"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.init" class="w-full mb-4" label="INIT">
+                <MTextrarea
+                  fullscreenTitle="INIT"
+                  :rows="8"
+                  v-model="state.prompt.init"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.engage" class="w-full mb-4" label="ENGAGE">
+                <MTextrarea
+                  fullscreenTitle="ENGAGE"
+                  :rows="8"
+                  v-model="state.prompt.engage"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.offer" class="w-full mb-4" label="OFFER">
+                <MTextrarea
+                  fullscreenTitle="OFFER"
+                  :rows="8"
+                  v-model="state.prompt.offer"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.closing" class="w-full mb-4" label="CLOSING">
+                <MTextrarea
+                  fullscreenTitle="CLOSING"
+                  :rows="8"
+                  v-model="state.prompt.closing"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.instruction" class="w-full mb-4" label="Инструкции">
+                <MTextrarea
+                  fullscreenTitle="Инструкции"
+                  :rows="8"
+                  v-model="state.prompt.instruction"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.rules" class="w-full mb-4" label="Правила">
+                <MTextrarea
+                  fullscreenTitle="Правила"
+                  :rows="8"
+                  v-model="state.prompt.rules"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField name="prompt.transitions" class="w-full mb-4" label="Переходы">
+                <MTextrarea
+                  fullscreenTitle="Переходы"
+                  :rows="8"
+                  v-model="state.prompt.transitions"
+                  class="w-full"
+                />
               </UFormField>
             </template>
-            <template #edit></template>
             <template #json></template>
           </UTabs>
         </div>
@@ -135,7 +208,7 @@ import { useProjects } from '@/composables/use-projects'
 import { projectInSchema, type ProjectInSchema } from '@/schemas/projects'
 import type { ProjectIn } from '@/types/openapi'
 import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
-import { parse } from 'valibot'
+
 import { useTemplateRef } from 'vue'
 import { useBackgroundJobs } from '@/stores/jobs-store'
 import MTextrarea from '@/components/shared/m-textrarea.vue'
@@ -180,6 +253,7 @@ const state = reactive<ProjectInSchema>({
   sendTimeStart: 0,
   sendTimeEnd: 24,
   firstMessage: '',
+  generatePrompt: true,
   brief: {
     description: '',
     offer: '',
@@ -189,7 +263,17 @@ const state = reactive<ProjectInSchema>({
     mission: '',
     focus: '',
   },
-  prompt: {},
+  prompt: {
+    role: '',
+    context: '',
+    init: '',
+    engage: '',
+    offer: '',
+    closing: '',
+    instruction: '',
+    rules: '',
+    transitions: '',
+  },
 })
 
 const doSubmit = async () => {
@@ -228,7 +312,7 @@ const onSubmit = async (event: FormSubmitEvent<ProjectInSchema>) => {
 onMounted(async () => {
   if (id) {
     const project = await get(id)
-    Object.assign(state, parse(projectInSchema, project))
+    Object.assign(state, project)
   } else {
     const def_project = await default_project()
 

@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from openai import AsyncOpenAI
 
-from app.cli.dev import build_prompt
 from app.common.models import orm
 from app.common.models.enums import DialogStatus
 from app.common.utils.functions import generate_message
 from app.common.utils.prompt import (
+    build_prompt,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
@@ -49,7 +49,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
                 break
 
-    prompt = await build_prompt(project.prompt, chat.status)
+    orm_prompt = await orm.Prompt.get(project_id=project.id)
+    prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])

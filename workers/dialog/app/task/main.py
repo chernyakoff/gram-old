@@ -97,12 +97,14 @@ async def dialog_task(input: DialogIn, ctx: Context):
             logger.info(f"Account {account.id} подключен к Telegram")
 
             project = await orm.Project.get(id=account.project_id)  # type: ignore
+            prompt = await orm.Prompt.get(project_id=account.project_id)  # type: ignore
             limiter = AccountLimiter(account)
 
             # Создаём менеджер диалогов
             manager = DialogManager(
                 client=client,
                 project=project,
+                prompt=prompt.to_dict(),
                 account=account,
                 logger=logger,
                 stop_event=stop_event,
