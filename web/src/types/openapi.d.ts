@@ -176,6 +176,9 @@ export interface components {
             sendTimeEnd: number;
             firstMessage: string;
             brief: components["schemas"]["BriefIn"];
+            prompt: {
+                [key: string]: unknown;
+            };
         };
         ProjectOut: {
             id: number;
@@ -186,6 +189,9 @@ export interface components {
             firstMessage: string;
             status: boolean;
             brief: components["schemas"]["BriefOut"];
+            prompt: {
+                [key: string]: unknown;
+            };
         };
         ProjectShortOut: {
             id: number;

@@ -1,11 +1,13 @@
 import hashlib
 import hmac
 
-from app.common.models.orm import Project, User
-from app.common.utils.prompt import build_prompt
-from app.config import config
 from cyclopts import App
 from rich import print
+
+from app.common.models.orm import Project, Prompt, User
+from app.common.utils.functions import pick
+from app.common.utils.prompt import build_prompt
+from app.config import config
 
 app = App(name="dev", help="dev tests etc")
 
@@ -26,3 +28,24 @@ async def license():
     for orm_user in orm_users:
         await orm_user.extend_license(3650)
         print(orm_user.username)
+
+
+@app.command
+async def migrate_prompts():
+    required_keys = [
+        "role",
+        "context",
+        "init",
+        "engage",
+        "offer",
+        "closing",
+        "instruction",
+        "rules",
+        "transitions",
+    ]
+    projects = await Project.filter().all()
+    for p in projects:
+        if p.old_prompt:
+            prompt = pick(required_keys, p.old_prompt)
+            prompt["project_id"] = p.id
+            await Prompt.create(**prompt)

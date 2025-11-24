@@ -250,7 +250,8 @@ class Project(Model, TimestampMixin):
         default=23,
     )
     first_message = fields.TextField(null=False)
-    prompt = fields.JSONField(null=False)
+    old_prompt = fields.JSONField(null=False)
+    prompt: fields.ReverseRelation["Prompt"]
 
     mailings: fields.ReverseRelation["Mailing"]
     brief: fields.ReverseRelation["Brief"]
@@ -391,3 +392,22 @@ class Brief(Model):
 
     class Meta:
         table = "briefs"
+
+
+class Prompt(Model):
+    id = fields.IntField(pk=True)
+    project = fields.OneToOneField(
+        "models.Project", related_name="prompt", on_delete=fields.CASCADE
+    )
+    role = fields.TextField(null=False)
+    context = fields.TextField(null=False)
+    init = fields.TextField(null=False)
+    engage = fields.TextField(null=False)
+    offer = fields.TextField(null=False)
+    closing = fields.TextField(null=False)
+    instruction = fields.TextField(null=False)
+    rules = fields.TextField(null=False)
+    transitions = fields.TextField(null=False)
+
+    class Meta:
+        table = "prompts"

@@ -50,6 +50,7 @@ class ProjectIn(BaseModel):
     send_time_end: int
     first_message: str
     brief: BriefIn
+    prompt: dict
 
 
 class ProjectShortOut(ProjectBase):
@@ -65,6 +66,7 @@ class ProjectOut(Serializer):
     first_message: str
     status: bool
     brief: BriefOut
+    prompt: dict
 
 
 async def create_default_project() -> ProjectIn:
@@ -74,6 +76,7 @@ async def create_default_project() -> ProjectIn:
         send_time_start=0,
         send_time_end=23,
         first_message="",
+        prompt={},
         brief=BriefIn(
             description="",
             offer="",
