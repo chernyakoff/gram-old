@@ -24,7 +24,8 @@ const labelsMap = {
   init: 'начат',
   engage: 'интерес',
   offer: 'заявка',
-  closing: 'закрыт',
+  closing: 'закрытие',
+  complete: 'закрыт',
 } as const
 
 // --- series для area chart ---
@@ -42,7 +43,7 @@ const series = computed(() => {
   }))
 })
 
-const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37']
+const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37', '#ff5733']
 
 const options = computed<ApexOptions>(() => ({
   chart: {

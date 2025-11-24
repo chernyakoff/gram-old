@@ -224,6 +224,7 @@ export interface components {
             engage: number[];
             offer: number[];
             closing: number[];
+            complete: number[];
         };
         UserLoginIn: {
             id: number;

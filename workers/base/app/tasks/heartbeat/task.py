@@ -32,7 +32,7 @@ heartbeat = hatchet.workflow(name="heartbeat", on_crons=["15 * * * *"])
 async def complete_old_dialogs():
     await Tortoise.get_connection("default").execute_query("""
 UPDATE dialogs d
-SET status = 'complete'
+SET finished_at = NOW()
 FROM (
     SELECT dialog_id, MAX(created_at) AS last_msg_time
     FROM messages
@@ -40,6 +40,7 @@ FROM (
 ) m
 WHERE d.id = m.dialog_id
   AND d.status <> 'complete'
+  AND d.finished_at IS NULL
   AND m.last_msg_time < NOW() - INTERVAL '2 days';
 """)
 

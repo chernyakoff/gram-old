@@ -39,3 +39,4 @@ class StatsOut(BaseModel):
     engage: list[int]
     offer: list[int]
     closing: list[int]
+    complete: list[int]

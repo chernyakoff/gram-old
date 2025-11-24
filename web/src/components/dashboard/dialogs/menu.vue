@@ -52,7 +52,7 @@ const statusColor = {
   engage: '#8e90ff',
   offer: '#ffab00',
   closing: '#71dd37',
-  complete: '#fff',
+  complete: '#ff5733',
 } as const
 
 const dialogRefs = ref<Record<string, Element>>({})

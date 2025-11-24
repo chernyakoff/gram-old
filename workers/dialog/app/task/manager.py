@@ -99,7 +99,7 @@ class DialogManager:
                 await orm.Dialog.filter(
                     account_id=self.account.id,
                 )
-                .exclude(status=enums.DialogStatus.COMPLETE)
+                .exclude(finished_at__isnull=True)
                 .prefetch_related("recipient", "messages")
             )
 
@@ -460,10 +460,6 @@ class DialogManager:
         self, dialog: orm.Dialog, recipient: orm.Recipient, reason: str
     ):
         """Закрывает диалог без изменения статуса (статус меняет только AI)"""
-        # НЕ меняем статус! Статусы может менять только AI
-        # dialog.status = enums.DialogStatus.COMPLETE  # УДАЛЕНО
-        # dialog.finished_at = tz.now()  # УДАЛЕНО
-        # await dialog.save()  # УДАЛЕНО
 
         self.logger.info(f"[{recipient.username}] Диалог остановлен: {reason}")
 

@@ -20,12 +20,14 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
     engage = [0] * days_count
     offer = [0] * days_count
     closing = [0] * days_count
+    complete = [0] * days_count
 
     status_map = {
         DialogStatus.INIT.value: init,
         DialogStatus.ENGAGE.value: engage,
         DialogStatus.OFFER.value: offer,
         DialogStatus.CLOSING.value: closing,
+        DialogStatus.COMPLETE.value: complete,
     }
 
     for r in rows:
@@ -42,4 +44,5 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
         engage=engage,
         offer=offer,
         closing=closing,
+        complete=complete,
     )
