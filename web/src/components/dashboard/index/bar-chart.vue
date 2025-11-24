@@ -23,7 +23,7 @@ const { statsData } = defineProps({
   },
 })
 
-const categories = ['начат', 'интерес', 'заявка', 'закрытие', 'закрыт']
+const categories = ['начат', 'интерес', 'диалог', 'закрытие', 'заявка']
 
 const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37', '#ff5733']
 

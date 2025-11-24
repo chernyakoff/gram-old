@@ -23,9 +23,9 @@ const isDark = computed(() => document.documentElement.classList.contains('dark'
 const labelsMap = {
   init: 'начат',
   engage: 'интерес',
-  offer: 'заявка',
+  offer: 'диалог',
   closing: 'закрытие',
-  complete: 'закрыт',
+  complete: 'заявка',
 } as const
 
 // --- series для area chart ---
