@@ -262,15 +262,17 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     except FrozenError:
         logger.warning("Аккаунт заморожен")
+        account.active = False
         account.status = enums.AccountStatus.FROZEN
         await account.save(update_fields=["status"])
 
     except SpamBlockedError as e:
         msg = f"Аккаунт попал в мут до {e.muted_until:%d.%m.%Y}"
         logger.warning(msg)
+        account.active = False
         account.muted_until = e.muted_until
         account.status = enums.AccountStatus.MUTED
-        await account.save(update_fields=["status", "muted_until"])
+        await account.save(update_fields=["status", "muted_until", "active"])
 
     except Exception as e:
         msg = f"Неизвестная ошибка: {type(e).__name__}: {e}"
