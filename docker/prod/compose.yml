@@ -38,6 +38,7 @@ services:
     build:
       context: ../../workers/dialog
       target: prod
+
     volumes:
       - ../../workers/dialog:/app
       - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
@@ -77,6 +78,7 @@ services:
       - "traefik.http.routers.neuro-api.entrypoints=websecure"
       - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.neuro-api.loadbalancer.server.port=8833"
+      - "traefik.http.routers.neuro-api.middlewares=secure-headers@file" 
     networks:
       - hatchet
       - dev
