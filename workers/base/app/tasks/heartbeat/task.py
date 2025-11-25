@@ -14,6 +14,7 @@ from app.common.models import enums, orm
 class DialogIn(BaseModel):
     account_id: int
     recipients_id: list[int]
+    key:str
 
 
 dialog_task = hatchet.stubs.task(
@@ -225,8 +226,7 @@ async def task(input: EmptyModel, ctx: Context):
                 recipients_id = [r.id for r in recipients_to_assign]
 
                 await dialog_task.aio_run_no_wait(
-                    DialogIn(account_id=acc.id, recipients_id=recipients_id),
-                    TriggerWorkflowOptions(key=f"dialog-{acc.id}"),
+                    DialogIn(account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)),
                 )
 
                 planned_tasks += len(recipients_id)

@@ -55,144 +55,148 @@
           <UFormField name="firstMessage" class="w-full mb-4" label="Текст первого сообщения">
             <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
           </UFormField>
-          <UFormField class="w-full mb-4" label="Генерировать промпт" name="generatePrompt">
+          <UFormField class="w-full mb-4" label="Продвинутый режим" name="generatePrompt">
             <UCheckbox v-model="state.generatePrompt" />
           </UFormField>
-          <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
-            <template #generate>
-              <UFormField name="brief.description" class="w-full mb-4" label="Описание">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.description"
-                  placeholder="Подробно опиши свой проект/услугу: что именно ты делаешь, для кого, какой основной продукт, какой результат даёшь клиентам?"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.offer" class="w-full mb-4" label="Цель">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.offer"
-                  placeholder="Какое бесплатное целевое действие ты хочешь предлагать в конце диалога? (примеры: бесплатный аудит, разбор воронки, стратегия на 3 месяца, консультация, чек-лист и т.д.)"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.client" class="w-full mb-4" label="Клиент">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.client"
-                  placeholder="Опиши портрет твоего идеального клиента максимально точно: возраст, пол, доход, профессия, где обитает, как говорит, какие страхи и желания."
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.pains" class="w-full mb-4" label="Боли">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.pains"
-                  placeholder="Перечисли 3-5 самых острых и насущных болей твоей ЦА (то, от чего люди реально страдают и готовы платить за решение)."
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.advantages" class="w-full mb-4" label="Преимущества">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.advantages"
-                  placeholder="Перечисли 3-5 твоих главных конкурентных преимуществ и уникальностей (чем ты лучше и отличаешься от всех остальных на рынке)."
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.mission" class="w-full mb-4" label="Миссия">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.mission"
-                  placeholder="Ради чего ты вообще этим занимаешься? Какая у тебя миссия, почему это важно именно для тебя и для клиента?"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="brief.focus" class="w-full mb-4" label="Фокус">
-                <UTextarea
-                  :rows="8"
-                  v-model="state.brief.focus"
-                  placeholder="На что ты больше всего обращал внимание, когда создавал свою услугу? (гарантии, формат, сопровождение, результат, методика и т.д.)"
-                  class="w-full"
-                />
-              </UFormField>
-            </template>
-            <template #edit>
-              <UFormField name="prompt.role" class="w-full mb-4" label="Роль">
-                <MTextrarea
-                  fullscreenTitle="Роль"
-                  :rows="8"
-                  v-model="state.prompt.role"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.context" class="w-full mb-4" label="Контекст">
-                <MTextrarea
-                  fullscreenTitle="Контекст"
-                  :rows="8"
-                  v-model="state.prompt.context"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.init" class="w-full mb-4" label="INIT">
-                <MTextrarea
-                  fullscreenTitle="INIT"
-                  :rows="8"
-                  v-model="state.prompt.init"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.engage" class="w-full mb-4" label="ENGAGE">
-                <MTextrarea
-                  fullscreenTitle="ENGAGE"
-                  :rows="8"
-                  v-model="state.prompt.engage"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.offer" class="w-full mb-4" label="OFFER">
-                <MTextrarea
-                  fullscreenTitle="OFFER"
-                  :rows="8"
-                  v-model="state.prompt.offer"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.closing" class="w-full mb-4" label="CLOSING">
-                <MTextrarea
-                  fullscreenTitle="CLOSING"
-                  :rows="8"
-                  v-model="state.prompt.closing"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.instruction" class="w-full mb-4" label="Инструкции">
-                <MTextrarea
-                  fullscreenTitle="Инструкции"
-                  :rows="8"
-                  v-model="state.prompt.instruction"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.rules" class="w-full mb-4" label="Правила">
-                <MTextrarea
-                  fullscreenTitle="Правила"
-                  :rows="8"
-                  v-model="state.prompt.rules"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField name="prompt.transitions" class="w-full mb-4" label="Переходы">
-                <MTextrarea
-                  fullscreenTitle="Переходы"
-                  :rows="8"
-                  v-model="state.prompt.transitions"
-                  class="w-full"
-                />
-              </UFormField>
-            </template>
-            <template #json></template>
-          </UTabs>
+
+          <template v-if="state.generatePrompt">
+            <p>Заполниете бриф</p>
+            <UFormField name="brief.description" class="w-full mb-4" label="Описание">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.description"
+                placeholder="Подробно опиши свой проект/услугу: что именно ты делаешь, для кого, какой основной продукт, какой результат даёшь клиентам?"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.offer" class="w-full mb-4" label="Цель">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.offer"
+                placeholder="Какое бесплатное целевое действие ты хочешь предлагать в конце диалога? (примеры: бесплатный аудит, разбор воронки, стратегия на 3 месяца, консультация, чек-лист и т.д.)"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.client" class="w-full mb-4" label="Клиент">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.client"
+                placeholder="Опиши портрет твоего идеального клиента максимально точно: возраст, пол, доход, профессия, где обитает, как говорит, какие страхи и желания."
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.pains" class="w-full mb-4" label="Боли">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.pains"
+                placeholder="Перечисли 3-5 самых острых и насущных болей твоей ЦА (то, от чего люди реально страдают и готовы платить за решение)."
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.advantages" class="w-full mb-4" label="Преимущества">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.advantages"
+                placeholder="Перечисли 3-5 твоих главных конкурентных преимуществ и уникальностей (чем ты лучше и отличаешься от всех остальных на рынке)."
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.mission" class="w-full mb-4" label="Миссия">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.mission"
+                placeholder="Ради чего ты вообще этим занимаешься? Какая у тебя миссия, почему это важно именно для тебя и для клиента?"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="brief.focus" class="w-full mb-4" label="Фокус">
+              <UTextarea
+                :rows="8"
+                v-model="state.brief.focus"
+                placeholder="На что ты больше всего обращал внимание, когда создавал свою услугу? (гарантии, формат, сопровождение, результат, методика и т.д.)"
+                class="w-full"
+              />
+            </UFormField>
+          </template>
+          <template v-else>
+            <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
+              <template #edit>
+                <UFormField name="prompt.role" class="w-full mb-4" label="Роль">
+                  <MTextrarea
+                    fullscreenTitle="Роль"
+                    :rows="8"
+                    v-model="state.prompt.role"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.context" class="w-full mb-4" label="Контекст">
+                  <MTextrarea
+                    fullscreenTitle="Контекст"
+                    :rows="8"
+                    v-model="state.prompt.context"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.init" class="w-full mb-4" label="INIT">
+                  <MTextrarea
+                    fullscreenTitle="INIT"
+                    :rows="8"
+                    v-model="state.prompt.init"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.engage" class="w-full mb-4" label="ENGAGE">
+                  <MTextrarea
+                    fullscreenTitle="ENGAGE"
+                    :rows="8"
+                    v-model="state.prompt.engage"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.offer" class="w-full mb-4" label="OFFER">
+                  <MTextrarea
+                    fullscreenTitle="OFFER"
+                    :rows="8"
+                    v-model="state.prompt.offer"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.closing" class="w-full mb-4" label="CLOSING">
+                  <MTextrarea
+                    fullscreenTitle="CLOSING"
+                    :rows="8"
+                    v-model="state.prompt.closing"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.instruction" class="w-full mb-4" label="Инструкции">
+                  <MTextrarea
+                    fullscreenTitle="Инструкции"
+                    :rows="8"
+                    v-model="state.prompt.instruction"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.rules" class="w-full mb-4" label="Правила">
+                  <MTextrarea
+                    fullscreenTitle="Правила"
+                    :rows="8"
+                    v-model="state.prompt.rules"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField name="prompt.transitions" class="w-full mb-4" label="Переходы">
+                  <MTextrarea
+                    fullscreenTitle="Переходы"
+                    :rows="8"
+                    v-model="state.prompt.transitions"
+                    class="w-full"
+                  />
+                </UFormField>
+              </template>
+              <template #json></template>
+            </UTabs>
+          </template>
         </div>
 
         <div class="flex items-center gap-10 justify-between w-full"></div>
@@ -221,7 +225,6 @@ const toast = useToast()
 const form = useTemplateRef('form')
 
 const tabs = [
-  { label: 'Генерация', icon: 'bx:brain', slot: 'generate' as const },
   { label: 'Редактирование', icon: 'bx:edit', slot: 'edit' as const },
   { label: 'JSON', icon: 'bx:code-curly', slot: 'json' as const },
 ] satisfies TabsItem[]

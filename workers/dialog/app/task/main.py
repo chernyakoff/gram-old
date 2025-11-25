@@ -27,6 +27,7 @@ MAX_SESSION_HOURS = 6
 class DialogIn(BaseModel):
     account_id: int
     recipients_id: list[int]
+    key: str
 
 
 async def release_account(account: orm.Account, error: str | None = None):
@@ -50,7 +51,7 @@ async def release_account(account: orm.Account, error: str | None = None):
     execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
     schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
     concurrency=ConcurrencyExpression(
-        expression="workflow.key",
+        expression="input.key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
     ),
