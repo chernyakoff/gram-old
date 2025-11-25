@@ -77,8 +77,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
         response_text = extract_text_from_response(message)
         result = extract_json(response_text)
         validate_config(result)
-        project.prompt = result
-        await project.save()
+        await orm.Prompt.upsert(project.id, result)
 
     except Exception as e:
         await logger.error(str(e))

@@ -411,21 +411,28 @@ class Prompt(Model):
     rules = fields.TextField(null=False)
     transitions = fields.TextField(null=False)
 
+    fields = [
+        "role",
+        "context",
+        "init",
+        "engage",
+        "offer",
+        "closing",
+        "instruction",
+        "rules",
+        "transitions",
+    ]
+
     def to_dict(self) -> dict:
         return pick(
-            [
-                "role",
-                "context",
-                "init",
-                "engage",
-                "offer",
-                "closing",
-                "instruction",
-                "rules",
-                "transitions",
-            ],
+            self.fields,
             self,
         )
+
+    @classmethod
+    async def upsert(cls, project_id: int, data: dict) -> Self:
+        instance, _ = await cls.update_or_create(project_id=project_id, defaults=data)
+        return instance
 
     class Meta:
         table = "prompts"
