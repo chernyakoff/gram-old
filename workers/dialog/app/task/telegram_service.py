@@ -1,4 +1,6 @@
 import asyncio
+import re
+from datetime import datetime
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -17,6 +19,16 @@ from tortoise import timezone as tz
 
 from app.common.models import enums, orm
 from app.utils.logger import Logger
+
+
+class SpamBlockedError(Exception):
+    def __init__(self, muted_until: datetime):
+        self.muted_until = muted_until
+        super().__init__(f"Account is muted until {muted_until}")
+
+
+class FrozenError(Exception):
+    pass
 
 
 class TelegramService:
@@ -199,3 +211,48 @@ class TelegramService:
             )
 
         return None
+
+    async def is_frozen(self, username: str = "Telegram", timeout: float = 5.0) -> bool:
+        try:
+            return await asyncio.wait_for(self._check_entity(username), timeout=timeout)
+        except asyncio.TimeoutError:
+            return False
+
+    async def _check_entity(self, username: str) -> bool:
+        try:
+            await self.client.get_entity(username)
+            return False  # Если инфу получили — аккаунт ок
+        except (UserDeactivatedError, UserDeactivatedBanError):
+            return True  # Заморожен/забанен
+        except UsernameNotOccupiedError:
+            # Аналог "No user has X"
+            return True
+        except Exception as e:
+            # Иногда Telegram шлёт тексты типа "FROZEN" как plain message
+            if "FROZEN" in str(e).upper():
+                return True
+            # Любая другая ошибка — пробрасываем
+            raise
+
+    async def is_spamblock(self) -> datetime | None:
+        await self.client.send_message("spambot", "/start")
+        await asyncio.sleep(1)
+        messages = await self.client.get_messages("spambot", limit=1)
+        if not messages:
+            return
+
+        if isinstance(messages, list):
+            text = messages[0].message
+        else:
+            text = messages.message
+        if len(text) < 120:
+            return
+        forever = datetime.now().replace(year=datetime.now().year + 10)
+        matches = re.search(r"\d+\s\w+\s\d+,\s\d+:\d+\s\w+", text)
+        if matches:
+            try:
+                return datetime.strptime(matches[0], "%d %b %Y, %H:%M %Z")
+            except:
+                return forever
+        else:
+            return forever

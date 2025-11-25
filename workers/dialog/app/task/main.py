@@ -14,6 +14,7 @@ from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import generate_message
 from app.task.manager import DialogManager
+from app.task.telegram_service import FrozenError, SpamBlockedError
 from app.utils.account import AccountUtil
 from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
@@ -117,6 +118,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 logger=logger,
                 stop_event=stop_event,
             )
+            if await manager.telegram_service.is_frozen():
+                raise FrozenError()
+
+            muted_until = await manager.telegram_service.is_spamblock()
+            if muted_until:
+                raise SpamBlockedError(muted_until)
+
             manager.setup_event_handlers()
 
             # Проверяем старые диалоги на новые сообщения
@@ -134,12 +142,12 @@ async def dialog_task(input: DialogIn, ctx: Context):
             for recipient_id in input.recipients_id:
                 recipient = await orm.Recipient.get(id=recipient_id)
 
-                manager.register_session_recipient(recipient.id)
-
                 # Получаем entity
                 entity = await manager.telegram_service.get_entity(recipient)
                 if not entity:
                     continue
+
+                manager.register_session_recipient(recipient.id)
 
                 # Проверяем, не существует ли уже диалог
                 dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
@@ -250,6 +258,18 @@ async def dialog_task(input: DialogIn, ctx: Context):
         msg = "Прокси не ответил вовремя"
         logger.warning(msg)
         await release_account(account, error=msg)
+
+    except FrozenError:
+        logger.warning("Аккаунт заморожен")
+        account.status = enums.AccountStatus.FROZEN
+        await account.save(update_fields=["status"])
+
+    except SpamBlockedError as e:
+        msg = f"Аккаунт попал в мут до {e.muted_until:%d.%m.%Y}"
+        logger.warning(msg)
+        account.muted_until = e.muted_until
+        account.status = enums.AccountStatus.MUTED
+        await account.save(update_fields=["status", "muted_until"])
 
     except Exception as e:
         msg = f"Неизвестная ошибка: {type(e).__name__}: {e}"

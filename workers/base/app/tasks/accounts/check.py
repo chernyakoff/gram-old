@@ -5,14 +5,6 @@ from datetime import datetime
 from io import BytesIO
 from typing import cast
 
-from hatchet_sdk import Context
-from pydantic import BaseModel
-from telethon import TelegramClient
-from telethon.errors import UserDeactivatedBanError, UserDeactivatedError
-from telethon.errors.rpcerrorlist import UsernameNotOccupiedError
-from telethon.tl.functions.users import GetFullUserRequest
-from telethon.tl.types.users import UserFull
-
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import pick
@@ -23,6 +15,13 @@ from app.tasks.proxies.pool import ProxyPool
 from app.tasks.proxies.utils import get_user_proxies
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
+from hatchet_sdk import Context
+from pydantic import BaseModel
+from telethon import TelegramClient
+from telethon.errors import UserDeactivatedBanError, UserDeactivatedError
+from telethon.errors.rpcerrorlist import UsernameNotOccupiedError
+from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.types.users import UserFull
 
 
 async def is_frozen(
@@ -129,7 +128,6 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
     orm_account.update_from_dict(params)
 
 
-
 class AccountsCheckIn(BaseModel):
     ids: list[int]
 
@@ -173,7 +171,7 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
                         )
                         continue
                     else:
-                        orm_account.muted_until = None
+                        orm_account.muted_until = None  # type: ignore
 
                     await renew_info(client, orm_account)
                     await logger.success(f"{account.phone} данные обновлены")
@@ -187,7 +185,7 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
                 except SessionExpiredError:
                     await logger.error(f"{account.phone} вылет из сессии")
                     orm_account.status = enums.AccountStatus.EXITED
-                    
+
                 except Exception as e:
                     orm_account.status = enums.AccountStatus.BANNED
                     await orm_account.save()
