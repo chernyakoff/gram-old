@@ -28,6 +28,21 @@ if config.openai.base_url:
 client = AsyncOpenAI(**params)
 
 
+def normalize_dashes(text: str) -> str:
+    # набор всех популярных видов длинных/средних тире и похожих символов
+    long_dashes = {
+        "--",
+        "—",  # em dash
+        "–",  # en dash
+        "―",  # horizontal bar
+        "−",  # minus sign
+        "-",  # non-breaking hyphen (иногда мешает)
+    }
+    for d in long_dashes:
+        text = text.replace(d, "-")
+    return text
+
+
 @router.post("/", response_model=ChatOut)
 async def chat(chat: ChatIn, user=Depends(get_current_user)):
     project = await orm.Project.filter(
@@ -67,5 +82,5 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         status = chat.status
 
     response = strip_ooc_status(response)
-
+    response = normalize_dashes(response)
     return ChatOut(text=response, status=status)

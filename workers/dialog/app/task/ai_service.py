@@ -62,7 +62,7 @@ class AIService:
             if text.strip() == "COMPLETE":
                 return "COMPLETE", enums.DialogStatus.COMPLETE
 
-            return text, new_status
+            return self.normalize_dashes(text), new_status
 
         except Exception as e:
             logger.error(f"Ошибка AI запроса: {e}")
@@ -102,3 +102,17 @@ class AIService:
             logger.warning(f"AI не вернул статус. Ответ: {response[:100]}...")
 
         return text, status
+
+    def normalize_dashes(self, text: str) -> str:
+        # набор всех популярных видов длинных/средних тире и похожих символов
+        long_dashes = {
+            "--",
+            "—",  # em dash
+            "–",  # en dash
+            "―",  # horizontal bar
+            "−",  # minus sign
+            "-",  # non-breaking hyphen (иногда мешает)
+        }
+        for d in long_dashes:
+            text = text.replace(d, "-")
+        return text
