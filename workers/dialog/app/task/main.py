@@ -104,9 +104,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
             logger.info(f"Account {account.id} подключен к Telegram")
 
             project = await orm.Project.get(id=account.project_id)  # type: ignore
-            prompt = await orm.Prompt.get(project_id=account.project_id)  # type: ignore
+            prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore
             if not prompt:
-                logger.error(f"У юзера [{account.user_id}] отсутсвует промпт")
+                raise Exception(f"У юзера [{account.user_id}] отсутсвует промпт")
 
             limiter = AccountLimiter(account)
 
