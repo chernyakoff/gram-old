@@ -47,23 +47,29 @@ async def build_dialog_text_file(dialog_id: int) -> tuple[str, str, bytes]:
     filename = f"dialog_{dialog.id}.txt"
     file_bytes = buf.getvalue().encode("utf-8")
 
-    caption = f"Новаяя завяка от @{recipient.username}"
+    caption = f"Новая заявка от @{recipient.username}"
 
     return caption, filename, file_bytes
-
-
-async def send_file_to_user(chat_id: int, filename: str, content: bytes, caption: str):
-    url = f"https://api.telegram.org/bot{config.api.bot.token}/sendDocument"
-
-    async with httpx.AsyncClient() as client:
-        files = {
-            "chat_id": (None, str(chat_id)),
-            "document": (filename, content, "text/plain"),
-            "caption": caption,
-        }
-        await client.post(url, files=files)
 
 
 async def notify_complete_dialog(dialog: Dialog, account: Account):
     caption, filename, content = await build_dialog_text_file(dialog.id)
     await send_file_to_user(account.user_id, filename, content, caption)
+
+
+async def send_file_to_user(chat_id: int, filename: str, content: bytes, caption: str):
+    url = f"https://api.telegram.org/bot{config.api.bot.token}/sendDocument"
+
+    files = {
+        "document": (filename, content, "text/plain"),
+    }
+
+    data = {
+        "chat_id": str(chat_id),
+        "caption": caption,
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, data=data, files=files)
+        response.raise_for_status()
+        return response.json()

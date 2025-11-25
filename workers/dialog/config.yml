@@ -23,7 +23,7 @@ api:
     expire_seconds: 3600
     refresh_expire_days: 30
   bot:
-    token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c"
+    token: "8207129398:AAGRe9ytQZJVuCtZ2NCSp0Fs5GhyVt_rD8s"
 
 web:
   url: "http://localhost:5173"
