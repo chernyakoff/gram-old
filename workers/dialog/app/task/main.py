@@ -49,7 +49,7 @@ async def release_account(account: orm.Account, error: str | None = None):
     execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
     schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
     concurrency=ConcurrencyExpression(
-        expression="input.account_id",
+        expression="workflow.key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
     ),
