@@ -267,12 +267,14 @@ async def dialog_task(input: DialogIn, ctx: Context):
         msg = "Прокси не ответил вовремя"
         logger.warning(msg)
         await release_account(account, error=msg)
+        raise
 
     except FrozenError:
         logger.warning("Аккаунт заморожен")
         account.active = False
         account.status = enums.AccountStatus.FROZEN
         await account.save(update_fields=["status"])
+        raise
 
     except SpamBlockedError as e:
         msg = f"Аккаунт попал в мут до {e.muted_until:%d.%m.%Y}"
@@ -281,6 +283,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
         account.muted_until = e.muted_until
         account.status = enums.AccountStatus.MUTED
         await account.save(update_fields=["status", "muted_until", "active"])
+        raise
 
     except Exception as e:
         msg = f"Неизвестная ошибка: {type(e).__name__}: {e}"
@@ -289,6 +292,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         logger.error(traceback.format_exc())
         await release_account(account, error=msg)
+        raise
 
     finally:
         # КРИТИЧЕСКИ ВАЖНО: всегда отключаем клиента
