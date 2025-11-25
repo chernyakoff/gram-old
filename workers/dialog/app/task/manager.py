@@ -116,7 +116,7 @@ class DialogManager:
                     peer = self.telegram_service._get_peer_from_dialog(dialog)
                     if not peer:
                         entity = await self.telegram_service.get_entity(
-                            dialog.recipient.username
+                            dialog.recipient
                         )
                         if isinstance(entity, TelethonUser):
                             dialog.update_from_dict(
