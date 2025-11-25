@@ -197,4 +197,5 @@ class TelegramService:
                 user_id=dialog.recipient_peer_id,
                 access_hash=dialog.recipient_access_hash,
             )
+
         return None

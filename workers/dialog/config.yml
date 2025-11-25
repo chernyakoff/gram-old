@@ -8,7 +8,8 @@ hatchet:
 s3:
   access_key: "IhDRQQH1TfL0wQtUDpKV"
   secret_key: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
-  endpoint_url: "http://127.0.0.1:9000"
+  public_endpoint_url: "http://127.0.0.1:9000"
+  endpoint_url: "http://neuro-minio:9000"
 
 ipinfo:
   token: "585e8f96698098"
