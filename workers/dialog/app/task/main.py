@@ -85,6 +85,14 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 return
             except Exception as e:
                 logger.error(f"Ошибка подключения клиента: {e}")
+                # Специальная обработка для AuthKeyDuplicatedError
+                if "used under two different IP" in str(e):
+                    logger.error(
+                        "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
+                    )
+                    account.active = False
+                    account.status = enums.AccountStatus.EXITED
+                    await account.save(update_fields=["active", "status"])
                 await release_account(account, error=f"Connection error: {e}")
                 return
 
@@ -280,17 +288,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
         import traceback
 
         logger.error(traceback.format_exc())
-
-        # Специальная обработка для AuthKeyDuplicatedError
-        if "AuthKeyDuplicatedError" in str(type(e).__name__):
-            logger.error(
-                "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
-            )
-            # Деактивируем аккаунт чтобы он больше не использовался
-            account.active = False
-            account.status = enums.AccountStatus.FROZEN
-            await account.save(update_fields=["active", "status"])
-
         await release_account(account, error=msg)
 
     finally:
