@@ -61,7 +61,8 @@ async def get_default_project(user=Depends(get_current_user)):
 
 @router.get("/list", response_model=list[ProjectBase])
 async def get_project_list(user=Depends(get_current_user)):
-    return await ProjectBase.from_queryset(orm.Project.filter(user_id=user.id))
+    qs = orm.Project.filter(user_id=user.id).prefetch_related("prompt")
+    return await ProjectBase.from_queryset(qs)
 
 
 @router.get("/{id}", response_model=ProjectOut)
