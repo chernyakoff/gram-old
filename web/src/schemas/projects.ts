@@ -54,7 +54,7 @@ const baseProjectSchema = v.object({
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
   firstMessage: textSchema,
-  generatePrompt: v.boolean(),
+  advancedMode: v.boolean(),
   brief: briefInSchema,
   prompt: promptInSchema,
 })
@@ -65,7 +65,7 @@ type BaseProjectSchemaType = v.InferOutput<typeof baseProjectSchema>
 const validateBriefField = (fieldName: keyof BriefInSchema) =>
   v.forward(
     v.check((data: BaseProjectSchemaType) => {
-      if (!data.generatePrompt) return true
+      if (data.advancedMode) return true
       const value = data.brief[fieldName]
       return typeof value === 'string' && value.trim().length >= 32
     }, 'обязательное поле (минимум 32 символа)'),
@@ -76,7 +76,7 @@ const validateBriefField = (fieldName: keyof BriefInSchema) =>
 const validatePromptField = (fieldName: keyof PromptInSchema) =>
   v.forward(
     v.check((data: BaseProjectSchemaType) => {
-      if (data.generatePrompt) return true
+      if (!data.advancedMode) return true
       const value = data.prompt[fieldName]
       return typeof value === 'string' && value.trim().length >= 32
     }, 'обязательное поле (минимум 32 символа)'),

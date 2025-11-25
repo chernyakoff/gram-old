@@ -75,7 +75,7 @@ class ProjectIn(BaseModel):
     first_message: str
     brief: BriefIn
     prompt: PromptIn
-    generate_prompt: bool
+    advanced_mode: bool
 
 
 class ProjectShortOut(ProjectBase):
@@ -101,7 +101,7 @@ async def create_default_project() -> ProjectIn:
         send_time_start=0,
         send_time_end=23,
         first_message="",
-        generate_prompt=True,
+        advanced_mode=False,
         prompt=PromptIn(
             role="",
             context="",

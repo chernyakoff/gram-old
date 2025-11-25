@@ -55,11 +55,8 @@
           <UFormField name="firstMessage" class="w-full mb-4" label="Текст первого сообщения">
             <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
           </UFormField>
-          <UFormField class="w-full mb-4" label="Продвинутый режим" name="generatePrompt">
-            <UCheckbox v-model="state.generatePrompt" />
-          </UFormField>
 
-          <template v-if="state.generatePrompt">
+          <template v-if="!state.advancedMode">
             <UFormField name="brief.description" class="w-full mb-4" label="Описание">
               <UTextarea
                 :rows="8"
@@ -196,6 +193,9 @@
               <template #json></template>
             </UTabs>
           </template>
+          <UFormField class="w-full mb-4" label="Продвинутый режим" name="advancedMode">
+            <UCheckbox v-model="state.advancedMode" />
+          </UFormField>
         </div>
 
         <div class="flex items-center gap-10 justify-between w-full"></div>
@@ -255,7 +255,7 @@ const state = reactive<ProjectInSchema>({
   sendTimeStart: 0,
   sendTimeEnd: 24,
   firstMessage: '',
-  generatePrompt: true,
+  advancedMode: false,
   brief: {
     description: '',
     offer: '',

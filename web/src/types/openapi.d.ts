@@ -90,23 +90,6 @@ export interface components {
             text: string;
             status: components["schemas"]["DialogStatus"];
         };
-        ContactOut: {
-            uid: number;
-            id: number | null;
-            username: string;
-            firstName: string | null;
-            lastName: string | null;
-            createdAt: string;
-            project: components["schemas"]["ProjectBase"];
-        };
-        ContactsBulkCreateIn: {
-            projectId: number;
-            usernames: string[];
-        };
-        ContactsBulkCreateOut: {
-            total: number;
-            added: number;
-        };
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
             text: string;
@@ -177,6 +160,7 @@ export interface components {
             firstMessage: string;
             brief: components["schemas"]["BriefIn"];
             prompt: components["schemas"]["PromptIn"];
+            advancedMode: boolean;
         };
         ProjectOut: {
             id: number;
@@ -301,9 +285,6 @@ export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
-export type ContactOut = components['schemas']['ContactOut'];
-export type ContactsBulkCreateIn = components['schemas']['ContactsBulkCreateIn'];
-export type ContactsBulkCreateOut = components['schemas']['ContactsBulkCreateOut'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];

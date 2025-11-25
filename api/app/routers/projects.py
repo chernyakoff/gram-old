@@ -33,7 +33,12 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         user_id=user.id,
     )
     await project.save()
-    if data.generate_prompt:
+    if data.advanced_mode:
+        prompt_params = data.prompt.model_dump()
+        prompt_params["project_id"] = project.id
+        await orm.Prompt.create(**prompt_params)
+        return {"id": "NONE"}
+    else:
         brief_params = data.brief.model_dump()
         brief_params["project_id"] = project.id
         await orm.Brief.create(**brief_params)
@@ -42,11 +47,6 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         )
         asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
         return {"id": ref.workflow_run_id}
-    else:
-        prompt_params = data.prompt.model_dump()
-        prompt_params["project_id"] = project.id
-        await orm.Prompt.create(**prompt_params)
-        return {"id": "NONE"}
 
 
 @router.get("/", response_model=list[ProjectShortOut])
@@ -95,7 +95,13 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     project.first_message = data.first_message
     await project.save()
 
-    if data.generate_prompt:
+    if data.advanced_mode:
+        prompt, _ = await orm.Prompt.update_or_create(
+            project_id=id, defaults=data.prompt.model_dump()
+        )
+        await prompt.save()
+        return {"id": "NONE"}
+    else:
         brief, _ = await orm.Brief.update_or_create(
             project_id=id, defaults=data.brief.model_dump()
         )
@@ -105,12 +111,6 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
         )
         asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
         return {"id": ref.workflow_run_id}
-    else:
-        prompt, _ = await orm.Prompt.update_or_create(
-            project_id=id, defaults=data.prompt.model_dump()
-        )
-        await prompt.save()
-        return {"id": "NONE"}
 
 
 @router.patch("/{id}/status")
