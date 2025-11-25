@@ -18,6 +18,7 @@ class S3(BaseModel):
     access_key: str
     secret_key: str
     endpoint_url: str
+    public_endpoint_url: str
 
 
 class DatabaseOptions(BaseModel):

@@ -60,7 +60,6 @@
           </UFormField>
 
           <template v-if="state.generatePrompt">
-            <p>Заполниете бриф</p>
             <UFormField name="brief.description" class="w-full mb-4" label="Описание">
               <UTextarea
                 :rows="8"
