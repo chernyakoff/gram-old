@@ -2,7 +2,7 @@ import asyncio
 import random
 from datetime import timedelta
 
-from hatchet_sdk import Context
+from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 from pydantic import BaseModel
 from telethon.types import User as TelethonUser
 from tortoise import Tortoise
@@ -48,6 +48,11 @@ async def release_account(account: orm.Account, error: str | None = None):
     input_validator=DialogIn,
     execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
     schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    concurrency=ConcurrencyExpression(
+        expression="input.account_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+    ),
 )
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
