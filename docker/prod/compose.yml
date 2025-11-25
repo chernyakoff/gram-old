@@ -38,7 +38,6 @@ services:
     build:
       context: ../../workers/dialog
       target: prod
-    container_name: neuro-dialog-worker
     volumes:
       - ../../workers/dialog:/app
       - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
@@ -53,6 +52,8 @@ services:
     networks:
       - hatchet
       - dev
+    deploy:
+      replicas: 5
 
   api:
     build:
