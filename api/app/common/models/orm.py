@@ -252,7 +252,7 @@ class Project(Model, TimestampMixin):
         default=23,
     )
     first_message = fields.TextField(null=False)
-    old_prompt = fields.JSONField(null=False)
+
     prompt: fields.ReverseRelation["Prompt"]
 
     mailings: fields.ReverseRelation["Mailing"]
