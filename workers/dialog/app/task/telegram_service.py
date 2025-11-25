@@ -116,7 +116,7 @@ class TelegramService:
         self.logger.warning(
             f"[{recipient.username}] FloodWait: ждать {error.seconds} сек"
         )
-        await asyncio.sleep(error.seconds)
+        # await asyncio.sleep(error.seconds)
 
     async def _handle_slow_mode(
         self, recipient: orm.Recipient, error: SlowModeWaitError
