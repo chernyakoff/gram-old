@@ -14,6 +14,35 @@ services:
     networks:
       - dev
 
+  pg-backup:
+    image: postgres:15
+    container_name: neuro-postgres-backup
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - /root/db_backups/neurogram:/backups
+    networks:
+      - dev
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      command: |
+        while true; do
+          TODAY="/backups/backup_$(date +\%Y-\%m-\%d).sql.gz"
+
+          if [ ! -f "$TODAY" ]; then
+            # Делаем бэкап только 1 раз в сутки, в любое время
+            echo "[$(date)] Starting daily backup..."
+            pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$TODAY"
+            find /backups -type f -mtime +7 -delete
+          fi
+
+          # Проверяем раз в 5 минут — достаточно часто, но не грузит CPU
+          sleep 300
+        done
+
   base-worker:
     build:
       context: ../../workers/base

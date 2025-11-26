@@ -34,7 +34,7 @@
         }"
       >
         <template #status-cell="{ row }">
-          <AccoustStatusBadge :account="row.original" />
+          <AccountStatusBadge :account="row.original" />
         </template>
         <template #project-cell="{ row }">
           {{ row.original.project?.name ?? 'не назначен' }}
@@ -105,7 +105,7 @@ import SetLimitmodal from '@/components/dashboard/accounts/limit-modal.vue'
 import CheckModal from '@/components/dashboard/accounts/check-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
 import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
-import AccoustStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
+import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useDateFormat } from '@vueuse/core'

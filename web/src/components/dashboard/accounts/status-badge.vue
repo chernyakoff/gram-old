@@ -1,11 +1,28 @@
 <template>
-  <span
-    class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors"
-    :class="badgeClasses"
-    :title="badgeTitle"
-  >
-    {{ translations[account.status] }}
-  </span>
+  <div>
+    <!-- Если есть badgeTitle, используем поповер -->
+    <UPopover v-if="badgeTitle" mode="hover">
+      <span
+        class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors"
+        :class="badgeClasses"
+      >
+        {{ translations[account.status] }}
+      </span>
+      <template #content>
+        {{ badgeTitle }}
+      </template>
+    </UPopover>
+
+    <!-- Иначе просто обычный спан -->
+    <span
+      v-else
+      class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors"
+      :class="badgeClasses"
+      :title="badgeTitle"
+    >
+      {{ translations[account.status] }}
+    </span>
+  </div>
 </template>
 
 <script setup lang="ts">

@@ -1,11 +1,8 @@
 import asyncio
 import uuid
 from contextlib import asynccontextmanager
-from datetime import timedelta
 from typing import AsyncIterator
 
-from tortoise import Tortoise
-from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.common.models.orm import Proxy
@@ -50,25 +47,38 @@ class ProxyPool:
             if proxy:
                 await self.release(proxy)
 
+    # -------------------- Release --------------------
+    async def release(self, proxy: Proxy):
+        async with self._lock:
+            self._active_proxies.pop(proxy.id, None)
+        await Proxy.filter(id=proxy.id, lock_session=proxy.lock_session).update(
+            locked_until=None, lock_session=None
+        )
+
     # -------------------- Acquire --------------------
     async def acquire(
         self, country: str, account_id: int | None = None
     ) -> Proxy | None:
         session_id = str(uuid.uuid4())
-        async with in_transaction("default"):
-            conn = Tortoise.get_connection("default")
 
-            # НОВАЯ ЛОГИКА: Если передан account_id, пытаемся взять тот же прокси
+        # Лок нужен только для обновления внутреннего словаря и запуска heartbeat
+        async with self._lock:
+            active_proxies_empty = not self._active_proxies
+            if (
+                active_proxies_empty
+                or not self._heartbeat_task
+                or self._heartbeat_task.done()
+            ):
+                self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
+        async with in_transaction("default") as conn:
+            # Если передан account_id, пытаемся взять тот же прокси
             if account_id:
-                # Получаем last_proxy_id из аккаунта
                 account_data = await conn.execute_query_dict(
                     "SELECT last_proxy_id FROM accounts WHERE id = $1", [account_id]
                 )
-
                 if account_data and account_data[0]["last_proxy_id"]:
                     last_proxy_id = account_data[0]["last_proxy_id"]
-
-                    # Пытаемся захватить тот же прокси
                     rows = await conn.execute_query_dict(
                         """
                         UPDATE proxies
@@ -83,21 +93,14 @@ class ProxyPool:
                         """,
                         [self.ttl, session_id, last_proxy_id, country, self.user_id],
                     )
-
                     if rows:
                         proxy = Proxy(**rows[0])
                         proxy._saved_in_db = True
-
                         async with self._lock:
                             self._active_proxies[proxy.id] = session_id
-                            if not self._heartbeat_task or self._heartbeat_task.done():
-                                self._heartbeat_task = asyncio.create_task(
-                                    self._heartbeat_loop()
-                                )
-
                         return proxy
 
-            # Если не нашли "свой" прокси - берём любой
+            # Берем любой доступный прокси
             rows = await conn.execute_query_dict(
                 """
                 WITH picked AS (
@@ -126,7 +129,7 @@ class ProxyPool:
             proxy = Proxy(**rows[0])
             proxy._saved_in_db = True
 
-            # Сохраняем proxy_id в аккаунте если передан account_id
+            # Обновляем last_proxy_id в аккаунте
             if account_id:
                 await conn.execute_query(
                     "UPDATE accounts SET last_proxy_id = $1 WHERE id = $2",
@@ -135,31 +138,30 @@ class ProxyPool:
 
             async with self._lock:
                 self._active_proxies[proxy.id] = session_id
-                if not self._heartbeat_task or self._heartbeat_task.done():
-                    self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
             return proxy
 
-    # -------------------- Release --------------------
-    async def release(self, proxy: Proxy):
-        async with self._lock:
-            self._active_proxies.pop(proxy.id, None)
-        await Proxy.filter(id=proxy.id, lock_session=proxy.lock_session).update(
-            locked_until=None, lock_session=None
-        )
-
-    # -------------------- Центральный Heartbeat --------------------
+    # -------------------- Heartbeat --------------------
     async def _heartbeat_loop(self):
         try:
             while True:
                 await asyncio.sleep(self.heartbeat_interval)
+
                 async with self._lock:
                     if not self._active_proxies:
-                        break  # все прокси освобождены → можно завершить heartbeat
+                        break
                     proxy_ids = list(self._active_proxies.keys())
-                    if proxy_ids:
-                        await Proxy.filter(id__in=proxy_ids).update(
-                            locked_until=tz.now() + timedelta(seconds=self.ttl)
-                        )
+
+                # Обновляем прокси в отдельном контексте транзакции
+                async with in_transaction("default") as conn:
+                    await conn.execute_query(
+                        """
+                        UPDATE proxies
+                        SET locked_until = NOW() + make_interval(secs => $1)
+                        WHERE id = ANY($2::int[]);
+                        """,
+                        [self.ttl, proxy_ids],
+                    )
+
         except asyncio.CancelledError:
             pass
