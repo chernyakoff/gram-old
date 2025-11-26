@@ -13,7 +13,7 @@ services:
       - postgres-data-dev:/var/lib/postgresql/data
     networks:
       - dev
-
+      
   pg-backup:
     image: postgres:15
     container_name: neuro-postgres-backup
@@ -29,17 +29,21 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command: |
       while true; do
-        TODAY="/backups/backup_$(date +\%Y-\%m-\%d).sql.gz"
+        # имя файла для сегодняшнего бэкапа
+        TODAY='/backups/backup_$(date +%Y-%m-%d).sql.gz'
 
-        if [ "$(date +\%H)" = "03" ] && [ ! -f "$TODAY" ]; then
-          echo "[$(date)] Running scheduled backup..."
+        # проверяем, есть ли бэкап за сегодня
+        if [ ! -f "$TODAY" ]; then
+          echo "[$(date)] Running daily backup..."
           pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$TODAY"
+          # удаляем старые файлы старше 7 дней
           find /backups -type f -mtime +7 -delete
-          sleep 3600
-        else
-          sleep 60
         fi
+
+        # проверка раз в час
+        sleep 3600
       done
+
 
   base-worker:
     build:
