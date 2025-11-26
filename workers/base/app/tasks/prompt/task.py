@@ -41,6 +41,10 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     logger = StreamLogger(ctx)
 
     await logger.info("Начата генерация промпта")
+
+    await asyncio.sleep(60)
+    return
+
     project = await orm.Project.get(id=input.project_id)
 
     params = {

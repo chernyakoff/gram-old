@@ -202,9 +202,24 @@
       </UForm>
     </template>
   </UDashboardPanel>
+
+  <UModal :dismissible="false" v-model:open="isGenerating">
+    <template #header>
+      <div class="flex items-center gap-3">
+        <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary" />
+        <h3 class="text-lg font-semibold">Генерация промпта</h3>
+      </div>
+    </template>
+    <template #body>
+      <div class="space-y-2 text-sm text-muted">
+        Генерация промпта для вашего проекта займёт 1-2 минуты. Пожалуйста, не закрывайте страницу и
+        дождитесь завершения процесса.
+      </div>
+    </template>
+  </UModal>
 </template>
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useTitle } from '@vueuse/core'
 import { useProjects } from '@/composables/use-projects'
 
@@ -234,7 +249,8 @@ const route = useRoute()
 
 const id = Number(route.params.id)
 
-//const isEdit = !!props.id
+const isGenerating = ref(false)
+
 const hours = Array.from({ length: 24 }, (_, i) => ({
   label: i.toString().padStart(2, '0') + ':00',
   value: i,
@@ -292,23 +308,36 @@ const onSubmit = async (event: FormSubmitEvent<ProjectInSchema>) => {
     const res = await update(id, data)
     workflowId = res.id
   }
-  const toastData: Partial<Toast> = {
-    title: toastTitle,
-    color: 'success',
-  }
+
   if (workflowId != 'NONE') {
-    toastData.description =
-      'Запущена генерация промпта (~2 мин.). Ход выполнения можно увидеть в разделе задачи'
-    toast.add(toastData)
+    // Показываем модальное окно
+    isGenerating.value = true
+
     jobsStore.add({
       id: workflowId,
-      name: 'Обновление аккаунта',
+      name: 'Генерация промпта',
+      onComplete: () => {
+        // Закрываем модальное окно
+        isGenerating.value = false
+
+        // Показываем успешное уведомление
+        toast.add({
+          title: 'Промпт успешно сгенерирован',
+          description: 'Генерация промпта завершена',
+          color: 'success',
+        })
+
+        // Возвращаемся назад
+        router.back()
+      },
     })
   } else {
-    toast.add(toastData)
+    toast.add({
+      title: toastTitle,
+      color: 'success',
+    })
+    router.back()
   }
-
-  router.back()
 }
 
 onMounted(async () => {

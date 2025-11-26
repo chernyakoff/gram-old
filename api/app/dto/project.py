@@ -53,13 +53,6 @@ class PromptOut(Serializer):
 class ProjectBase(Serializer):
     id: int
     name: str
-    prompt_exists: bool
-
-    @classmethod
-    async def resolve_prompt_exists(
-        cls, instance: Project, context: ContextType
-    ) -> bool:
-        return instance.prompt is not None
 
 
 class ProjectStatusIn(BaseModel):

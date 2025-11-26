@@ -150,7 +150,6 @@ export interface components {
         ProjectBase: {
             id: number;
             name: string;
-            promptExists: boolean;
         };
         ProjectIn: {
             name: string;
@@ -176,7 +175,6 @@ export interface components {
         ProjectShortOut: {
             id: number;
             name: string;
-            promptExists: boolean;
             status: boolean;
         };
         ProjectStatusIn: {
