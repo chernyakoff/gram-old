@@ -89,6 +89,7 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
+    # обновляем проект
     project.name = data.name
     project.dialog_limit = data.dialog_limit
     project.send_time_start = data.send_time_start
@@ -96,22 +97,37 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     project.first_message = data.first_message
     await project.save()
 
+    # режим prompt
     if data.advanced_mode:
-        prompt, _ = await orm.Prompt.update_or_create(
+        await orm.Prompt.update_or_create(
             project_id=id, defaults=data.prompt.model_dump()
         )
-        await prompt.save()
         return {"id": "NONE"}
+
+    brief = await orm.Brief.get_or_none(project_id=project.id)
+    incoming = data.brief.model_dump()
+
+    if not brief:
+        await orm.Brief.create(project_id=project.id, **incoming)
+        brief_changed = True
     else:
-        brief, _ = await orm.Brief.update_or_create(
-            project_id=id, defaults=data.brief.model_dump()
-        )
-        await brief.save()
-        ref = await tasks.generate_prompt.aio_run_no_wait(
-            input=models.GeneratePromptIn(project_id=project.id)
-        )
-        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-        return {"id": ref.workflow_run_id}
+        brief_changed = incoming != brief.to_dict()
+        if brief_changed:
+            for key, value in incoming.items():
+                setattr(brief, key, value)
+            await brief.save()
+
+    # если ничего не изменилось — выходим
+    if not brief_changed:
+        return {"id": "NONE"}
+
+    # запускаем генерацию
+    ref = await tasks.generate_prompt.aio_run_no_wait(
+        input=models.GeneratePromptIn(project_id=project.id)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+
+    return {"id": ref.workflow_run_id}
 
 
 @router.patch("/{id}/status")

@@ -379,6 +379,17 @@ class AppSettings(Model):
         indexes = ("section", "name")
 
 
+BRIEF_FIELDS = [
+    "description",
+    "offer",
+    "client",
+    "pains",
+    "advantages",
+    "mission",
+    "focus",
+]
+
+
 class Brief(Model):
     id = fields.IntField(pk=True)
     project = fields.OneToOneField(
@@ -392,8 +403,27 @@ class Brief(Model):
     mission = fields.TextField(null=False)
     focus = fields.TextField(null=False)
 
+    def to_dict(self) -> dict:
+        return pick(
+            BRIEF_FIELDS,
+            self,
+        )
+
     class Meta:
         table = "briefs"
+
+
+PROMPT_FIELDS = [
+    "role",
+    "context",
+    "init",
+    "engage",
+    "offer",
+    "closing",
+    "instruction",
+    "rules",
+    "transitions",
+]
 
 
 class Prompt(Model):
@@ -411,21 +441,9 @@ class Prompt(Model):
     rules = fields.TextField(null=False)
     transitions = fields.TextField(null=False)
 
-    fields = [
-        "role",
-        "context",
-        "init",
-        "engage",
-        "offer",
-        "closing",
-        "instruction",
-        "rules",
-        "transitions",
-    ]
-
     def to_dict(self) -> dict:
         return pick(
-            self.fields,
+            PROMPT_FIELDS,
             self,
         )
 
