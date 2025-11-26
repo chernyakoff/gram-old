@@ -26,19 +26,18 @@ services:
       - /root/db_backups/neurogram:/backups
     networks:
       - dev
-    entrypoint: ["/bin/bash", "-c"]
-    command: |
+    command: >
+      bash -c "
       while true; do
-        TODAY="/backups/backup_$$(date +%Y-%m-%d).sql.gz"
-
-        if [ ! -f "$$TODAY" ]; then
-          echo "[$$(date)] Running daily backup..."
-          pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$$TODAY"
-          find /backups -type f -mtime +7 -delete
-        fi
-
-        sleep 3600
+        TODAY=\"/backups/backup_$$(date +%Y-%m-%d).sql.gz\";
+        if [ ! -f \"$$TODAY\" ]; then
+          echo \"[$$(date)] Running daily backup...\";
+          pg_dump -h postgres -U postgres -d neurogram -F p | gzip > \"$$TODAY\";
+          find /backups -type f -mtime +7 -delete;
+        fi;
+        sleep 3600;
       done
+      "
 
   base-worker:
     build:
