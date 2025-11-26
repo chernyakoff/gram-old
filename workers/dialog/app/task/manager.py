@@ -297,6 +297,12 @@ class DialogManager:
                 await self._check_and_stop_if_needed()
                 return
 
+            if await self._check_spam_messages(messages, recipient):
+                await self._close_dialog(dialog, recipient, "спам одинаковых сообщений")
+                self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+                await self._check_and_stop_if_needed()
+                return
+
             # Генерируем ответ от AI
             await self._generate_and_send_response(
                 events[0], dialog, recipient, messages
@@ -412,7 +418,7 @@ class DialogManager:
         # Если AI вернул COMPLETE - диалог завершён
         if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
-            asyncio.create_task(notify_complete_dialog(dialog, self.account))
+            asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
             # Уменьшаем счётчик активных диалогов
             self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
             await self._check_and_stop_if_needed()
@@ -536,3 +542,42 @@ class DialogManager:
             self.logger.info(f"🛑 Нет диалогов ожидающих ответа (сессия завершена)")
             self.stop_event.set()
             return
+
+    async def _check_spam_messages(
+        self, messages: list[orm.Message], recipient: orm.Recipient, threshold: int = 3
+    ) -> bool:
+        """
+        Проверяет, отправляет ли пользователь одинаковые сообщения.
+
+        Args:
+            messages: Список всех сообщений диалога
+            recipient: Получатель
+            threshold: Количество одинаковых сообщений подряд для закрытия (по умолчанию 3)
+
+        Returns:
+            True если обнаружен спам, False иначе
+        """
+        # Фильтруем только сообщения от получателя
+        recipient_messages = [
+            m for m in messages if m.sender == enums.MessageSender.RECIPIENT
+        ]
+
+        if len(recipient_messages) < threshold:
+            return False
+
+        # Берем последние N сообщений
+        recent_messages = recipient_messages[-threshold:]
+
+        # Нормализуем текст (убираем пробелы, приводим к нижнему регистру)
+        normalized_texts = [
+            m.text.strip().lower() if m.text else "" for m in recent_messages
+        ]
+
+        # Проверяем, все ли тексты одинаковые
+        if len(set(normalized_texts)) == 1 and normalized_texts[0]:
+            self.logger.warning(
+                f"[{recipient.username}] Обнаружен спам: {threshold} одинаковых сообщений подряд"
+            )
+            return True
+
+        return False
