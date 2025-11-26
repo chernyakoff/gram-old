@@ -29,10 +29,10 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command: |
       while true; do
-        TODAY="/backups/backup_$(date +%Y-%m-%d).sql.gz"
+        TODAY="/backups/backup_$$(date +%Y-%m-%d).sql.gz"
 
         if [ ! -f "$TODAY" ]; then
-          echo "[$(date)] Running daily backup..."
+          echo "[$$(date)] Running daily backup..."
           pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$TODAY"
           find /backups -type f -mtime +7 -delete
         fi
