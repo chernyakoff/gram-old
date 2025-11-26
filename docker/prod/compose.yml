@@ -28,20 +28,18 @@ services:
       - dev
     entrypoint: ["/bin/bash", "-c"]
     command: |
-      command: |
-        while true; do
-          TODAY="/backups/backup_$(date +\%Y-\%m-\%d).sql.gz"
+      while true; do
+        TODAY="/backups/backup_$(date +\%Y-\%m-\%d).sql.gz"
 
-          if [ ! -f "$TODAY" ]; then
-            # Делаем бэкап только 1 раз в сутки, в любое время
-            echo "[$(date)] Starting daily backup..."
-            pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$TODAY"
-            find /backups -type f -mtime +7 -delete
-          fi
-
-          # Проверяем раз в 5 минут — достаточно часто, но не грузит CPU
-          sleep 300
-        done
+        if [ "$(date +\%H)" = "03" ] && [ ! -f "$TODAY" ]; then
+          echo "[$(date)] Running scheduled backup..."
+          pg_dump -h postgres -U postgres -d neurogram -F p | gzip > "$TODAY"
+          find /backups -type f -mtime +7 -delete
+          sleep 3600
+        else
+          sleep 60
+        fi
+      done
 
   base-worker:
     build:
