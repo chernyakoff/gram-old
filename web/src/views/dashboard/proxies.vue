@@ -13,6 +13,7 @@
     <template #body>
       <div class="min-w-[800px] max-w-4xl mx-auto bg-dimmed">
         <div class="flex flex-wrap items-center justify-end gap-1.5 mb-4">
+          <ChangeCountryModal :selected-ids="selectedIds" @close="refresh" />
           <DeleteProxiesModal :selected-ids="selectedIds" @close="refresh" />
         </div>
         <UTable
@@ -40,6 +41,7 @@ import { useTitle, useDateFormat } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
 import { onMounted, ref } from 'vue'
 import DeleteProxiesModal from '@/components/dashboard/proxies/delete-modal.vue'
+import ChangeCountryModal from '@/components/dashboard/proxies/country-modal.vue'
 import AddProxiesModal from '@/components/dashboard/proxies/add-modal.vue'
 
 import { useProxies } from '@/composables/use-proxies'

@@ -190,7 +190,34 @@
                   />
                 </UFormField>
               </template>
-              <template #json></template>
+              <template #json>
+                <div class="space-y-4 mb-4">
+                  <UFormField label="JSON промпта" class="w-full">
+                    <UTextarea
+                      :rows="20"
+                      v-model="jsonText"
+                      placeholder='{"role": "...", "context": "...", ...}'
+                      class="w-full font-mono text-sm"
+                    />
+                  </UFormField>
+                  <div class="flex gap-2">
+                    <UButton
+                      label="Обновить промпт из JSON"
+                      color="primary"
+                      @click="updatePromptFromJson"
+                    />
+                    <UButton
+                      label="Копировать JSON"
+                      variant="outline"
+                      color="neutral"
+                      @click="copyJsonToClipboard"
+                    />
+                  </div>
+                  <div v-if="jsonError" class="text-red-500 text-sm">
+                    {{ jsonError }}
+                  </div>
+                </div>
+              </template>
             </UTabs>
           </template>
           <UFormField class="w-full mb-4" label="Продвинутый режим" name="advancedMode">
@@ -219,11 +246,11 @@
   </UModal>
 </template>
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useTitle } from '@vueuse/core'
 import { useProjects } from '@/composables/use-projects'
-
-import { projectInSchema, type ProjectInSchema } from '@/schemas/projects'
+import * as v from 'valibot'
+import { projectInSchema, promptInSchema, type ProjectInSchema } from '@/schemas/projects'
 import type { ProjectIn } from '@/types/openapi'
 import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
 
@@ -250,6 +277,8 @@ const route = useRoute()
 const id = Number(route.params.id)
 
 const isGenerating = ref(false)
+const jsonText = ref('')
+const jsonError = ref('')
 
 const hours = Array.from({ length: 24 }, (_, i) => ({
   label: i.toString().padStart(2, '0') + ':00',
@@ -293,6 +322,87 @@ const state = reactive<ProjectInSchema>({
     transitions: '',
   },
 })
+
+// Синхронизируем JSON с state.prompt
+watch(
+  () => state.prompt,
+  (newPrompt) => {
+    if (state.advancedMode) {
+      jsonText.value = JSON.stringify(newPrompt, null, 2)
+    }
+  },
+  { deep: true },
+)
+
+// Обновляем JSON при включении продвинутого режима
+watch(
+  () => state.advancedMode,
+  (isAdvanced) => {
+    if (isAdvanced) {
+      jsonText.value = JSON.stringify(state.prompt, null, 2)
+    }
+  },
+)
+
+const updatePromptFromJson = () => {
+  try {
+    jsonError.value = ''
+    const parsed = JSON.parse(jsonText.value)
+
+    // Валидация с помощью valibot
+    const result = v.safeParse(promptInSchema, parsed)
+
+    if (result.success) {
+      // Обновляем state.prompt
+      Object.assign(state.prompt, result.output)
+
+      toast.add({
+        title: 'Промпт обновлён',
+        description: 'Промпт успешно обновлён из JSON',
+        color: 'success',
+      })
+    } else {
+      // Форматируем ошибки валидации с помощью flatten
+      const flattened = v.flatten<typeof promptInSchema>(result.issues)
+      const errors = Object.entries(flattened.nested || {})
+        .map(([key, messages]) => `${key}: ${messages?.join(', ')}`)
+        .filter(Boolean)
+        .join('; ')
+
+      jsonError.value = errors || flattened.root?.join('; ') || 'Ошибка валидации'
+
+      toast.add({
+        title: 'Ошибка валидации',
+        description: jsonError.value,
+        color: 'error',
+      })
+    }
+  } catch (error) {
+    jsonError.value = error instanceof Error ? error.message : 'Ошибка парсинга JSON'
+    toast.add({
+      title: 'Ошибка',
+      description: jsonError.value,
+      color: 'error',
+    })
+  }
+}
+
+const copyJsonToClipboard = async () => {
+  try {
+    await navigator.clipboard.writeText(jsonText.value)
+    toast.add({
+      title: 'Скопировано',
+      description: 'JSON скопирован в буфер обмена',
+      color: 'success',
+    })
+  } catch {
+    toast.add({
+      title: 'Ошибка',
+      description: 'Не удалось скопировать в буфер обмена',
+      color: 'error',
+    })
+  }
+}
 
 const doSubmit = async () => {
   await form.value?.submit()

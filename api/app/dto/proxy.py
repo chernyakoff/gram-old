@@ -16,3 +16,8 @@ class ProxyOut(Serializer):
     password: str
     country: str
     created_at: datetime
+
+
+class ProxiesCountryIn(BaseModel):
+    country: str
+    ids: list[int]

@@ -1,11 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.common.models import orm
 from app.dto.common import WorkflowOut
-from app.dto.proxy import ProxiesBulkCreateIn, ProxyOut
+from app.dto.proxy import ProxiesBulkCreateIn, ProxiesCountryIn, ProxyOut
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
 from app.routers.sse import watch_job
@@ -37,3 +37,18 @@ async def get_proxies(user=Depends(get_current_user)):
 @router.delete("/")
 async def delete_proxies(id: list[int] = Query(...), user=Depends(get_current_user)):
     await orm.Proxy.filter(id__in=id, user_id=user.id).delete()
+
+
+@router.post("/country")
+async def change_country(
+    data: ProxiesCountryIn,
+    user=Depends(get_current_user),
+):
+    updated = await orm.Proxy.filter(id__in=data.ids, user_id=user.id).update(
+        country=data.country
+    )
+
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="not found")
+
+    return {"updated": updated}
