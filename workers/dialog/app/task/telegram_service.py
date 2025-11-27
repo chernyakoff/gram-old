@@ -222,17 +222,8 @@ class TelegramService:
         try:
             await self.client.get_entity(username)
             return False  # Если инфу получили — аккаунт ок
-        except (UserDeactivatedError, UserDeactivatedBanError):
-            return True  # Заморожен/забанен
-        except UsernameNotOccupiedError:
-            # Аналог "No user has X"
-            return True
-        except Exception as e:
-            # Иногда Telegram шлёт тексты типа "FROZEN" как plain message
-            if "FROZEN" in str(e).upper():
-                return True
-            # Любая другая ошибка — пробрасываем
-            raise
+        except Exception:
+            return False
 
     async def is_spamblock(self) -> datetime | None:
         await self.client.send_message("spambot", "/start")

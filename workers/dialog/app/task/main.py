@@ -273,7 +273,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
         logger.warning("Аккаунт заморожен")
         account.active = False
         account.status = enums.AccountStatus.FROZEN
-        await account.save(update_fields=["status"])
+        await account.save(update_fields=["status", "active"])
         raise
 
     except SpamBlockedError as e:

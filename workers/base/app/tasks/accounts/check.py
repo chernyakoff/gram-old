@@ -5,6 +5,14 @@ from datetime import datetime
 from io import BytesIO
 from typing import cast
 
+from hatchet_sdk import Context
+from pydantic import BaseModel
+from telethon import TelegramClient
+from telethon.errors import UserDeactivatedBanError, UserDeactivatedError
+from telethon.errors.rpcerrorlist import UsernameNotOccupiedError
+from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.types.users import UserFull
+
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import pick
@@ -15,13 +23,6 @@ from app.tasks.proxies.pool import ProxyPool
 from app.tasks.proxies.utils import get_user_proxies
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
-from hatchet_sdk import Context
-from pydantic import BaseModel
-from telethon import TelegramClient
-from telethon.errors import UserDeactivatedBanError, UserDeactivatedError
-from telethon.errors.rpcerrorlist import UsernameNotOccupiedError
-from telethon.tl.functions.users import GetFullUserRequest
-from telethon.tl.types.users import UserFull
 
 
 async def is_frozen(
@@ -37,17 +38,9 @@ async def _check_entity(client: TelegramClient, username: str) -> bool:
     try:
         await client.get_entity(username)
         return False  # Если инфу получили — аккаунт ок
-    except (UserDeactivatedError, UserDeactivatedBanError):
-        return True  # Заморожен/забанен
-    except UsernameNotOccupiedError:
-        # Аналог "No user has X"
+
+    except Exception:
         return True
-    except Exception as e:
-        # Иногда Telegram шлёт тексты типа "FROZEN" как plain message
-        if "FROZEN" in str(e).upper():
-            return True
-        # Любая другая ошибка — пробрасываем
-        raise
 
 
 async def check_spamblock(app: TelegramClient) -> datetime | None:

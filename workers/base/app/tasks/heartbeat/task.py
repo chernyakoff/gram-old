@@ -14,7 +14,7 @@ from app.common.models import enums, orm
 class DialogIn(BaseModel):
     account_id: int
     recipients_id: list[int]
-    key:str
+    key: str
 
 
 dialog_task = hatchet.stubs.task(
@@ -43,6 +43,19 @@ WHERE d.id = m.dialog_id
   AND d.status <> 'complete'
   AND d.finished_at IS NULL
   AND m.last_msg_time < NOW() - INTERVAL '2 days';
+""")
+
+
+async def unmute_accounts():
+    await Tortoise.get_connection("default").execute_query("""
+UPDATE accounts
+SET 
+    status = 'good',
+    muted_until = NULL
+WHERE 
+    status = 'muted'
+    AND muted_until IS NOT NULL
+    AND muted_until <= NOW();
 """)
 
 
@@ -170,6 +183,7 @@ async def lock_account_and_recipients(
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
     await complete_old_dialogs()
+    await unmute_accounts()
 
     now = tz.now()
     planned_tasks = 0
@@ -226,7 +240,9 @@ async def task(input: EmptyModel, ctx: Context):
                 recipients_id = [r.id for r in recipients_to_assign]
 
                 await dialog_task.aio_run_no_wait(
-                    DialogIn(account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)),
+                    DialogIn(
+                        account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)
+                    ),
                 )
 
                 planned_tasks += len(recipients_id)
