@@ -220,6 +220,7 @@ class DialogManager:
             self.logger.info(f"[{recipient.username}] Получено новое сообщение")
 
             # Если уже есть задача ожидания для этого диалога - отменяем её
+
             if dialog.id in self.waiting_dialogs:
                 self.waiting_dialogs[dialog.id].cancel()
                 del self.waiting_dialogs[dialog.id]
@@ -289,8 +290,6 @@ class DialogManager:
 
             if len(messages) >= self.project.dialog_limit:
                 await self._close_dialog(dialog, recipient, "лимит сообщений")
-                # Уменьшаем счётчик так как диалог больше не ждёт ответа
-                self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
                 await self._check_and_stop_if_needed()
                 return
 
@@ -304,9 +303,6 @@ class DialogManager:
             await self._generate_and_send_response(
                 events[0], dialog, recipient, messages
             )
-
-            # Увеличиваем счетчик активных диалогов
-            self.active_dialogs_count += 1
 
             # Запускаем ожидание ответа (5 минут)
             await self._wait_for_reply(dialog, recipient)
@@ -328,8 +324,6 @@ class DialogManager:
                     self.logger.info(
                         f"[{recipient.username}] Получен ответ, продолжаем диалог"
                     )
-                    # Уменьшаем счетчик (диалог продолжается, но это ожидание завершено)
-                    self.active_dialogs_count -= 1
                     return
 
                 # Проверяем, не остановлена ли задача
@@ -416,8 +410,8 @@ class DialogManager:
         if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
-            # Уменьшаем счётчик активных диалогов
-            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+
+            self.active_dialogs_count -= 1
             await self._check_and_stop_if_needed()
             return
 
