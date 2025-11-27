@@ -86,10 +86,8 @@ async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Ac
     """Получает список свободных аккаунтов для проекта."""
     return (
         await orm.Account.filter(
-            project=project,
-            active=True,
+            project=project, active=True, status=enums.AccountStatus.GOOD, busy=False
         )
-        .filter(Q(busy=False) | Q(lease_expires_at__lt=now))
         .limit(MAX_ACCOUNTS_PER_CYCLE)
         .using_db(conn)
     )
