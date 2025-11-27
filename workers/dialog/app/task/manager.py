@@ -99,13 +99,9 @@ class DialogManager:
 
         try:
             # Получаем все незавершенные диалоги для этого аккаунта
-            dialogs = (
-                await orm.Dialog.filter(
-                    account_id=self.account.id,
-                )
-                .exclude(finished_at__isnull=True)
-                .prefetch_related("recipient", "messages")
-            )
+            dialogs = await orm.Dialog.filter(
+                account_id=self.account.id, finished_at__isnull=True
+            ).prefetch_related("recipient", "messages")
 
             self.logger.info(
                 f"Проверка {len(dialogs)} старых диалогов на новые сообщения"
@@ -130,6 +126,7 @@ class DialogManager:
 
                     if not peer:
                         continue
+
                     # Получаем последнее сообщение из БД
                     last_db_message = (
                         await orm.Message.filter(dialog=dialog)
