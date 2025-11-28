@@ -309,6 +309,7 @@ class Recipient(Model):
         related_name="recipients",
         on_delete=fields.CASCADE,
     )
+    mailing_id: int  # for pylance
 
     username = fields.CharField(max_length=320)  # ограничение email по стандарту
     metadata = fields.JSONField(null=True)

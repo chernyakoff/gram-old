@@ -3,7 +3,7 @@ import tomllib
 from typing import Self
 
 import yaml
-from pydantic import BaseModel, Field, PostgresDsn
+from pydantic import BaseModel, Field, PostgresDsn, SecretStr
 from tortoise import BaseDBAsyncClient, Tortoise
 
 logger = logging.getLogger(__name__)
@@ -48,12 +48,25 @@ class Openai(BaseModel):
     timeout: int | None = 180
 
 
+class Bot(BaseModel):
+    token: SecretStr
+
+    @property
+    def id(self) -> int:
+        return int(self.token.get_secret_value().split(":")[0])
+
+
+class Api(BaseModel):
+    bot: Bot
+
+
 class Settings(BaseModel):
     hatchet: Hatchet
     postgres: Postgres
     ipinfo: IpInfo
     s3: S3
     openai: Openai
+    api: Api
 
     @classmethod
     def create(cls, path="config.yml") -> Self:

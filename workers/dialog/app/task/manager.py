@@ -198,6 +198,9 @@ class DialogManager:
                 return
 
             text = event.raw_text
+            if event.voice:
+                oga_bytes = await event.download_media(file=bytes)
+                text = await self.ai_service.transcribe(oga_bytes)
 
             # Находим диалог
             dialog = await get_last_active_dialog(sender.username, self.account.id)
@@ -402,6 +405,9 @@ class DialogManager:
 
         if not ai_response:
             return
+
+        if new_status == enums.DialogStatus.CLOSING:
+            asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
 
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)

@@ -1,4 +1,8 @@
+import asyncio
+import io
+
 from openai import AsyncOpenAI
+from pydub import AudioSegment
 
 from app.common.models import enums, orm
 from app.common.utils.prompt import (
@@ -116,3 +120,19 @@ class AIService:
         for d in long_dashes:
             text = text.replace(d, "-")
         return text
+
+    async def transcribe(self, oga_bytes: bytes) -> str:
+        def convert_oga_to_mp3(oga_bytes):
+            audio = AudioSegment.from_file(io.BytesIO(oga_bytes), format="ogg")
+            out_io = io.BytesIO()
+            audio.export(out_io, format="mp3")
+            out_io.seek(0)
+            return out_io.read()
+
+        mp3_bytes = await asyncio.to_thread(convert_oga_to_mp3, oga_bytes)
+
+        transcription = await self.client.audio.transcriptions.create(
+            model="gpt-4o-transcribe",
+            file=("voice.mp3", mp3_bytes, "audio/mpeg"),
+        )
+        return transcription.text
