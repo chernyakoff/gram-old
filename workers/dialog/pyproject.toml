@@ -2,9 +2,7 @@
 name = "worker"
 version = "0.1.0"
 description = "Default template for PDM package"
-authors = [
-    {name = "Michael Chernyakoff", email = "chernyakoff@gmail.com"},
-]
+authors = [{ name = "Michael Chernyakoff", email = "chernyakoff@gmail.com" }]
 dependencies = [
     "tortoise-orm[accel,asyncpg]>=0.25.1",
     "python-dotenv>=1.1.1",
@@ -28,10 +26,11 @@ dependencies = [
     "html-to-markdown>=2.4.1",
     "httpx>=0.28.1",
     "pydub>=0.25.1",
+    "pyaudioop>=0.2.0",
 ]
 requires-python = "==3.13.*"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 
 
 [tool.taskipy.tasks]
@@ -63,6 +62,4 @@ name = "dialog"
 slots = 10
 
 [dependency-groups]
-dev = [
-    "taskipy>=1.14.1",
-]
+dev = ["taskipy>=1.14.1"]
