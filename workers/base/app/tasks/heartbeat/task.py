@@ -51,7 +51,8 @@ async def unmute_accounts():
 UPDATE accounts
 SET 
     status = 'good',
-    muted_until = NULL
+    muted_until = NULL,
+    active = True
 WHERE 
     status = 'muted'
     AND muted_until IS NOT NULL
