@@ -1,7 +1,7 @@
 import asyncio
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from typing import cast
 
@@ -125,7 +125,12 @@ class AccountsCheckIn(BaseModel):
     ids: list[int]
 
 
-@hatchet.task(name="accounts-check", input_validator=AccountsCheckIn)
+@hatchet.task(
+    name="accounts-check",
+    input_validator=AccountsCheckIn,
+    execution_timeout=timedelta(minutes=60),
+    schedule_timeout=timedelta(minutes=60),
+)
 async def accounts_check(input: AccountsCheckIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
     logger = StreamLogger(ctx)

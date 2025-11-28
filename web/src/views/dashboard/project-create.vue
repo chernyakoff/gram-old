@@ -55,7 +55,9 @@
           <UFormField name="firstMessage" class="w-full mb-4" label="Текст первого сообщения">
             <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
           </UFormField>
-
+          <UFormField class="w-full mb-4" name="advancedMode">
+            <UCheckbox v-model="state.advancedMode" label="Продвинутый режим" />
+          </UFormField>
           <template v-if="!state.advancedMode">
             <UFormField name="brief.description" class="w-full mb-4" label="Описание">
               <UTextarea
@@ -220,9 +222,6 @@
               </template>
             </UTabs>
           </template>
-          <UFormField class="w-full mb-4" label="Продвинутый режим" name="advancedMode">
-            <UCheckbox v-model="state.advancedMode" />
-          </UFormField>
         </div>
 
         <div class="flex items-center gap-10 justify-between w-full"></div>

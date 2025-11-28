@@ -1,6 +1,7 @@
 # app/router/projects.py
 
 import asyncio
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -56,7 +57,7 @@ async def get_projects(user=Depends(get_current_user)):
 
 @router.get("/default", response_model=ProjectIn)
 async def get_default_project(user=Depends(get_current_user)):
-    return await create_default_project()
+    return create_default_project()
 
 
 @router.get("/list", response_model=list[ProjectBase])
@@ -67,13 +68,20 @@ async def get_project_list(user=Depends(get_current_user)):
 @router.get("/{id}", response_model=ProjectOut)
 async def get_project(id: int, user=Depends(get_current_user)):
     project = await orm.Project.get_or_none(id=id, user_id=user.id).prefetch_related(
-        "brief"
+        "brief", "prompt"
     )
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    # Используем tortoise-serializer для сериализации с вложенным brief
-    return await ProjectOut.from_tortoise_orm(project)
+    if not project.prompt:  # костыль если не сгенерировался промпт по каким то причинам
+        params: dict[str, Any] = {key: "" for key in orm.PROMPT_FIELDS}
+        params["project_id"] = id
+        await orm.Prompt.create(**params)
+        project = await orm.Project.get_or_none(
+            id=id, user_id=user.id
+        ).prefetch_related("brief", "prompt")
+
+    return await ProjectOut.from_tortoise_orm(project)  # type: ignore
 
 
 @router.delete("/")

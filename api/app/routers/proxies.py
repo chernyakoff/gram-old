@@ -23,7 +23,7 @@ async def upload_proxies(
             input=models.ProxiesUploadIn(user_id=user.id, proxies=input.proxies)
         )
         print(ref)
-        asyncio.create_task(watch_job(ref.workflow_run_id))
+        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
         return {"id": ref.workflow_run_id}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)

@@ -1,5 +1,7 @@
 # app/dto/project.py
 
+from typing import Optional
+
 from pydantic import BaseModel
 from tortoise_serializer import ContextType, Serializer
 
@@ -86,7 +88,7 @@ class ProjectOut(Serializer):
     prompt: PromptOut
 
 
-async def create_default_project() -> ProjectIn:
+def create_default_project() -> ProjectIn:
     return ProjectIn(
         name="Мой проект",
         dialog_limit=50,
