@@ -1,8 +1,8 @@
 import asyncio
 import io
+import subprocess
 
 from openai import AsyncOpenAI
-from pydub import AudioSegment
 
 from app.common.models import enums, orm
 from app.common.utils.prompt import (
@@ -122,17 +122,43 @@ class AIService:
         return text
 
     async def transcribe(self, oga_bytes: bytes) -> str:
-        def convert_oga_to_mp3(oga_bytes):
-            audio = AudioSegment.from_file(io.BytesIO(oga_bytes), format="ogg")
-            out_io = io.BytesIO()
-            audio.export(out_io, format="mp3")
-            out_io.seek(0)
-            return out_io.read()
+        """
+        Конвертирует OGA/OGG → MP3 через ffmpeg и отправляет в OpenAI для транскрипции.
+        Работает с asyncio и последним OpenAI SDK.
+        """
 
-        mp3_bytes = await asyncio.to_thread(convert_oga_to_mp3, oga_bytes)
+        # конвертация через ffmpeg в отдельном потоке, чтобы не блокировать event loop
+        def convert_oga_to_mp3(input_bytes: bytes) -> bytes:
+            process = subprocess.Popen(
+                [
+                    "ffmpeg",
+                    "-y",  # overwrite
+                    "-i",
+                    "pipe:0",  # input из stdin
+                    "-f",
+                    "mp3",
+                    "pipe:1",  # output в stdout
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            out, err = process.communicate(input=input_bytes)
+            if process.returncode != 0:
+                raise RuntimeError(
+                    f"FFmpeg conversion failed: {err.decode('utf-8', errors='ignore')}"
+                )
+            return out
+
+        # вызываем конвертацию в отдельном потоке
+        mp3_bytes: bytes = await asyncio.to_thread(convert_oga_to_mp3, oga_bytes)
+
+        # создаём BytesIO, чтобы OpenAI SDK точно понял формат
+        mp3_io = io.BytesIO(mp3_bytes)
 
         transcription = await self.client.audio.transcriptions.create(
             model="gpt-4o-transcribe",
-            file=("voice.mp3", mp3_bytes, "audio/mpeg"),
+            file=("voice.mp3", mp3_io),  # tuple из 2 элементов: имя файла + bytes/IO
         )
+
         return transcription.text

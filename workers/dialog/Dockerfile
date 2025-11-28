@@ -2,6 +2,8 @@
 FROM python:3.12-slim AS base
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # ставим uv
 RUN pip install --no-cache-dir uv
 
@@ -13,10 +15,7 @@ RUN uv sync --frozen --no-dev
 
 # ---------- dev stage ----------
 FROM base AS dev
-# Устанавливаем dev зависимости
 RUN uv sync --frozen --dev
-# CMD задаём только в compose
-# код монтируется через volume, COPY не нужен
 
 # ---------- prod stage ----------
 FROM base AS prod
