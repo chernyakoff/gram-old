@@ -74,11 +74,20 @@ async def get_project(id: int, user=Depends(get_current_user)):
     )
     if not project:
         raise HTTPException(status_code=404, detail="not found")
-
+    need_refresh = False
     if not project.prompt:  # костыль если не сгенерировался промпт по каким то причинам
         params: dict[str, Any] = {key: "" for key in orm.PROMPT_FIELDS}
         params["project_id"] = id
         await orm.Prompt.create(**params)
+        need_refresh = True
+
+    if not project.brief:
+        params: dict[str, Any] = {key: "" for key in orm.BRIEF_FIELDS}
+        params["project_id"] = id
+        await orm.Brief.create(**params)
+        need_refresh = True
+
+    if need_refresh:
         project = await orm.Project.get_or_none(
             id=id, user_id=user.id
         ).prefetch_related("brief", "prompt")
