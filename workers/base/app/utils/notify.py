@@ -10,7 +10,7 @@ async def notify_mailing_end(user_id: int, mailing_name: str, project_name: str)
 
 
 async def send_text_to_user(chat_id: int, text: str):
-    url = f"https://api.telegram.org/bot{config.api.bot.token}/sendMessage"
+    url = f"https://api.telegram.org/bot{config.api.bot.token.get_secret_value()}/sendMessage"
     print(url)
     data = {
         "chat_id": str(chat_id),
@@ -24,7 +24,7 @@ async def send_text_to_user(chat_id: int, text: str):
 
 
 async def send_file_to_user(chat_id: int, filename: str, content: bytes, caption: str):
-    url = f"https://api.telegram.org/bot{config.api.bot.token}/sendDocument"
+    url = f"https://api.telegram.org/bot{config.api.bot.token.get_secret_value()}/sendDocument"
 
     files = {
         "document": (filename, content, "text/plain"),
