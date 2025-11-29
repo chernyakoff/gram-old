@@ -502,7 +502,29 @@ class DialogManager:
     async def _check_and_stop_if_needed(self):
         """Проверяет условия для остановки task"""
 
-        # 1. Проверяем дневной лимит для аккаунта
+        # 1. Если нет диалогов в сессии - завершаемся
+        if not self.session_recipients_ids:
+            self.logger.info("🛑 Нет диалогов в текущей сессии")
+            self.stop_event.set()
+            return
+
+        # 2. Считаем незавершенные диалоги сессии
+        total_session_dialogs = len(self.session_recipients_ids)
+
+        self.logger.info(
+            f"[Аккаунт {self.account.id}] Проверка завершения: "
+            f"всего_в_сессии={total_session_dialogs}, "
+            f"ожидающих_ответа_в_памяти={self.active_dialogs_count}"
+        )
+
+        # 3. КЛЮЧЕВАЯ ПРОВЕРКА: если нет диалогов ожидающих ответа
+        if self.active_dialogs_count == 0 and total_session_dialogs > 0:
+            self.logger.info(f"🛑 Нет диалогов ожидающих ответа (сессия завершена)")
+            self.stop_event.set()
+            return
+
+        # 4. Проверяем дневной лимит для аккаунта (только для логирования)
+        # НЕ останавливаем сессию, если есть активные диалоги
         counter = await orm.AccountActionCounter.filter(
             account=self.account,
             action=enums.AccountAction.NEW_DIALOG,
@@ -513,32 +535,9 @@ class DialogManager:
 
         if dialogs_today >= self.account.out_daily_limit:
             self.logger.info(
-                f"🛑 Достигнут дневной лимит: {dialogs_today}/{self.account.out_daily_limit}"
+                f"ℹ️ Дневной лимит достигнут: {dialogs_today}/{self.account.out_daily_limit}. "
+                f"Активных диалогов: {self.active_dialogs_count}. Завершим после их окончания."
             )
-            self.stop_event.set()
-            return
-
-        # 2. Если нет диалогов в сессии - завершаемся
-        if not self.session_recipients_ids:
-            self.logger.info("🛑 Нет диалогов в текущей сессии")
-            self.stop_event.set()
-            return
-
-        # 3. Считаем незавершенные диалоги сессии
-        # Теперь полагаемся только на счётчик в памяти, так как статус COMPLETE ставит только AI
-        total_session_dialogs = len(self.session_recipients_ids)
-
-        self.logger.info(
-            f"[Аккаунт {self.account.id}] Проверка завершения: "
-            f"всего_в_сессии={total_session_dialogs}, "
-            f"ожидающих_ответа_в_памяти={self.active_dialogs_count}"
-        )
-
-        # 4. КЛЮЧЕВАЯ ПРОВЕРКА: если нет диалогов ожидающих ответа
-        if self.active_dialogs_count == 0 and total_session_dialogs > 0:
-            self.logger.info(f"🛑 Нет диалогов ожидающих ответа (сессия завершена)")
-            self.stop_event.set()
-            return
 
     async def _check_spam_messages(
         self, messages: list[orm.Message], recipient: orm.Recipient, threshold: int = 3
