@@ -12,7 +12,7 @@ from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
-from app.common.utils.functions import generate_message
+from app.common.utils.functions import generate_message, randomize_message
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
 from app.utils.account import AccountUtil
@@ -147,6 +147,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
             # Отправляем первые сообщения новым получателям
             new_dialogs_started = 0
             first_message = generate_message(project.first_message)
+            first_message = randomize_message(first_message)
 
             for recipient_id in input.recipients_id:
                 recipient = await orm.Recipient.get(id=recipient_id)

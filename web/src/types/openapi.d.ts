@@ -236,6 +236,12 @@ export interface components {
             closing: number[];
             complete: number[];
         };
+        SynonimizeIn: {
+            text: string;
+        };
+        SynonimizeOut: {
+            text: string;
+        };
         UserLoginIn: {
             id: number;
             authDate: number;
@@ -315,6 +321,8 @@ export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
+export type SynonimizeIn = components['schemas']['SynonimizeIn'];
+export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserOut = components['schemas']['UserOut'];

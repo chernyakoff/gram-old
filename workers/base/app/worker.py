@@ -12,6 +12,7 @@ from app.tasks.accounts.upload import accounts_upload
 from app.tasks.heartbeat.task import heartbeat
 from app.tasks.prompt.task import generate_prompt
 from app.tasks.proxies.upload import proxies_upload
+from app.tasks.synonimize.task import synonimize
 
 
 class LifespanContext(BaseModel):
@@ -41,6 +42,7 @@ worker = hatchet.worker(
         accounts_check,
         buy_premium,
         generate_prompt,
+        synonimize,
         heartbeat,
     ],
     lifespan=lifespan,

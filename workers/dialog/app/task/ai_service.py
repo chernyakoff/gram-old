@@ -5,6 +5,7 @@ import subprocess
 from openai import AsyncOpenAI
 
 from app.common.models import enums, orm
+from app.common.utils.functions import normalize_dashes
 from app.common.utils.prompt import (
     build_prompt,
     get_ooc_status,
@@ -66,7 +67,7 @@ class AIService:
             if text.strip() == "COMPLETE":
                 return "COMPLETE", enums.DialogStatus.COMPLETE
 
-            return self.normalize_dashes(text), new_status
+            return normalize_dashes(text), new_status
 
         except Exception as e:
             logger.error(f"Ошибка AI запроса: {e}")
@@ -106,20 +107,6 @@ class AIService:
             logger.warning(f"AI не вернул статус. Ответ: {response[:100]}...")
 
         return text, status
-
-    def normalize_dashes(self, text: str) -> str:
-        # набор всех популярных видов длинных/средних тире и похожих символов
-        long_dashes = {
-            "--",
-            "—",  # em dash
-            "–",  # en dash
-            "―",  # horizontal bar
-            "−",  # minus sign
-            "-",  # non-breaking hyphen (иногда мешает)
-        }
-        for d in long_dashes:
-            text = text.replace(d, "-")
-        return text
 
     async def transcribe(self, oga_bytes: bytes) -> str:
         """

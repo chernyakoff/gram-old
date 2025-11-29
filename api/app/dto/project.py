@@ -117,3 +117,11 @@ def create_default_project() -> ProjectIn:
             focus="",
         ),
     )
+
+
+class SynonimizeIn(BaseModel):
+    text: str
+
+
+class SynonimizeOut(BaseModel):
+    text: str

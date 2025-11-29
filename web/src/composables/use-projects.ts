@@ -5,6 +5,8 @@ import type {
   ProjectIn,
   ProjectOut,
   ProjectShortOut,
+  SynonimizeIn,
+  SynonimizeOut,
   WorkflowOut,
 } from '@/types/openapi'
 import { ref } from 'vue'
@@ -41,6 +43,13 @@ export function useProjects() {
     return await api(`projects/${id}/status`, { method: 'PATCH', body: { status: value } })
   }
 
+  async function synonimize(body: SynonimizeIn) {
+    return await api<SynonimizeOut>(`projects/synonimize`, {
+      method: 'POST',
+      body,
+    })
+  }
+
   async function update(id: number, body: ProjectIn) {
     return await api<WorkflowOut>(`projects/${id}`, {
       method: 'PATCH',
@@ -60,6 +69,7 @@ export function useProjects() {
     get,
     del,
     update,
+    synonimize,
     projects,
     status,
     list,

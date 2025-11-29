@@ -1,5 +1,5 @@
 <template>
-  <UDashboardPanel id="project-create">
+  <UDashboardPanel>
     <template #header>
       <UDashboardNavbar :title="title" :ui="{ right: 'gap-3' }">
         <template #leading>
@@ -52,9 +52,36 @@
               </UFormField>
             </div>
           </div>
-          <UFormField name="firstMessage" class="w-full mb-4" label="Текст первого сообщения">
-            <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
-          </UFormField>
+
+          <div class="w-full mb-4">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-sm font-medium">Текст первого сообщения</span>
+              <div class="flex items-center gap-1 relative">
+                <UModal title="Предпросмотр первого сообщения">
+                  <UButton
+                    icon="bx:show"
+                    color="neutral"
+                    variant="subtle"
+                    v-if="disableSynonimize"
+                  />
+                  <template #body>
+                    {{ generateMessage(state.firstMessage) }}
+                  </template>
+                </UModal>
+                <UButton
+                  icon="bx:cube-alt"
+                  color="neutral"
+                  variant="subtle"
+                  @click="doSynonimize"
+                  v-if="!disableSynonimize"
+                />
+              </div>
+            </div>
+            <UFormField name="firstMessage">
+              <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
+            </UFormField>
+          </div>
+
           <UFormField class="w-full mb-4" name="advancedMode">
             <UCheckbox v-model="state.advancedMode" label="Продвинутый режим" />
           </UFormField>
@@ -229,23 +256,19 @@
     </template>
   </UDashboardPanel>
 
-  <UModal :dismissible="false" v-model:open="isGenerating">
-    <template #header>
-      <div class="flex items-center gap-3">
-        <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary" />
-        <h3 class="text-lg font-semibold">Генерация промпта</h3>
-      </div>
-    </template>
-    <template #body>
-      <div class="space-y-2 text-sm text-muted">
-        Генерация промпта для вашего проекта займёт 1-2 минуты. Пожалуйста, не закрывайте страницу и
-        дождитесь завершения процесса.
-      </div>
-    </template>
-  </UModal>
+  <BlockingModal
+    title="Генерация промпта"
+    text="Генерация промпта для вашего проекта займёт 1-2 минуты. Пожалуйста, не закрывайте страницу и дождитесь завершения процесса."
+    :open="isGenerating"
+  />
+  <BlockingModal
+    title="Рандомизирую"
+    text="Дождитесь окончания рандомизации"
+    :open="isRandomizing"
+  />
 </template>
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useTitle } from '@vueuse/core'
 import { useProjects } from '@/composables/use-projects'
 import * as v from 'valibot'
@@ -256,10 +279,12 @@ import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
 import { useTemplateRef } from 'vue'
 import { useBackgroundJobs } from '@/stores/jobs-store'
 import MTextrarea from '@/components/shared/m-textrarea.vue'
+import BlockingModal from '@/components/shared/blocking-modal.vue'
 
 const jobsStore = useBackgroundJobs()
 
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { generateMessage } from '@/utils/prompt'
 
 const toast = useToast()
 const form = useTemplateRef('form')
@@ -271,11 +296,12 @@ const tabs = [
 
 const router = useRouter()
 
-const route = useRoute()
-
-const id = Number(route.params.id)
+const props = defineProps<{ id?: string }>()
+const id = props.id ? Number(props.id) : undefined
 
 const isGenerating = ref(false)
+const isRandomizing = ref(false)
+
 const jsonText = ref('')
 const jsonError = ref('')
 
@@ -284,7 +310,13 @@ const hours = Array.from({ length: 24 }, (_, i) => ({
   value: i,
 }))
 
-const { get, create, update, default_project } = useProjects()
+const disableSynonimize = computed(() => {
+  // Ищем текст вида {что-то|что-то}
+  const regex = /\{[^{}|]+\|[^{}]+\}/
+  return regex.test(state.firstMessage)
+})
+
+const { get, create, update, default_project, synonimize } = useProjects()
 
 const title = id ? `Редактировать проект` : 'Создать проект'
 
@@ -459,4 +491,11 @@ onMounted(async () => {
     Object.assign(state, def_project)
   }
 })
+
+const doSynonimize = async () => {
+  isRandomizing.value = true
+  const { text } = await synonimize({ text: state.firstMessage })
+  state.firstMessage = text
+  isRandomizing.value = false
+}
 </script>

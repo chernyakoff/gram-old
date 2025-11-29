@@ -13,6 +13,8 @@ from app.dto.project import (
     ProjectOut,
     ProjectShortOut,
     ProjectStatusIn,
+    SynonimizeIn,
+    SynonimizeOut,
     create_default_project,
 )
 from app.hatchet.base import models, tasks
@@ -147,3 +149,9 @@ async def update_project_status(
 
     project.status = data.status
     await project.save()
+
+
+@router.post("/synonimize", response_model=SynonimizeOut)
+async def synonimize(data: SynonimizeIn, user=Depends(get_current_user)):
+    response = await tasks.synonimize.aio_run(models.SynonimizeIn(text=data.text))
+    return SynonimizeOut(text=response.text)

@@ -3,7 +3,11 @@ from openai import AsyncOpenAI
 
 from app.common.models import orm
 from app.common.models.enums import DialogStatus
-from app.common.utils.functions import generate_message
+from app.common.utils.functions import (
+    generate_message,
+    normalize_dashes,
+    randomize_message,
+)
 from app.common.utils.prompt import (
     build_prompt,
     get_ooc_status,
@@ -28,21 +32,6 @@ if config.openai.base_url:
 client = AsyncOpenAI(**params)
 
 
-def normalize_dashes(text: str) -> str:
-    # набор всех популярных видов длинных/средних тире и похожих символов
-    long_dashes = {
-        "--",
-        "—",  # em dash
-        "–",  # en dash
-        "―",  # horizontal bar
-        "−",  # minus sign
-        "-",  # non-breaking hyphen (иногда мешает)
-    }
-    for d in long_dashes:
-        text = text.replace(d, "-")
-    return text
-
-
 @router.post("/", response_model=ChatOut)
 async def chat(chat: ChatIn, user=Depends(get_current_user)):
     project = await orm.Project.filter(
@@ -54,6 +43,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
+        first_message = randomize_message(first_message)
         return ChatOut(text=first_message, status=chat.status)
     else:
         for msg in reversed(chat.messages):

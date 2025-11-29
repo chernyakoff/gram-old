@@ -98,3 +98,50 @@ def generate_message(template: str) -> str:
             result = result.replace(v, "|")
 
     return result
+
+
+cyrillic_homoglyphs = {
+    "а": ["а", "a"],
+    "б": ["б", "6"],
+    "г": ["г", "r"],
+    "д": ["д", "d"],
+    "е": ["е", "e"],
+    "ё": ["ё", "e"],
+    "з": ["з", "3"],
+    "и": ["и", "u"],
+    "к": ["к", "k"],
+    "м": ["м", "m"],
+    "о": ["о", "o"],
+    "п": ["п", "n"],
+    "р": ["р", "p"],
+    "с": ["с", "c"],
+    "у": ["у", "y"],
+    "х": ["х", "x"],
+}
+
+
+def randomize_message(text):
+    out = []
+    for ch in text:
+        low = ch.lower()
+        if low in cyrillic_homoglyphs:
+            repl = random.choice(cyrillic_homoglyphs[low])
+            out.append(repl.upper() if ch.isupper() else repl.lower())
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def normalize_dashes(text: str) -> str:
+    # набор всех популярных видов длинных/средних тире и похожих символов
+    long_dashes = {
+        "--",
+        "—",  # em dash
+        "–",  # en dash
+        "―",  # horizontal bar
+        "−",  # minus sign
+        "-",  # non-breaking hyphen (иногда мешает)
+    }
+    for d in long_dashes:
+        text = text.replace(d, "-")
+    return text
