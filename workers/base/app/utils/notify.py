@@ -11,7 +11,7 @@ async def notify_mailing_end(user_id: int, mailing_name: str, project_name: str)
 
 async def send_text_to_user(chat_id: int, text: str):
     url = f"https://api.telegram.org/bot{config.api.bot.token}/sendMessage"
-
+    print(url)
     data = {
         "chat_id": str(chat_id),
         "text": text,
