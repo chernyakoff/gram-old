@@ -1,15 +1,17 @@
-from datetime import timedelta
+import logging
 
 from cyclopts import App
-from hatchet_sdk import Context, EmptyModel
-from pydantic import BaseModel
-from rich import print
-from tortoise import timezone as tz
-from tortoise.expressions import Q
-from tortoise.transactions import in_transaction
 
-from app.client import hatchet
-from app.common.models import enums, orm
+from app.common.models import orm
+from app.utils.notify import notify_mailing_end
+
+logging.basicConfig(
+    level=logging.WARNING,  # или DEBUG для больше боли
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
 
 LEASE_HOURS = 6  # сколько "занятый" аккаунт считается занятым
 MAX_ACCOUNTS_PER_CYCLE = 50  # сколько аккаунтов проверяем за 1 тик
@@ -20,5 +22,13 @@ app = App(name="dev", help="dev tests etc")
 
 
 @app.command
-async def test():
-    pass
+async def notify(id: str):
+    if id.isdigit():
+        user = await orm.User.get_or_none(id=id)
+    else:
+        user = await orm.User.get_or_none(username=id.removeprefix("@"))
+    if not user:
+        logger.error("пользователь не найден")
+        return
+
+    await notify_mailing_end(user.id, "тест", "test")
