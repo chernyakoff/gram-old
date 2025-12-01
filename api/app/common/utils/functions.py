@@ -102,7 +102,6 @@ def generate_message(template: str) -> str:
 
 cyrillic_homoglyphs = {
     "а": ["а", "a"],
-    "б": ["б", "6"],
     "е": ["е", "e"],
     "ё": ["ё", "e"],
     "о": ["о", "o"],
