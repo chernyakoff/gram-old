@@ -51,18 +51,25 @@
                   Месяц
                   <span class="text-red-500">*</span>
                 </label>
-                <USelect
-                  v-model="state.month"
-                  :items="months"
+                <UInput
+                  :model-value="monthDisplay"
                   placeholder="MM"
+                  maxlength="2"
                   size="lg"
+                  type="text"
+                  inputmode="numeric"
                   :error="!!errors.month"
-                  :ui="errors.month ? errorSelectUi : {}"
+                  :ui="errors.month ? errorInputUi : {}"
                   :disabled="isSubmitting"
+                  @input="handleMonthInput"
+                  @blur="formatMonth"
+                  @keypress="onlyNumbers"
                 />
               </div>
 
-              <div></div>
+              <div class="flex items-center justify-center pb-2">
+                <span class="text-gray-400">/</span>
+              </div>
 
               <!-- Год -->
               <div>
@@ -70,14 +77,19 @@
                   Год
                   <span class="text-red-500">*</span>
                 </label>
-                <USelect
-                  v-model="state.year"
-                  :items="years"
+                <UInput
+                  :model-value="yearDisplay"
                   placeholder="YY"
+                  maxlength="2"
                   size="lg"
+                  type="text"
+                  inputmode="numeric"
                   :error="!!errors.year"
-                  :ui="errors.year ? errorSelectUi : {}"
+                  :ui="errors.year ? errorInputUi : {}"
                   :disabled="isSubmitting"
+                  @input="handleYearInput"
+                  @blur="formatYear"
+                  @keypress="onlyNumbers"
                 />
               </div>
             </div>
@@ -224,6 +236,9 @@ const purchaseResponse = ref<BuyPremiumOut | null>(null)
 const isSubmitting = ref(false)
 const localLoading = ref(false)
 
+const monthDisplay = ref('')
+const yearDisplay = ref('')
+
 const state = reactive({
   number: '',
   month: undefined as number | undefined,
@@ -250,7 +265,6 @@ const activeErrors = computed(() => Object.values(errors).filter(Boolean))
 const errorInputUi = {
   base: 'ring-1 ring-red-500 focus:ring-red-500 dark:ring-red-500 dark:focus:ring-red-500',
 }
-const errorSelectUi = errorInputUi
 
 // Форматирование номера
 const formattedCardNumber = computed({
@@ -264,22 +278,153 @@ const formattedCardNumber = computed({
   },
 })
 
-// Месяцы
-const months = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: String(i + 1).padStart(2, '0'),
-}))
-
-// Годы
-const currentYear = new Date().getFullYear()
-const years = Array.from({ length: 11 }, (_, i) => ({
-  value: currentYear + i,
-  label: String(currentYear + i),
-}))
-
 const accountName = computed(
   () => `${account.value?.firstName ?? ''} ${account.value?.lastName ?? ''}`,
 )
+
+// Блокировка ввода нечисловых символов
+const onlyNumbers = (event: KeyboardEvent) => {
+  const char = event.key
+  // Разрешаем только цифры и служебные клавиши
+  if (
+    !/^\d$/.test(char) &&
+    !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(char)
+  ) {
+    event.preventDefault()
+  }
+}
+
+// Обработка ввода месяца
+const handleMonthInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  let value = target.value.replace(/\D/g, '') // Только цифры
+
+  if (value.length === 0) {
+    monthDisplay.value = ''
+    state.month = undefined
+    return
+  }
+
+  // Ограничиваем до 2 цифр
+  if (value.length > 2) {
+    value = value.slice(0, 2)
+  }
+
+  // Если вводим вторую цифру
+  if (value.length === 2) {
+    let numValue = parseInt(value)
+
+    // Если больше 12, заменяем на 12
+    if (numValue > 12) {
+      value = '12'
+      numValue = 12
+    } else if (numValue < 1) {
+      value = '01'
+      numValue = 1
+    }
+
+    monthDisplay.value = value
+    state.month = numValue
+    return
+  }
+
+  // Если одна цифра
+  if (value.length === 1) {
+    const firstDigit = parseInt(value)
+
+    // Если первая цифра больше 1, автоматически делаем полный месяц
+    if (firstDigit > 1) {
+      value = '0' + value
+      monthDisplay.value = value
+      state.month = firstDigit
+      return
+    }
+
+    // Иначе просто показываем одну цифру
+    monthDisplay.value = value
+    state.month = undefined
+  }
+}
+
+// Форматирование месяца при потере фокуса
+const formatMonth = () => {
+  if (monthDisplay.value && monthDisplay.value.length === 1) {
+    monthDisplay.value = '0' + monthDisplay.value
+  }
+
+  // Валидация при потере фокуса
+  if (state.month) {
+    validateExpiry()
+  }
+}
+
+// Обработка ввода года
+const handleYearInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  let value = target.value.replace(/\D/g, '') // Только цифры
+
+  if (value.length === 0) {
+    yearDisplay.value = ''
+    state.year = undefined
+    return
+  }
+
+  // Ограничиваем до 2 цифр
+  if (value.length > 2) {
+    value = value.slice(0, 2)
+  }
+
+  yearDisplay.value = value
+
+  // Преобразуем в полный год только если 2 цифры
+  if (value.length === 2) {
+    const currentYear = new Date().getFullYear()
+    const currentCentury = Math.floor(currentYear / 100) * 100
+    const fullYear = currentCentury + parseInt(value)
+    state.year = fullYear
+  } else {
+    state.year = undefined
+  }
+}
+
+// Форматирование года при потере фокуса
+const formatYear = () => {
+  if (yearDisplay.value && yearDisplay.value.length === 1) {
+    yearDisplay.value = '0' + yearDisplay.value
+    const currentYear = new Date().getFullYear()
+    const currentCentury = Math.floor(currentYear / 100) * 100
+    const fullYear = currentCentury + parseInt(yearDisplay.value)
+    state.year = fullYear
+  }
+
+  // Валидация при потере фокуса
+  if (state.year) {
+    validateExpiry()
+  }
+}
+
+// Валидация срока действия карты
+const validateExpiry = () => {
+  // Сбрасываем ошибки месяца и года
+  errors.month = ''
+  errors.year = ''
+  errors.form = ''
+
+  const month = state.month
+  const year = state.year
+
+  // Если заполнены оба поля
+  if (month && year) {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+
+    // Проверка на просроченную карту
+    if (year < currentYear || (year === currentYear && month < currentMonth)) {
+      errors.form = 'Карта просрочена'
+    }
+  }
+}
 
 // Загрузка данных при открытии
 watch(
@@ -291,6 +436,12 @@ watch(
     resetErrors()
     purchaseResponse.value = null
     isSubmitting.value = false
+
+    // Сброс полей при открытии
+    monthDisplay.value = ''
+    yearDisplay.value = ''
+    state.month = undefined
+    state.year = undefined
   },
   { immediate: true },
 )
