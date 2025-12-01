@@ -8,19 +8,16 @@ from typing import cast
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient
-from telethon.errors import UserDeactivatedBanError, UserDeactivatedError
-from telethon.errors.rpcerrorlist import UsernameNotOccupiedError
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
 
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import pick
+from app.common.utils.proxy import ProxyPool, get_user_proxies
 from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
 from app.tasks.accounts.model import Account
-from app.tasks.proxies.pool import ProxyPool
-from app.tasks.proxies.utils import get_user_proxies
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 

@@ -1,5 +1,4 @@
 import httpx
-from tortoise.expressions import Q
 
 from app.config import config
 

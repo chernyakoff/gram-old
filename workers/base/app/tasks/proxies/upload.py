@@ -4,9 +4,8 @@ from hatchet_sdk import Context
 from pydantic import BaseModel
 
 from app.client import hatchet
+from app.common.utils.proxy import ProxyUtil
 from app.utils.stream_logger import StreamLogger
-
-from .model import Proxy
 
 
 class ProxiesUploadIn(BaseModel):
@@ -25,7 +24,7 @@ async def proxies_upload(input: ProxiesUploadIn, ctx: Context):
 
     async def save(line: str, logger: StreamLogger):
         try:
-            proxy = Proxy.from_line(line)
+            proxy = ProxyUtil.from_line(line)
             ip = await proxy.check()
             if not ip:
                 raise ValueError("Ошибка подключения")

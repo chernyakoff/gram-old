@@ -102,6 +102,11 @@ export interface components {
             startedAt: string;
         };
         DialogStatus: "init" | "engage" | "offer" | "closing" | "complete";
+        EmbedAccountOut: {
+            id: number;
+            phone: string;
+            username: string | null;
+        };
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
@@ -217,6 +222,9 @@ export interface components {
             password: string;
             country: string;
             createdAt: string;
+            active: boolean;
+            failures: number;
+            accounts: components["schemas"]["EmbedAccountOut"][];
         };
         SetLimitIn: {
             outDailyLimit: number;
@@ -296,6 +304,7 @@ export type ChatOut = components['schemas']['ChatOut'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
+export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type LicenseIn = components['schemas']['LicenseIn'];
 export type LicenseOut = components['schemas']['LicenseOut'];

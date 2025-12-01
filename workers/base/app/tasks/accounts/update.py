@@ -13,11 +13,10 @@ from telethon.tl.functions.photos import DeletePhotosRequest, UploadProfilePhoto
 
 from app.client import hatchet
 from app.common.models import orm
+from app.common.utils.proxy import ProxyPool, get_user_proxies
 from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
 from app.tasks.accounts.model import Account
-from app.tasks.proxies.pool import ProxyPool
-from app.tasks.proxies.utils import get_user_proxies
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 

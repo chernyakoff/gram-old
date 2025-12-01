@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 from tortoise_serializer import Serializer
@@ -6,6 +7,12 @@ from tortoise_serializer import Serializer
 
 class ProxiesBulkCreateIn(BaseModel):
     proxies: list[str]
+
+
+class EmbedAccountOut(Serializer):
+    id: int
+    phone: str
+    username: str | None
 
 
 class ProxyOut(Serializer):
@@ -16,6 +23,9 @@ class ProxyOut(Serializer):
     password: str
     country: str
     created_at: datetime
+    active: bool
+    failures: int
+    accounts: list[EmbedAccountOut] = []
 
 
 class ProxiesCountryIn(BaseModel):

@@ -29,20 +29,24 @@ function createKy() {
             options.headers = options.headers || new Headers()
             const headers =
               options.headers instanceof Headers ? options.headers : new Headers(options.headers)
+
             if (!headers.get('_retry')) {
               headers.set('_retry', 'true')
 
               const authStore = useAuthStore()
               const success = await authStore.refreshTokens()
+
               if (success) {
                 headers.set('Authorization', `Bearer ${authStore.accessToken}`)
                 options.headers = headers
-                return ky(request.url, options)
+
+                // ВАЖНО: передаём не request.url, а сам request
+                return ky(request, options)
               }
             }
           }
 
-          // Конвертация JSON → camelCase
+          // camelCase
           if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
             const data = await response.json()
             return new Response(JSON.stringify(keysToCamel(data)), response)

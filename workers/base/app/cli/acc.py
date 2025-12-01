@@ -8,10 +8,8 @@ from telethon import types
 from tortoise.transactions import in_transaction
 
 from app.common.models import orm
+from app.common.utils.proxy import ProxyPool, get_user_proxies
 from app.tasks.accounts.model import Account
-from app.tasks.proxies.model import Proxy
-from app.tasks.proxies.pool import ProxyPool
-from app.tasks.proxies.utils import get_user_proxies
 
 logging.basicConfig(
     level=logging.WARNING,  # или DEBUG для больше боли

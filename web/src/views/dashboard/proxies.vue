@@ -18,7 +18,6 @@
         </div>
         <UTable
           ref="table"
-          v-model:column-filters="columnFilters"
           v-model:column-visibility="columnVisibility"
           class="shrink-0"
           :data="proxies ?? []"
@@ -31,7 +30,23 @@
             th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
             td: 'border-b border-default',
           }"
-        />
+        >
+          <template #status-cell="{ row }"><ProxyStatusBadge :proxy="row.original" /></template>
+          <template #accounts-cell="{ row }">
+            <UPopover v-if="row.original.accounts.length > 0" mode="hover">
+              <UBadge color="neutral" variant="outline" :label="row.original.accounts.length" />
+
+              <template #content>
+                <div class="p-2 text-sm">
+                  <div v-for="account in row.original.accounts" :key="account.id">
+                    {{ account.phone }}
+                    {{ account.username ? `@${account.username}` : `ID: ${account.id}` }}
+                  </div>
+                </div>
+              </template>
+            </UPopover>
+          </template>
+        </UTable>
       </div>
     </template>
   </UDashboardPanel>
@@ -43,7 +58,7 @@ import { onMounted, ref } from 'vue'
 import DeleteProxiesModal from '@/components/dashboard/proxies/delete-modal.vue'
 import ChangeCountryModal from '@/components/dashboard/proxies/country-modal.vue'
 import AddProxiesModal from '@/components/dashboard/proxies/add-modal.vue'
-
+import ProxyStatusBadge from '@/components/dashboard/proxies/status-badge.vue'
 import { useProxies } from '@/composables/use-proxies'
 import { useTableSelection } from '@/composables/table/use-selection.bak'
 import type { ProxyOut } from '@/types/openapi'
@@ -55,7 +70,6 @@ const { proxies, get, loading } = useProxies()
 
 onMounted(() => get())
 
-const columnFilters = ref([{ id: 'name', value: '' }])
 const columnVisibility = ref()
 
 const { tableApi, selectedIds, selectionColumn } = useTableSelection<ProxyOut>('table')
@@ -64,12 +78,21 @@ const refresh = () => {
   tableApi.value?.setRowSelection({})
   get()
 }
+const columnCentered = {
+  meta: {
+    class: {
+      th: 'text-center',
+      td: 'text-center',
+    },
+  },
+}
 
 const columns: TableColumn<ProxyOut>[] = [
   selectionColumn(),
+
   {
-    accessorKey: 'id',
-    header: 'ID',
+    accessorKey: 'status',
+    header: 'Статус',
   },
   {
     accessorKey: 'country',
@@ -92,8 +115,13 @@ const columns: TableColumn<ProxyOut>[] = [
     header: 'Пароль',
   },
   {
+    accessorKey: 'accounts',
+    header: 'Акк.',
+    ...columnCentered,
+  },
+  {
     accessorKey: 'createdAt',
-    header: 'Загружен',
+    header: 'Добавлен',
     cell: ({ row }) => useDateFormat(row.original.createdAt, 'DD.MM.YY').value,
   },
 ]

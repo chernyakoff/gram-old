@@ -8,7 +8,6 @@ from telethon.errors import FloodWaitError
 from telethon.events import NewMessage
 from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
-from tortoise.expressions import Q
 
 from app.common.models import enums, orm
 from app.utils.logger import Logger

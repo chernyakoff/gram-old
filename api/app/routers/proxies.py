@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from tortoise.query_utils import Prefetch
 
 from app.common.models import orm
 from app.dto.common import WorkflowOut
@@ -31,7 +32,9 @@ async def upload_proxies(
 
 @router.get("/", response_model=list[ProxyOut])
 async def get_proxies(user=Depends(get_current_user)):
-    return await ProxyOut.from_queryset(orm.Proxy.filter(user_id=user.id))
+    return await ProxyOut.from_queryset(
+        orm.Proxy.filter(user_id=user.id).prefetch_related("accounts")
+    )
 
 
 @router.delete("/")

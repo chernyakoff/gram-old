@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from anthropic import AsyncAnthropic
 from anthropic.types import Message
-from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
+from hatchet_sdk import Context
 from pydantic import BaseModel
 
 from app.client import hatchet

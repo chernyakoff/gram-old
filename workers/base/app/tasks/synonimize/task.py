@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from app.client import hatchet
 from app.config import config
-from app.utils.stream_logger import StreamLogger
 
 PROMPT = """
 Преобразуй следующее сообщение в вариант с синонимами и альтернативными формулировками, используя конструкцию {вариант1|вариант2|...} для всех возможных замен слов и фраз. 

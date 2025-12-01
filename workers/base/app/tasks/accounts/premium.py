@@ -17,10 +17,9 @@ from telethon.tl.types.payments import PaymentVerificationNeeded
 
 from app.client import hatchet
 from app.common.models import orm
+from app.common.utils.proxy import ProxyPool, get_user_proxies
 from app.tasks.accounts.exceptions import SessionExpiredError
 from app.tasks.accounts.model import Account
-from app.tasks.proxies.pool import ProxyPool
-from app.tasks.proxies.utils import get_user_proxies
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"

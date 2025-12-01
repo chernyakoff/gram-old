@@ -130,8 +130,10 @@ class Proxy(Model, TimestampMixin):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="proxies", null=False
     )
+    accounts: fields.ReverseRelation["Account"]
     locked_until = fields.DatetimeField(null=True)
     lock_session = fields.CharField(max_length=36, null=True)
+    failures = fields.IntField(default=0)
     scheme: str = "socks5"
 
     @property
@@ -171,6 +173,7 @@ class Account(Model, TimestampMixin):
         "models.Project",
         related_name="accounts",
         null=True,
+        on_delete=fields.SET_NULL,
     )
     status = fields.CharEnumField(
         AccountStatus, default=AccountStatus.GOOD, max_length=64
@@ -180,7 +183,13 @@ class Account(Model, TimestampMixin):
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
     dialogs: fields.ReverseRelation["Dialog"]
-    last_proxy_id = fields.IntField(null=True)
+    last_proxy: fields.ForeignKeyNullableRelation[Proxy] = fields.ForeignKeyField(
+        "models.Proxy",
+        related_name="accounts",
+        null=True,
+        source_field="last_proxy_id",  # использует существующее поле
+        on_delete=fields.SET_NULL,
+    )
 
     worker_id = fields.CharField(
         max_length=64, null=True

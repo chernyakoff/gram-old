@@ -5,20 +5,18 @@ from datetime import timedelta
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 from pydantic import BaseModel
 from telethon.types import User as TelethonUser
-from tortoise import Tortoise
 from tortoise import timezone as tz
-from tortoise.expressions import Subquery
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import generate_message, randomize_message
+from app.common.utils.proxy import ProxyPool
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
 from app.utils.account import AccountUtil
 from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
-from app.utils.proxy_pool import ProxyPool
 
 # Максимальное время на случай если что-то пойдет не так
 MAX_SESSION_HOURS = 6

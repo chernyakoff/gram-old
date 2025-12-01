@@ -1,7 +1,6 @@
 from io import StringIO
 
 import httpx
-from tortoise.expressions import Q
 
 from app.common.models.orm import Account, Dialog
 from app.config import config
