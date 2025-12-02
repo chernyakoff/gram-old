@@ -78,7 +78,7 @@ class ProxyPool:
                     user_id=self.user_id,
                     active=True,
                     country=account.country,
-                    accounts__proxy_id__isnull=True,
+                    account__isnull=True,  # ← вот так
                 )
                 .filter(Q(locked_until__isnull=True) | Q(locked_until__lt=now))
                 .using_db(conn)
