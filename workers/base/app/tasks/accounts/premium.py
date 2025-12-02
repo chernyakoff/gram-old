@@ -96,7 +96,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     logger = StreamLogger(ctx)
     card = input.card
 
-    orm_account = await orm.Account.get(id=input.account_id)
+    orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
 
     user_id = orm_account.user_id
 

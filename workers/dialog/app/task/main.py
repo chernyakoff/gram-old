@@ -55,7 +55,9 @@ async def release_account(account: orm.Account, error: str | None = None):
 )
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
-    account = await orm.Account.get(id=input.account_id).prefetch_related("user")
+    account = await orm.Account.get(id=input.account_id).prefetch_related(
+        "user", "proxy"
+    )
     if not account:
         return
 

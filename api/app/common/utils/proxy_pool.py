@@ -66,27 +66,28 @@ class ProxyPool:
     ) -> Optional[Proxy]:
         """
         Получить свободный прокси для аккаунта.
-        Берём несколько доступных, проверяем по очереди и блокируем безопасно между воркерами.
+        ВАЖНО: прокси остаётся заблокированным до момента привязки к аккаунту!
         """
         now = tz.now()
         session_id = str(uuid.uuid4())
-        LIMIT = 5  # сколько прокси брать за раз
+        LIMIT = 5
 
         async with in_transaction() as conn:
-            # Берём несколько доступных прокси, которых никто не использует
+            # Используем подзапрос для фильтрации свободных прокси
             rows = await conn.execute_query_dict(
                 """
                 SELECT p.*
                 FROM proxies p
-                LEFT JOIN accounts a ON a.proxy_id = p.id
                 WHERE p.user_id = $1
                 AND p.active = TRUE
                 AND p.country = $2
-                AND a.id IS NULL
                 AND (p.locked_until IS NULL OR p.locked_until < $3)
+                AND p.id NOT IN (
+                    SELECT proxy_id FROM accounts WHERE proxy_id IS NOT NULL
+                )
                 ORDER BY p.failures ASC
                 LIMIT $4
-                FOR UPDATE
+                FOR UPDATE OF p
                 """,
                 [self.user_id, account.country, now, LIMIT],
             )
@@ -100,10 +101,11 @@ class ProxyPool:
                 return None
 
             for row in rows:
-                # Загружаем объект Proxy из строки
-                proxy = await Proxy(**row)
+                # Создаём объект Proxy из словаря
+                proxy = Proxy(**row)
                 proxy._saved_in_db = True
-                # Блокируем прокси на время проверки
+
+                # Блокируем прокси на время проверки и привязки
                 proxy.locked_until = now + timedelta(seconds=LOCK_TIMEOUT)
                 proxy.lock_session = session_id
                 await proxy.save(
@@ -113,22 +115,26 @@ class ProxyPool:
                 try:
                     proxy_util = ProxyUtil.from_orm(proxy)
                     if await proxy_util.check():
-                        # Очистка блокировки после успешной проверки
+                        # НЕ снимаем блокировку! Прокси остаётся заблокированным
+                        self._add_log(
+                            Status.SUCCESS,
+                            "Proxy successfully checked and locked for account",
+                            {
+                                "proxy_id": proxy.id,
+                                "account_phone": account.phone,
+                                "lock_session": session_id,
+                            },
+                        )
+                        return proxy
+                    else:
+                        await self._handle_proxy_failure(proxy)
+                        # Освобождаем блокировку при неудаче
                         proxy.locked_until = None  # type: ignore
                         proxy.lock_session = None  # type: ignore
                         await proxy.save(
                             update_fields=["locked_until", "lock_session"],
                             using_db=conn,
                         )
-
-                        self._add_log(
-                            Status.SUCCESS,
-                            "Proxy successfully checked for account",
-                            {"proxy_id": proxy.id, "account_phone": account.phone},
-                        )
-                        return proxy
-                    else:
-                        await self._handle_proxy_failure(proxy)
                 except Exception as e:
                     await self._handle_proxy_failure(proxy)
                     self._add_log(
@@ -136,22 +142,20 @@ class ProxyPool:
                         f"Error checking proxy: {type(e).__name__}: {e}",
                         {"proxy_id": proxy.id},
                     )
-                finally:
-                    # Освобождаем блокировку, если проверка не удалась
-                    if proxy.lock_session == session_id:  # только свой lock снимаем
-                        proxy.locked_until = None  # type: ignore
-                        proxy.lock_session = None  # type: ignore
-                        await proxy.save(
-                            update_fields=["locked_until", "lock_session"],
-                            using_db=conn,
-                        )
+                    # Освобождаем блокировку при ошибке
+                    proxy.locked_until = None  # type: ignore
+                    proxy.lock_session = None  # type: ignore
+                    await proxy.save(
+                        update_fields=["locked_until", "lock_session"],
+                        using_db=conn,
+                    )
 
-        self._add_log(
-            Status.ERROR,
-            "All available proxies failed checks",
-            {"user_id": self.user_id, "country": account.country},
-        )
-        return None
+            self._add_log(
+                Status.ERROR,
+                "All available proxies failed checks",
+                {"user_id": self.user_id, "country": account.country},
+            )
+            return None
 
     # ----------------- Проверка привязанного прокси -----------------
     async def verify_account_proxy(self, account: Account) -> bool:

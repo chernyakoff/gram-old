@@ -131,7 +131,9 @@ class AccountsCheckIn(BaseModel):
 async def accounts_check(input: AccountsCheckIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
     logger = StreamLogger(ctx)
-    accounts = await orm.Account.filter(id__in=input.ids).all()
+    accounts = (
+        await orm.Account.filter(id__in=input.ids).prefetch_related("proxy").all()
+    )
     user_id = accounts[0].user_id
 
     pool = ProxyPool(user_id)
