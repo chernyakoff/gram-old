@@ -16,10 +16,10 @@ from tortoise.exceptions import IntegrityError
 
 from app.client import hatchet
 from app.common.models import orm
+from app.common.utils.account import AccountFile, AccountIn, AccountUtil
 from app.common.utils.functions import clear_dir, pick
-from app.common.utils.proxy import ProxyPool, get_user_proxies
+from app.common.utils.proxy_pool import ProxyPool
 from app.common.utils.s3 import AsyncS3Client
-from app.tasks.accounts.model import Account, AccountFile, AccountIn
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
@@ -90,53 +90,54 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 
 
 async def save_account(
-    user_id: int, account: Account, pool: ProxyPool, logger: StreamLogger
+    user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
+    proxy = await pool.acquire_for_account_loading(account)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    client = account.create_client(proxy)
     try:
-        async with pool.proxy(account.country, timeout=30) as proxy:
-            client = account.create_client(proxy)
+        await client.connect()
+        if not await client.is_user_authorized():
+            await logger.error(f"{account.phone} вылетел из сессии")
+            return
 
-            try:
-                await client.connect()
-                if await client.is_user_authorized():
-                    me = await client.get_me(input_peer=False)
-                    params = pick(
-                        ["id", "username", "first_name", "last_name", "premium"],
-                        me.to_dict(),
-                    )
-                    response = await client(GetFullUserRequest("me"))  # type: ignore
-                    response = cast(UserFull, response)
-                    params["about"] = response.full_user.about
-                    params["channel"] = (
-                        response.chats[0].username if response.chats else None  # type: ignore
-                    )
-                    params["user_id"] = user_id
-                    params["session"] = StringSession.save(client.session)  # type: ignore
-                    account_in = AccountIn(**params)
+        me = await client.get_me(input_peer=False)
+        params = pick(
+            ["id", "username", "first_name", "last_name", "premium"],
+            me.to_dict(),
+        )
+        response = await client(GetFullUserRequest("me"))  # type: ignore
+        response = cast(UserFull, response)
+        params["about"] = response.full_user.about
+        params["channel"] = (
+            response.chats[0].username if response.chats else None  # type: ignore
+        )
+        params["user_id"] = user_id
+        params["proxy_id"] = proxy.id
+        params["session"] = StringSession.save(client.session)  # type: ignore
+        account_in = AccountIn(**params)
 
-                    orm_account = account.to_orm(account_in)
+        orm_account = account.to_orm(account_in)
 
-                    try:
-                        await orm_account.save()
-                        await logger.success(account.phone)
-                    except IntegrityError:
-                        await logger.error(f"{account.phone} уже есть в базе")
+        try:
+            await orm_account.save()
+            await logger.success(account.phone)
+        except IntegrityError:
+            await logger.error(f"{account.phone} уже есть в базе")
 
-                    try:
-                        await save_photos(client, account_in)
-                    except Exception as e:
-                        await logger.error(f"{account.phone} {e}")
+        try:
+            await save_photos(client, account_in)
+        except Exception as e:
+            await logger.error(f"{account.phone} {e}")
 
-                else:
-                    await logger.error(f"{account.phone} вылетел из сессии")
+    except Exception as e:
+        await logger.error(f"{account.phone} {e}")
 
-            except Exception as e:
-                await logger.error(f"{account.phone} {e}")
-            finally:
-                await client.disconnect()  # type: ignore
-
-    except TimeoutError:
-        await logger.warning(f"{account.phone} нет доступного прокси")
+    finally:
+        await client.disconnect()  # type: ignore
 
 
 @hatchet.task(name="accounts-upload", input_validator=AccountsUploadIn)
@@ -146,10 +147,6 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     logger = StreamLogger(ctx)
 
     try:
-        proxies = await get_user_proxies(input.user_id)
-        if not proxies:
-            raise ValueError("Отсутсвуют валидные прокси")
-
         tmp_dir = await unzip_from_s3(input.s3path)
 
         files = await get_account_files(tmp_dir)
@@ -170,7 +167,7 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     accounts = []
     for file in files:
         try:
-            account = await Account.instance(file)
+            account = await AccountUtil.instance(file)
             accounts.append(account)
         except Exception as e:
             await logger.error(e)
@@ -182,6 +179,6 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     ]
     await asyncio.gather(*tasks)
 
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client() as s3:  # type: ignore
         await s3.delete(input.s3path)
     await clear_dir(tmp_dir)

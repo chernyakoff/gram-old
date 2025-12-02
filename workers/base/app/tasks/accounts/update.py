@@ -13,10 +13,10 @@ from telethon.tl.functions.photos import DeletePhotosRequest, UploadProfilePhoto
 
 from app.client import hatchet
 from app.common.models import orm
-from app.common.utils.proxy import ProxyPool, get_user_proxies
+from app.common.utils.account import AccountUtil
+from app.common.utils.proxy_pool import ProxyPool
 from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
-from app.tasks.accounts.model import Account
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
@@ -118,7 +118,7 @@ async def delete_photos(
 
         await orm.AccountPhoto.filter(id__in=to_delete).delete()
         await logger.success("фото удалены")
-        async with AsyncS3Client() as s3:
+        async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete_many(paths)
         await set_main_photo(account_id)
     except Exception as e:
@@ -196,32 +196,26 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
 
     logger = StreamLogger(ctx)
 
-    orm_account = await orm.Account.get(id=input.id)
-
-    proxies = await get_user_proxies(input.user_id)
-    if not proxies:
-        await logger.error("отсутствуют валидные прокси")
-        return
+    orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
 
     pool = ProxyPool(input.user_id)
-    account = await Account.from_orm(orm_account)
+    account = await AccountUtil.from_orm(orm_account)
+
+    proxy = await pool.ensure_account_has_working_proxy(orm_account)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    client = account.create_client(proxy)
 
     try:
-        async with pool.proxy(account.country, timeout=30) as proxy:
-            client = account.create_client(proxy)
-            try:
-                async with client:
-                    if not await client.is_user_authorized():
-                        raise SessionExpiredError(account.phone)
+        async with client:
+            if not await client.is_user_authorized():
+                raise SessionExpiredError(account.phone)
 
-                    await update(client, input, orm_account, logger)
+            await update(client, input, orm_account, logger)
 
-            except SessionExpiredError as e:
-                await logger.error(str(e))
-            except Exception as e:
-                await logger.error(f"неизвестная ошибка обновления: {e}")
-
-    except TimeoutError:
-        await logger.warning("нет доступного прокси")
+    except SessionExpiredError as e:
+        await logger.error(str(e))
     except Exception as e:
-        await logger.error(f"неизвестная ошибка: {e}")
+        await logger.error(f"неизвестная ошибка обновления: {e}")

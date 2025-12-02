@@ -11,7 +11,7 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.functions import generate_message, randomize_message
-from app.common.utils.proxy import ProxyPool
+from app.common.utils.proxy_pool import ProxyPool
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
 from app.utils.account import AccountUtil
@@ -61,7 +61,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
         return
 
     pool = ProxyPool(account.user_id)
+
     account_util = await AccountUtil.from_orm(account)
+
+    proxy = await pool.ensure_account_has_working_proxy(account)
+    if not proxy:
+        logger.from_proxy_pool(pool)
+        return
 
     client = None
     start_time = tz.now()
@@ -69,204 +75,189 @@ async def dialog_task(input: DialogIn, ctx: Context):
     stop_event = asyncio.Event()
 
     try:
-        async with pool.proxy(
-            account.country, timeout=30, account_id=account.id
-        ) as proxy:
-            client = account_util.create_client(proxy)
+        client = account_util.create_client(proxy)
 
-            try:
-                # Подключение с таймаутом
-                await asyncio.wait_for(client.connect(), timeout=30)
-            except asyncio.TimeoutError:
-                logger.error("Таймаут подключения клиента (30 сек)")
-                await release_account(account, error="Client connect timeout")
-                return
-            except Exception as e:
-                logger.error(f"Ошибка подключения клиента: {e}")
-                # Специальная обработка для AuthKeyDuplicatedError
-                if "used under two different IP" in str(e):
-                    logger.error(
-                        "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
-                    )
-                    account.active = False
-                    account.status = enums.AccountStatus.EXITED
-                    await account.save(update_fields=["active", "status"])
-                await release_account(account, error=f"Connection error: {e}")
-                return
-
-            try:
-                is_authorized = await asyncio.wait_for(
-                    client.is_user_authorized(), timeout=10
+        try:
+            # Подключение с таймаутом
+            await asyncio.wait_for(client.connect(), timeout=30)
+        except asyncio.TimeoutError:
+            logger.error("Таймаут подключения клиента (30 сек)")
+            await release_account(account, error="Client connect timeout")
+            return
+        except Exception as e:
+            logger.error(f"Ошибка подключения клиента: {e}")
+            # Специальная обработка для AuthKeyDuplicatedError
+            if "used under two different IP" in str(e):
+                logger.error(
+                    "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
                 )
-                if not is_authorized:
-                    logger.error(f"Account {account.id} не авторизован")
-                    await release_account(account, error="Account not authorized")
-                    return
-            except asyncio.TimeoutError:
-                logger.error("Таймаут проверки авторизации")
-                await release_account(account, error="Authorization check timeout")
+                account.active = False
+                account.status = enums.AccountStatus.EXITED
+                await account.save(update_fields=["active", "status"])
+            await release_account(account, error=f"Connection error: {e}")
+            return
+
+        try:
+            is_authorized = await asyncio.wait_for(
+                client.is_user_authorized(), timeout=10
+            )
+            if not is_authorized:
+                logger.error(f"Account {account.id} не авторизован")
+                await release_account(account, error="Account not authorized")
                 return
+        except asyncio.TimeoutError:
+            logger.error("Таймаут проверки авторизации")
+            await release_account(account, error="Authorization check timeout")
+            return
 
-            logger.info(f"Account {account.id} подключен к Telegram")
+        logger.info(f"Account {account.id} подключен к Telegram")
 
-            project = await orm.Project.get(id=account.project_id)  # type: ignore
-            prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore
-            if not prompt:
-                raise Exception(f"У юзера [{account.user_id}] отсутсвует промпт")
+        project = await orm.Project.get(id=account.project_id)  # type: ignore
+        prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore
+        if not prompt:
+            raise Exception(f"У юзера [{account.user_id}] отсутсвует промпт")
 
-            limiter = AccountLimiter(account)
+        limiter = AccountLimiter(account)
 
-            # Создаём менеджер диалогов
-            manager = DialogManager(
-                client=client,
-                project=project,
-                prompt=prompt.to_dict(),
-                account=account,
-                logger=logger,
-                stop_event=stop_event,
+        # Создаём менеджер диалогов
+        manager = DialogManager(
+            client=client,
+            project=project,
+            prompt=prompt.to_dict(),
+            account=account,
+            logger=logger,
+            stop_event=stop_event,
+        )
+        if await manager.telegram_service.is_frozen():
+            raise FrozenError()
+
+        muted_until = await manager.telegram_service.is_spamblock()
+        if muted_until:
+            raise SpamBlockedError(muted_until)
+
+        manager.setup_event_handlers()
+
+        # Проверяем старые диалоги на новые сообщения
+        old_dialogs_with_messages = await manager.check_old_dialogs_for_new_messages()
+        logger.info(
+            f"Старых диалогов с новыми сообщениями: {old_dialogs_with_messages}"
+        )
+
+        # Отправляем первые сообщения новым получателям
+        new_dialogs_started = 0
+        first_message = generate_message(project.first_message)
+        first_message = randomize_message(first_message)
+
+        for recipient_id in input.recipients_id:
+            recipient = await orm.Recipient.get(id=recipient_id)
+
+            # Получаем entity
+            entity = await manager.telegram_service.get_entity(recipient)
+            if not entity:
+                continue
+
+            manager.register_session_recipient(recipient.id)
+
+            # Проверяем, не существует ли уже диалог
+            dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
+            if dialog_exists:
+                continue
+
+            # Отправляем первое сообщение
+            msg = await manager.telegram_service.send_message(recipient, first_message)
+            if not msg:
+                continue
+
+            # Создаём диалог
+            dialog = await orm.Dialog.create(
+                recipient=recipient,
+                status=enums.DialogStatus.INIT,
+                account_id=account.id,
             )
-            if await manager.telegram_service.is_frozen():
-                raise FrozenError()
 
-            muted_until = await manager.telegram_service.is_spamblock()
-            if muted_until:
-                raise SpamBlockedError(muted_until)
+            if isinstance(entity, TelethonUser):
+                dialog.update_from_dict(
+                    {
+                        "recipient_peer_id": entity.id,
+                        "recipient_access_hash": entity.access_hash,
+                    }
+                )
+                await dialog.save()
 
-            manager.setup_event_handlers()
-
-            # Проверяем старые диалоги на новые сообщения
-            old_dialogs_with_messages = (
-                await manager.check_old_dialogs_for_new_messages()
+            # Сохраняем сообщение
+            await orm.Message.create(
+                dialog=dialog,
+                sender=enums.MessageSender.ACCOUNT,
+                tg_message_id=msg.id,
+                text=first_message,
             )
+
+            await limiter.increment(enums.AccountAction.NEW_DIALOG)
+            new_dialogs_started += 1
+
+            # Запускаем ожидание ответа на первое сообщение
+            asyncio.create_task(
+                manager.start_waiting_for_first_reply(dialog, recipient)
+            )
+
+            if stop_event.is_set() or tz.now() > end_time:
+                break
+
+            # Задержка между отправками
+            await asyncio.sleep(random.randint(60, 180))
+
+        logger.info(f"Новых диалогов начато: {new_dialogs_started}")
+
+        # Если не было ни новых диалогов, ни ответов в старых - сразу выключаемся
+        if new_dialogs_started == 0 and old_dialogs_with_messages == 0:
             logger.info(
-                f"Старых диалогов с новыми сообщениями: {old_dialogs_with_messages}"
+                "🛑 Нет новых диалогов и нет ответов в старых - завершаем работу"
             )
+            return  # finally сработает и disconnect будет вызван
 
-            # Отправляем первые сообщения новым получателям
-            new_dialogs_started = 0
-            first_message = generate_message(project.first_message)
-            first_message = randomize_message(first_message)
+        # Основной цикл - держим соединение пока есть активные диалоги
+        logger.info(
+            f"Account {account.id} вошёл в режим ожидания. "
+            f"Активных диалогов: {manager.active_dialogs_count}"
+        )
 
-            for recipient_id in input.recipients_id:
-                recipient = await orm.Recipient.get(id=recipient_id)
+        # Периодически проверяем состояние
+        last_check = tz.now()
+        last_full_check = tz.now()
+        CHECK_INTERVAL_SEC = 30
+        FULL_CHECK_INTERVAL_SEC = 60
 
-                # Получаем entity
-                entity = await manager.telegram_service.get_entity(recipient)
-                if not entity:
-                    continue
+        while tz.now() < end_time and not stop_event.is_set():
+            if not client.is_connected():
+                logger.error("Потеряно соединение, завершаем задачу")
+                await release_account(account, error="Connection lost")
+                return  # finally сработает
 
-                manager.register_session_recipient(recipient.id)
-
-                # Проверяем, не существует ли уже диалог
-                dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
-                if dialog_exists:
-                    continue
-
-                # Отправляем первое сообщение
-                msg = await manager.telegram_service.send_message(
-                    recipient, first_message
-                )
-                if not msg:
-                    continue
-
-                # Создаём диалог
-                dialog = await orm.Dialog.create(
-                    recipient=recipient,
-                    status=enums.DialogStatus.INIT,
-                    account_id=account.id,
-                )
-
-                if isinstance(entity, TelethonUser):
-                    dialog.update_from_dict(
-                        {
-                            "recipient_peer_id": entity.id,
-                            "recipient_access_hash": entity.access_hash,
-                        }
-                    )
-                    await dialog.save()
-
-                # Сохраняем сообщение
-                await orm.Message.create(
-                    dialog=dialog,
-                    sender=enums.MessageSender.ACCOUNT,
-                    tg_message_id=msg.id,
-                    text=first_message,
-                )
-
-                await limiter.increment(enums.AccountAction.NEW_DIALOG)
-                new_dialogs_started += 1
-
-                # Запускаем ожидание ответа на первое сообщение
-                asyncio.create_task(
-                    manager.start_waiting_for_first_reply(dialog, recipient)
-                )
-
-                if stop_event.is_set() or tz.now() > end_time:
-                    break
-
-                # Задержка между отправками
-                await asyncio.sleep(random.randint(60, 180))
-
-            logger.info(f"Новых диалогов начато: {new_dialogs_started}")
-
-            # Если не было ни новых диалогов, ни ответов в старых - сразу выключаемся
-            if new_dialogs_started == 0 and old_dialogs_with_messages == 0:
+            # Каждые 30 секунд логируем состояние
+            if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
                 logger.info(
-                    "🛑 Нет новых диалогов и нет ответов в старых - завершаем работу"
+                    f"Статус: активных_диалогов={manager.active_dialogs_count}, "
+                    f"ожидающих_обработки={len(manager.waiting_dialogs)}"
                 )
-                return  # finally сработает и disconnect будет вызван
+                last_check = tz.now()
 
-            # Основной цикл - держим соединение пока есть активные диалоги
+            # Каждую минуту делаем полную проверку
+            if (tz.now() - last_full_check).total_seconds() >= FULL_CHECK_INTERVAL_SEC:
+                await manager._check_and_stop_if_needed()
+                last_full_check = tz.now()
+
+            await asyncio.sleep(10)
+
+        if stop_event.is_set():
             logger.info(
-                f"Account {account.id} вошёл в режим ожидания. "
-                f"Активных диалогов: {manager.active_dialogs_count}"
+                f"Account {account.id} остановлен: "
+                f"все диалоги завершены или достигнут лимит"
             )
-
-            # Периодически проверяем состояние
-            last_check = tz.now()
-            last_full_check = tz.now()
-            CHECK_INTERVAL_SEC = 30
-            FULL_CHECK_INTERVAL_SEC = 60
-
-            while tz.now() < end_time and not stop_event.is_set():
-                if not client.is_connected():
-                    logger.error("Потеряно соединение, завершаем задачу")
-                    await release_account(account, error="Connection lost")
-                    return  # finally сработает
-
-                # Каждые 30 секунд логируем состояние
-                if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
-                    logger.info(
-                        f"Статус: активных_диалогов={manager.active_dialogs_count}, "
-                        f"ожидающих_обработки={len(manager.waiting_dialogs)}"
-                    )
-                    last_check = tz.now()
-
-                # Каждую минуту делаем полную проверку
-                if (
-                    tz.now() - last_full_check
-                ).total_seconds() >= FULL_CHECK_INTERVAL_SEC:
-                    await manager._check_and_stop_if_needed()
-                    last_full_check = tz.now()
-
-                await asyncio.sleep(10)
-
-            if stop_event.is_set():
-                logger.info(
-                    f"Account {account.id} остановлен: "
-                    f"все диалоги завершены или достигнут лимит"
-                )
-            else:
-                logger.info(
-                    f"Account {account.id} остановлен: "
-                    f"истекло максимальное время сессии ({MAX_SESSION_HOURS}ч)"
-                )
-
-    except asyncio.TimeoutError:
-        msg = "Прокси не ответил вовремя"
-        logger.warning(msg)
-        await release_account(account, error=msg)
-        raise
+        else:
+            logger.info(
+                f"Account {account.id} остановлен: "
+                f"истекло максимальное время сессии ({MAX_SESSION_HOURS}ч)"
+            )
 
     except FrozenError:
         logger.warning("Аккаунт заморожен")

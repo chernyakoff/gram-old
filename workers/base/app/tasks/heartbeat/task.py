@@ -279,7 +279,7 @@ async def task(input: EmptyModel, ctx: Context):
                 recipients_id = [r.id for r in recipients]
 
                 await dialog_task.aio_run_no_wait(
-                    DialogIn(
+                    input=DialogIn(
                         account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)
                     ),
                 )

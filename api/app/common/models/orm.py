@@ -183,17 +183,15 @@ class Account(Model, TimestampMixin):
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
     dialogs: fields.ReverseRelation["Dialog"]
-    last_proxy: fields.ForeignKeyNullableRelation[Proxy] = fields.ForeignKeyField(
-        "models.Proxy",
-        related_name="accounts",
-        null=True,
-        source_field="last_proxy_id",  # использует существующее поле
-        on_delete=fields.SET_NULL,
-    )
 
-    worker_id = fields.CharField(
-        max_length=64, null=True
-    )  # воркер, который взял аккаунт
+    proxy: fields.OneToOneNullableRelation[Proxy] = fields.OneToOneField(
+        "models.Proxy",
+        related_name="account",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
+    proxy_id: int
+
     lease_expires_at = fields.DatetimeField(null=True)  # время, когда lease истекает
 
     last_error = fields.TextField(null=True)

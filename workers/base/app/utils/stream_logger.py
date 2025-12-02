@@ -4,6 +4,8 @@ from enum import StrEnum, auto
 
 from hatchet_sdk import Context
 
+from app.common.utils.proxy_pool import ProxyPool
+
 
 class Status(StrEnum):
     INFO = auto()
@@ -45,3 +47,14 @@ class StreamLogger:
 
     async def warning(self, msg: str, payload: dict | None = None):
         await self._log(LogEntry(Status.WARNING, msg, payload))
+
+    async def from_proxy_pool(self, pool: ProxyPool):
+        for log in pool.get_logs(clear=True):
+            if log.status == Status.INFO:
+                await self.info(log.message, log.payload)
+            elif log.status == Status.WARNING:
+                await self.warning(log.message, log.payload)
+            elif log.status == Status.ERROR:
+                await self.error(log.message, log.payload)
+            elif log.status == Status.SUCCESS:
+                await self.success(log.message, log.payload)

@@ -17,9 +17,9 @@ from telethon.tl.types.payments import PaymentVerificationNeeded
 
 from app.client import hatchet
 from app.common.models import orm
-from app.common.utils.proxy import ProxyPool, get_user_proxies
+from app.common.utils.account import AccountUtil
+from app.common.utils.proxy_pool import ProxyPool
 from app.tasks.accounts.exceptions import SessionExpiredError
-from app.tasks.accounts.model import Account
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -100,98 +100,83 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
     user_id = orm_account.user_id
 
-    proxies = await get_user_proxies(user_id)
-    if not proxies:
+    pool = ProxyPool(user_id)
+    proxy = await pool.ensure_account_has_working_proxy(orm_account)
+    if not proxy:
         await logger.error("отсутствуют валидные прокси")
         return BuyPremiumOut(status="error", message="отсутствуют валидные прокси")
 
-    pool = ProxyPool(user_id)
-    account = await Account.from_orm(orm_account)
+    account = await AccountUtil.from_orm(orm_account)
 
+    client = account.create_client(proxy)
     try:
-        async with pool.proxy(account.country, timeout=30) as proxy:
-            client = account.create_client(proxy)
+        await client.connect()
+        if not await client.is_user_authorized():
+            raise SessionExpiredError(account.phone)
+
+        me = await client.get_me()
+        me = cast(types.User, me)
+        if me.premium:
+            raise Exception("На этом аккаунте уже есть премиум")
+
+        # получаем invoice message
+        await client.send_message(PREMIUM_BOT, "/start")
+        await asyncio.sleep(2)
+        messages = await client.get_messages(PREMIUM_BOT, limit=4)
+        if not messages:
+            raise Exception("PremiumBot не ответил на /start")
+
+        if isinstance(messages, types.Message):
+            messages = [messages]
+
+        invoice_msg = next(
+            (m for m in messages if isinstance(m.media, MessageMediaInvoice)),
+            None,
+        )
+        print(invoice_msg)
+
+        if not invoice_msg:
+            raise Exception("Не найдено сообщение с invoice")
+
+        # получаем public_token
+        public_token = None
+        peer = await client.get_input_entity(invoice_msg.peer_id)
+        invoice = InputInvoiceMessage(peer=peer, msg_id=invoice_msg.id)
+        form_info = await client(GetPaymentFormRequest(invoice=invoice))
+        native = getattr(form_info, "native_params", None)
+        if native:
+            # Это telethon.tl.types.DataJSON
             try:
-                await client.connect()
-                if not await client.is_user_authorized():
-                    raise SessionExpiredError(account.phone)
+                data = json.loads(native.data)
+                public_token = data.get("public_token") or data.get("publicToken")
+            except:
+                pass
+        if not public_token:
+            raise Exception("Не удается получить public_token")
 
-                me = await client.get_me()
-                me = cast(types.User, me)
-                if me.premium:
-                    raise Exception("На этом аккаунте уже есть премиум")
+        success, tokenized_card = await tokenize_card(public_token, card)
+        if not success or not tokenized_card:
+            raise Exception("Не удалось токенизировать карту")
 
-                # получаем invoice message
-                await client.send_message(PREMIUM_BOT, "/start")
-                await asyncio.sleep(2)
-                messages = await client.get_messages(PREMIUM_BOT, limit=4)
-                if not messages:
-                    raise Exception("PremiumBot не ответил на /start")
+        send_data = await client(
+            SendPaymentFormRequest(
+                form_id=form_info.form_id,  # type: ignore
+                invoice=invoice,
+                credentials=InputPaymentCredentials(data=DataJSON(tokenized_card)),
+            )
+        )
+        orm_account.premium = True
+        await orm_account.save()
+        if isinstance(send_data, PaymentVerificationNeeded):
+            return BuyPremiumOut(status="success", verification_url=send_data.url)
+        else:
+            return BuyPremiumOut(status="success")
 
-                if isinstance(messages, types.Message):
-                    messages = [messages]
-
-                invoice_msg = next(
-                    (m for m in messages if isinstance(m.media, MessageMediaInvoice)),
-                    None,
-                )
-                print(invoice_msg)
-
-                if not invoice_msg:
-                    raise Exception("Не найдено сообщение с invoice")
-
-                # получаем public_token
-                public_token = None
-                peer = await client.get_input_entity(invoice_msg.peer_id)
-                invoice = InputInvoiceMessage(peer=peer, msg_id=invoice_msg.id)
-                form_info = await client(GetPaymentFormRequest(invoice=invoice))
-                native = getattr(form_info, "native_params", None)
-                if native:
-                    # Это telethon.tl.types.DataJSON
-                    try:
-                        data = json.loads(native.data)
-                        public_token = data.get("public_token") or data.get(
-                            "publicToken"
-                        )
-                    except:
-                        pass
-                if not public_token:
-                    raise Exception("Не удается получить public_token")
-
-                success, tokenized_card = await tokenize_card(public_token, card)
-                if not success or not tokenized_card:
-                    raise Exception("Не удалось токенизировать карту")
-
-                send_data = await client(
-                    SendPaymentFormRequest(
-                        form_id=form_info.form_id,  # type: ignore
-                        invoice=invoice,
-                        credentials=InputPaymentCredentials(
-                            data=DataJSON(tokenized_card)
-                        ),
-                    )
-                )
-                orm_account.premium = True
-                await orm_account.save()
-                if isinstance(send_data, PaymentVerificationNeeded):
-                    return BuyPremiumOut(
-                        status="success", verification_url=send_data.url
-                    )
-                else:
-                    return BuyPremiumOut(status="success")
-
-            except SessionExpiredError as e:
-                await logger.error(str(e))
-                return BuyPremiumOut(status="error", message=str(e))
-            except Exception as e:
-                await logger.error(f"ошибка: {e}")
-                return BuyPremiumOut(status="error", message=str(e))
-            finally:
-                await client.disconnect()  # type: ignore
-
-    except TimeoutError:
-        await logger.warning("нет доступного прокси")
-        return BuyPremiumOut(status="error", message="нет доступного прокси")
+    except SessionExpiredError as e:
+        await logger.error(str(e))
+        return BuyPremiumOut(status="error", message=str(e))
     except Exception as e:
-        await logger.error(f"неизвестная ошибка: {e}")
-        return BuyPremiumOut(status="error", message=f"неизвестная ошибка: {e}")
+        await logger.error(f"ошибка: {e}")
+        return BuyPremiumOut(status="error", message=str(e))
+    finally:
+        await client.disconnect()  # type: ignore

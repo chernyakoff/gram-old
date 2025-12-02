@@ -4,6 +4,8 @@ from enum import StrEnum, auto
 
 from hatchet_sdk import Context
 
+from app.common.utils.proxy_pool import ProxyPool
+
 
 class Status(StrEnum):
     INFO = auto()
@@ -44,3 +46,14 @@ class Logger:
 
     def warning(self, msg: str, payload: dict | None = None):
         self._log(LogEntry(Status.WARNING, msg, payload))
+
+    def from_proxy_pool(self, pool: ProxyPool):
+        for log in pool.get_logs(clear=True):
+            if log.status == Status.INFO:
+                self.info(log.message, log.payload)
+            elif log.status == Status.WARNING:
+                self.warning(log.message, log.payload)
+            elif log.status == Status.ERROR:
+                self.error(log.message, log.payload)
+            elif log.status == Status.SUCCESS:
+                self.success(log.message, log.payload)

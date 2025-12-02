@@ -4,7 +4,7 @@ from io import BytesIO
 
 from aiopath import AsyncPath
 
-from app.tasks.accounts.model import AccountFile
+from app.common.utils.account import AccountFile
 
 
 async def unzip_tmpfile(tmpfile: str) -> AsyncPath:

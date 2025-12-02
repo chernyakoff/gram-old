@@ -21,6 +21,7 @@ class AccountStatus(StrEnum):
     MUTED = "muted"
     FROZEN = "frozen"
     EXITED = "exited"
+    NOPROXY = "noproxy"
 
 
 class AccountAction(StrEnum):
