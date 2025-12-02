@@ -33,7 +33,7 @@ async def upload_proxies(
 @router.get("/", response_model=list[ProxyOut])
 async def get_proxies(user=Depends(get_current_user)):
     return await ProxyOut.from_queryset(
-        orm.Proxy.filter(user_id=user.id).prefetch_related("accounts")
+        orm.Proxy.filter(user_id=user.id).prefetch_related("account")
     )
 
 

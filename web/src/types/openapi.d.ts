@@ -41,7 +41,7 @@ export interface components {
             delete: number[];
             upload: string[];
         };
-        AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited";
+        AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited" | "noproxy";
         AccountsBulkCreateIn: {
             s3path: string;
         };
@@ -224,7 +224,7 @@ export interface components {
             createdAt: string;
             active: boolean;
             failures: number;
-            accounts: components["schemas"]["EmbedAccountOut"][];
+            account?: components["schemas"]["EmbedAccountOut"] | null;
         };
         SetLimitIn: {
             outDailyLimit: number;

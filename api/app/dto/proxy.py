@@ -25,7 +25,7 @@ class ProxyOut(Serializer):
     created_at: datetime
     active: bool
     failures: int
-    accounts: list[EmbedAccountOut] = []
+    account: Optional[EmbedAccountOut] = None
 
 
 class ProxiesCountryIn(BaseModel):

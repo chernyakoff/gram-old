@@ -130,7 +130,7 @@ class Proxy(Model, TimestampMixin):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="proxies", null=False
     )
-    accounts: fields.ReverseRelation["Account"]
+    account: fields.ReverseRelation["Account"]
     locked_until = fields.DatetimeField(null=True)
     lock_session = fields.CharField(max_length=36, null=True)
     failures = fields.IntField(default=0)

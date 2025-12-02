@@ -11,7 +11,7 @@
       </UDashboardNavbar>
     </template>
     <template #body>
-      <div class="min-w-[800px] max-w-4xl mx-auto bg-dimmed">
+      <div class="mx-auto bg-dimmed">
         <div class="flex flex-wrap items-center justify-end gap-1.5 mb-4">
           <ChangeCountryModal :selected-ids="selectedIds" @close="refresh" />
           <DeleteProxiesModal :selected-ids="selectedIds" @close="refresh" />
@@ -33,18 +33,13 @@
         >
           <template #status-cell="{ row }"><ProxyStatusBadge :proxy="row.original" /></template>
           <template #accounts-cell="{ row }">
-            <UPopover v-if="row.original.accounts.length > 0" mode="hover">
-              <UBadge color="neutral" variant="outline" :label="row.original.accounts.length" />
-
-              <template #content>
-                <div class="p-2 text-sm">
-                  <div v-for="account in row.original.accounts" :key="account.id">
-                    {{ account.phone }}
-                    {{ account.username ? `@${account.username}` : `ID: ${account.id}` }}
-                  </div>
-                </div>
-              </template>
-            </UPopover>
+            <div v-if="row.original.account" class="p-2 text-sm">
+              {{
+                row.original.account.username
+                  ? `@${row.original.account.username}`
+                  : `ID: ${row.original.account.id}`
+              }}
+            </div>
           </template>
         </UTable>
       </div>
@@ -78,14 +73,6 @@ const refresh = () => {
   tableApi.value?.setRowSelection({})
   get()
 }
-const columnCentered = {
-  meta: {
-    class: {
-      th: 'text-center',
-      td: 'text-center',
-    },
-  },
-}
 
 const columns: TableColumn<ProxyOut>[] = [
   selectionColumn(),
@@ -116,8 +103,7 @@ const columns: TableColumn<ProxyOut>[] = [
   },
   {
     accessorKey: 'accounts',
-    header: 'Акк.',
-    ...columnCentered,
+    header: 'Аккаунт',
   },
   {
     accessorKey: 'createdAt',
