@@ -33,7 +33,6 @@ async def release_account(account: orm.Account, error: str | None = None):
     update_data = {
         "busy": False,
         "lease_expires_at": None,
-        "worker_id": None,
         "last_attempt_at": tz.now(),
         "last_error": error,
     }

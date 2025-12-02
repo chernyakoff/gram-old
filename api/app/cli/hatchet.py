@@ -1,7 +1,6 @@
 from cyclopts import App
 from rich import print
 
-from app.config import config
 from app.hatchet.client import hatchet
 
 app = App(name="hatchet", help="hatched")

@@ -1,12 +1,10 @@
-import json
 import os
 
 from cyclopts import App
 from rich import print
-from tortoise.expressions import Q
 
 from app.common.models.enums import DialogStatus, MessageSender
-from app.common.models.orm import Account, AppSettings, Dialog, Message, Project
+from app.common.models.orm import Account
 
 app = App(name="dialogs")
 

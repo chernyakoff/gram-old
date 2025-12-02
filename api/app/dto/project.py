@@ -1,11 +1,9 @@
 # app/dto/project.py
 
-from typing import Optional
 
 from pydantic import BaseModel
-from tortoise_serializer import ContextType, Serializer
+from tortoise_serializer import Serializer
 
-from app.common.models.orm import Brief, Project
 
 
 class BriefIn(BaseModel):

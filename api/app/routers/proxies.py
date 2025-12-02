@@ -2,7 +2,6 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from tortoise.query_utils import Prefetch
 
 from app.common.models import orm
 from app.dto.common import WorkflowOut

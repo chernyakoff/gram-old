@@ -102,6 +102,7 @@ async def save_account(
         await client.connect()
         if not await client.is_user_authorized():
             await logger.error(f"{account.phone} вылетел из сессии")
+            await pool.release_proxy_lock(proxy)
             return
 
         me = await client.get_me(input_peer=False)
@@ -125,8 +126,10 @@ async def save_account(
         try:
             await orm_account.save()
             await logger.success(account.phone)
+            await pool.release_proxy_lock(proxy)
         except IntegrityError:
             await logger.error(f"{account.phone} уже есть в базе")
+            await pool.release_proxy_lock(proxy)
 
         try:
             await save_photos(client, account_in)
@@ -135,6 +138,7 @@ async def save_account(
 
     except Exception as e:
         await logger.error(f"{account.phone} {e}")
+        await pool.release_proxy_lock(proxy)
 
     finally:
         await client.disconnect()  # type: ignore

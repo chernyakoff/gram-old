@@ -35,6 +35,14 @@ async def execute_query(query: str):
     await Tortoise.get_connection("default").execute_query(query)
 
 
+async def cleanup_stale_locks():
+    """Очистить устаревшие блокировки"""
+    now = tz.now()
+    await orm.Proxy.filter(locked_until__lt=now, lock_session__not_isnull=True).update(
+        locked_until=None, lock_session=None
+    )
+
+
 async def complete_old_dialogs():
     await execute_query("""
 UPDATE dialogs d
@@ -216,6 +224,7 @@ async def task(input: EmptyModel, ctx: Context):
     await complete_old_dialogs()
     await unmute_accounts()
     await release_recipients()
+    await cleanup_stale_locks()
 
     now = tz.now()
     planned_tasks = 0

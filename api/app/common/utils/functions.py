@@ -1,6 +1,5 @@
 import math
 import random
-import re
 from typing import Iterable, Sequence
 
 from aiopath import AsyncPath
