@@ -41,6 +41,7 @@ const translations: Record<AccountStatus, string> = {
   muted: 'Ограничен',
   frozen: 'Заморожен',
   exited: 'Вышел',
+  noproxy: 'Нет прокси',
 }
 
 const colors: Record<AccountStatus, string> = {
@@ -49,6 +50,7 @@ const colors: Record<AccountStatus, string> = {
   muted: 'bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200',
   frozen: 'bg-blue-200 dark:bg-blue-700 text-blue-800 dark:text-blue-200',
   exited: 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
+  noproxy: 'bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200',
 }
 
 const badgeClasses = computed(() => colors[account.status])
