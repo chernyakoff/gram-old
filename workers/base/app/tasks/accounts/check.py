@@ -167,7 +167,6 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
                 await logger.error(
                     f"{account.phone} в муте до {muted_until.strftime('%d.%m.%Y')}"
                 )
-                continue
             else:
                 orm_account.muted_until = None  # type: ignore
 

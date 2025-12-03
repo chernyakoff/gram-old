@@ -11,7 +11,7 @@ export const accountSchema = v.objectAsync({
   about: v.nullable(
     v.pipe(
       v.string('должно быть строкой'),
-      v.maxLength(64, 'должно содержать не более 64 символов'),
+      v.maxLength(140, 'должно содержать не более 64 символов'),
     ),
   ),
   firstName: v.nullable(

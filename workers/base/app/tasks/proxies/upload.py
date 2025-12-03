@@ -47,6 +47,7 @@ async def proxies_upload(input: ProxiesUploadIn, ctx: Context):
                         user_id=input.user_id,
                         status=AccountStatus.NOPROXY,
                         proxy_id__isnull=True,
+                        country=orm_proxy.country,
                     )
                     .using_db(conn)
                     .update(
