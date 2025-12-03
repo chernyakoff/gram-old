@@ -6,6 +6,10 @@ from app.common.models.orm import Account, Dialog
 from app.config import config
 
 
+def get_api_url(endpoint: str):
+    return f"https://api.telegram.org/bot{config.api.bot.token.get_secret_value()}/{endpoint}"
+
+
 async def build_dialog_text_file(dialog_id: int) -> tuple[str, str, bytes]:
     """
     Возвращает (filename, file_bytes).
@@ -56,19 +60,55 @@ async def notify_complete_dialog(dialog: Dialog, account: Account):
     await send_file_to_user(account.user_id, filename, content, caption)
 
 
-async def send_file_to_user(chat_id: int, filename: str, content: bytes, caption: str):
-    url = f"https://api.telegram.org/bot{config.api.bot.token.get_secret_value()}/sendDocument"
+async def notify_mailing_end(user_id: int, mailing_name: str, project_name: str):
+    text = f"Рассылка '{mailing_name}' проекта '{project_name}' завершена"
+    await send_text_to_user(chat_id=user_id, text=text)
 
+
+async def send_text_to_user(chat_id: int, text: str):
+    data = {
+        "chat_id": str(chat_id),
+        "text": text,
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(get_api_url("sendMessage"), data=data)
+        response.raise_for_status()
+        return response.json()
+
+
+async def send_file_to_user(chat_id: int, filename: str, content: bytes, caption: str):
     files = {
         "document": (filename, content, "text/plain"),
     }
-
     data = {
         "chat_id": str(chat_id),
         "caption": caption,
     }
-
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, data=data, files=files)
+        response = await client.post(
+            get_api_url("sendDocument"), data=data, files=files
+        )
         response.raise_for_status()
         return response.json()
+
+
+class BotNotify:
+    @classmethod
+    async def _send(cls, chat_id: int, msg: str) -> None:
+        await send_text_to_user(chat_id, msg)
+
+    @classmethod
+    async def error(cls, chat_id: int, msg: str):
+        await cls._send(chat_id, f"⛔ {msg}")
+
+    @classmethod
+    async def info(cls, chat_id: int, msg: str):
+        await cls._send(chat_id, f"💡 {msg}")
+
+    @classmethod
+    async def success(cls, chat_id: int, msg: str):
+        await cls._send(chat_id, f"✅ {msg}")
+
+    @classmethod
+    async def warning(cls, chat_id: int, msg: str):
+        await cls._send(chat_id, f"⚠️ {msg}")

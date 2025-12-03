@@ -8,6 +8,7 @@ from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.common.models.orm import Account, AccountStatus, Proxy
+from app.common.utils.notify import BotNotify
 from app.common.utils.proxy import ProxyUtil
 
 
@@ -108,6 +109,10 @@ class ProxyPool:
         account.active = False
         account.status = AccountStatus.NOPROXY
         await account.save(update_fields=["active", "status"])
+        await BotNotify.warning(
+            account.user_id,
+            f"{account.display_username} выключен. Не работает привязанный прокси",
+        )
         self._add_log(
             Status.WARNING,
             "Account deactivated: proxy is inactive",

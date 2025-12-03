@@ -18,7 +18,7 @@ if (!fs.existsSync(configFile)) {
 // Читаем YAML
 const config = yaml.load(fs.readFileSync(configFile, 'utf8'))
 
-//console.log(config)
+console.log(config)
 // Генерим .env
 let envContent = ''
 if (config.api?.url) {

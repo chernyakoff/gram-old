@@ -25,6 +25,7 @@ api:
     refresh_expire_days: 30
   bot:
     token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c"
+    name: "MockBot"
 
 web:
   url: "http://localhost:5173"

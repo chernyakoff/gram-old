@@ -44,7 +44,7 @@ const { login } = useAuth()
 const showLoginModal = ref(false)
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.BOT_NAME
-const USE_MOCK_LOGIN = import.meta.env.MOCK_LOGIN == 1
+const USE_MOCK_LOGIN = TELEGRAM_BOT_USERNAME == 'MockBot'
 
 interface TelegramUser {
   id: number
@@ -64,12 +64,12 @@ declare global {
 
 const rawMock = `{
     "id": 359107176,
-    "first_name": "М",
-    "last_name": "С",
-    "username": "chernyakoff",
-    "photo_url": "https://t.me/i/userpic/320/E5CF1DXAc92hvxFoNm0Z4y4Z4ycjpk6DqbKdvmjyVyw.jpg",
-    "auth_date": 1764695047,
-    "hash": "a5d10db07076a91b08c943d785f0b3af4fba02a0b494cd9df48df5ebd8c7d8b3"
+    "first_name": "mock",
+    "last_name": "mock",
+    "username": "mock",
+    "photo_url": "mock",
+    "auth_date": 0,
+    "hash": "mock"
 }`
 
 function parseUserLogin(raw: string): UserLoginIn {

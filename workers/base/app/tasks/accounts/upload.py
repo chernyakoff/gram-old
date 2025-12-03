@@ -159,7 +159,7 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
 
     except Exception as e:
         await logger.error(str(e))
-        async with AsyncS3Client() as s3:
+        async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         if tmp_dir:
             await clear_dir(tmp_dir)

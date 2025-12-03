@@ -10,8 +10,8 @@ from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
+from app.common.utils.notify import notify_complete_dialog
 from app.utils.logger import Logger
-from app.utils.notify import notify_complete_dialog
 
 from .ai_service import AIService
 from .telegram_service import TelegramService

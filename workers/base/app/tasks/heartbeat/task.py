@@ -10,7 +10,7 @@ from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
-from app.utils.notify import notify_mailing_end
+from app.common.utils.notify import notify_mailing_end
 
 
 class DialogIn(BaseModel):
