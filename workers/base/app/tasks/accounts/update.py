@@ -128,7 +128,7 @@ async def delete_photos(
 async def upload_photos(
     client: TelegramClient, to_upload: list[str], account_id: int, logger: StreamLogger
 ):
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client() as s3:  # type:ignore
         for path in to_upload:
             try:
                 data = await s3.get(path)
@@ -201,7 +201,7 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     pool = ProxyPool(input.user_id)
     account = await AccountUtil.from_orm(orm_account)
 
-    proxy = await pool.ensure_account_has_working_proxy(orm_account)
+    proxy = await pool.verify_proxy(orm_account)
     if not proxy:
         await logger.from_proxy_pool(pool)
         return

@@ -92,7 +92,7 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
-    proxy = await pool.acquire_for_account_loading(account)
+    proxy = await pool.acquire_proxy(account.country)
     if not proxy:
         await logger.from_proxy_pool(pool)
         return
@@ -102,7 +102,7 @@ async def save_account(
         await client.connect()
         if not await client.is_user_authorized():
             await logger.error(f"{account.phone} вылетел из сессии")
-            await pool.release_proxy_lock(proxy)
+
             return
 
         me = await client.get_me(input_peer=False)

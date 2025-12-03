@@ -65,7 +65,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     account_util = await AccountUtil.from_orm(account)
 
-    proxy = await pool.ensure_account_has_working_proxy(account)
+    proxy = await pool.verify_proxy(account)
     if not proxy:
         logger.from_proxy_pool(pool)
         return

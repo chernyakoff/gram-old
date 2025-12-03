@@ -101,7 +101,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     user_id = orm_account.user_id
 
     pool = ProxyPool(user_id)
-    proxy = await pool.ensure_account_has_working_proxy(orm_account)
+    proxy = await pool.verify_proxy(orm_account)
     if not proxy:
         await logger.error("отсутствуют валидные прокси")
         return BuyPremiumOut(status="error", message="отсутствуют валидные прокси")

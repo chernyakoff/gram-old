@@ -1,17 +1,14 @@
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
-from typing import List, Optional
+from typing import Optional
 
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.common.models.orm import Account, AccountStatus, Proxy
-from app.common.utils.account import AccountUtil
 from app.common.utils.proxy import ProxyUtil
-
-LOCK_TIMEOUT = 30  # секунд, на сколько блокируем прокси
 
 
 class Status(StrEnum):
@@ -29,52 +26,28 @@ class ProxyLogEntry:
 
 
 class ProxyPool:
-    """
-    Пул прокси с ограничением по user_id.
-    Один прокси может быть привязан только к одному аккаунту.
-    Safe для многопроцессной и многопоточной работы.
-    """
-
+    MAX_RETRIES = 5
     MAX_FAILURES = 5
+    LOCK_TIMEOUT = 30  # секунд
 
     def __init__(self, user_id: int):
         self.user_id = user_id
-        self.logs: List[ProxyLogEntry] = []
+        self.logs: list[ProxyLogEntry] = []
 
     # ----------------- Логи -----------------
     def _add_log(self, status: Status, message: str, payload: Optional[dict] = None):
         self.logs.append(ProxyLogEntry(status=status, message=message, payload=payload))
 
-    def get_logs(self, clear: bool = False) -> List[ProxyLogEntry]:
+    def get_logs(self, clear: bool = False) -> list[ProxyLogEntry]:
         logs_copy = self.logs.copy()
         if clear:
-            self.clear_logs()
+            self.logs.clear()
         return logs_copy
 
-    def clear_logs(self):
-        self.logs.clear()
-
-    def get_logs_as_dicts(self, clear: bool = False) -> List[dict]:
-        logs = [asdict(entry) for entry in self.logs]
-        if clear:
-            self.clear_logs()
-        return logs
-
-    # ----------------- Прокси для нового аккаунта -----------------
-    async def acquire_for_account_loading(
-        self, account: AccountUtil
-    ) -> Optional[Proxy]:
-        """
-        Получить свободный прокси для аккаунта.
-        ВАЖНО: прокси остаётся заблокированным до момента привязки к аккаунту!
-        """
+    async def _get_free_proxy(self, country: str) -> Optional[Proxy]:
         now = tz.now()
-        session_id = str(uuid.uuid4())
-        LIMIT = 5
-
         async with in_transaction() as conn:
-            # Используем подзапрос для фильтрации свободных прокси
-            rows = await conn.execute_query_dict(
+            row = await conn.execute_query_dict(
                 """
                 SELECT p.*
                 FROM proxies p
@@ -86,181 +59,41 @@ class ProxyPool:
                     SELECT proxy_id FROM accounts WHERE proxy_id IS NOT NULL
                 )
                 ORDER BY p.failures ASC
-                LIMIT $4
-                FOR UPDATE OF p
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
                 """,
-                [self.user_id, account.country, now, LIMIT],
+                [self.user_id, country, now],
             )
-
-            if not rows:
-                self._add_log(
-                    Status.ERROR,
-                    "No available proxies for user/country",
-                    {"user_id": self.user_id, "country": account.country},
-                )
+            if not row:
                 return None
-
-            for row in rows:
-                # Создаём объект Proxy из словаря
-                proxy = Proxy(**row)
-                proxy._saved_in_db = True
-
-                # Блокируем прокси на время проверки и привязки
-                proxy.locked_until = now + timedelta(seconds=LOCK_TIMEOUT)
-                proxy.lock_session = session_id
-                await proxy.save(
-                    update_fields=["locked_until", "lock_session"], using_db=conn
-                )
-
-                try:
-                    proxy_util = ProxyUtil.from_orm(proxy)
-                    if await proxy_util.check():
-                        # НЕ снимаем блокировку! Прокси остаётся заблокированным
-                        self._add_log(
-                            Status.SUCCESS,
-                            "Proxy successfully checked and locked for account",
-                            {
-                                "proxy_id": proxy.id,
-                                "account_phone": account.phone,
-                                "lock_session": session_id,
-                            },
-                        )
-                        return proxy
-                    else:
-                        await self._handle_proxy_failure(proxy)
-                        # Освобождаем блокировку при неудаче
-                        proxy.locked_until = None  # type: ignore
-                        proxy.lock_session = None  # type: ignore
-                        await proxy.save(
-                            update_fields=["locked_until", "lock_session"],
-                            using_db=conn,
-                        )
-                except Exception as e:
-                    await self._handle_proxy_failure(proxy)
-                    self._add_log(
-                        Status.ERROR,
-                        f"Error checking proxy: {type(e).__name__}: {e}",
-                        {"proxy_id": proxy.id},
-                    )
-                    # Освобождаем блокировку при ошибке
-                    proxy.locked_until = None  # type: ignore
-                    proxy.lock_session = None  # type: ignore
-                    await proxy.save(
-                        update_fields=["locked_until", "lock_session"],
-                        using_db=conn,
-                    )
-
-            self._add_log(
-                Status.ERROR,
-                "All available proxies failed checks",
-                {"user_id": self.user_id, "country": account.country},
-            )
-            return None
-
-    # ----------------- Проверка привязанного прокси -----------------
-    async def verify_account_proxy(self, account: Account) -> bool:
-        """
-        Проверить привязанный к аккаунту прокси.
-        """
-        if not account.proxy:
-            self._add_log(
-                Status.WARNING,
-                "Account has no proxy assigned",
-                {"account_id": account.id},
-            )
-            return False
-
-        proxy = account.proxy
-        if not proxy.active:
-            await self._deactivate_account(account)
-            return False
-
-        try:
-            proxy_model = ProxyUtil.from_orm(proxy)
-            if await proxy_model.check():
-                if proxy.failures > 0:
-                    old_failures = proxy.failures
-                    proxy.failures -= 1
-                    await proxy.save(update_fields=["failures"])
-                    self._add_log(
-                        Status.INFO,
-                        "Proxy check successful, failures decreased",
-                        {
-                            "proxy_id": proxy.id,
-                            "account_id": account.id,
-                            "old_failures": old_failures,
-                            "failures": proxy.failures,
-                        },
-                    )
-                else:
-                    self._add_log(
-                        Status.INFO,
-                        "Proxy check successful",
-                        {"proxy_id": proxy.id, "account_id": account.id, "failures": 0},
-                    )
-                return True
-            else:
-                await self._handle_proxy_failure(proxy)
-                if not proxy.active:
-                    await self._deactivate_account(account)
-                return False
-        except Exception as e:
-            self._add_log(
-                Status.ERROR,
-                f"Error checking proxy for account: {type(e).__name__}: {e}",
-                {"proxy_id": proxy.id, "account_id": account.id},
-            )
-            await self._handle_proxy_failure(proxy)
-            return False
-
-    # ----------------- Гарантия рабочего прокси -----------------
-    async def ensure_account_has_working_proxy(
-        self, account: Account
-    ) -> Optional[Proxy]:
-        """
-        Гарантировать, что у аккаунта есть рабочий прокси.
-        Возвращает:
-            Proxy — рабочий прокси для использования
-            None — если не удалось получить рабочий прокси
-        """
-        if not account.proxy:
-            self._add_log(
-                Status.INFO,
-                "Account has no proxy, assigning...",
-                {"account_id": account.id},
-            )
-            proxy = await self.acquire_for_account_loading(
-                await AccountUtil.from_orm(account)
-            )
-            if not proxy:
-                self._add_log(
-                    Status.ERROR,
-                    "No proxy available to assign",
-                    {"account_id": account.id},
-                )
-                return None
-
-            account.proxy = proxy
-            await account.save(update_fields=["proxy_id"])
-
-            await self.release_proxy_lock(proxy)
-
-            self._add_log(
-                Status.SUCCESS,
-                "Proxy assigned to account",
-                {"account_id": account.id, "proxy_id": proxy.id},
+            proxy = Proxy(**row[0])
+            proxy._saved_in_db = True
+            proxy.locked_until = now + timedelta(seconds=self.LOCK_TIMEOUT)
+            proxy.lock_session = str(uuid.uuid4())
+            await proxy.save(
+                update_fields=["locked_until", "lock_session"], using_db=conn
             )
             return proxy
 
-        # Если прокси есть, проверяем
-        if await self.verify_account_proxy(account):
-            return account.proxy
-        return None
+    async def _check_proxy(self, proxy: Proxy) -> bool:
+        proxy_util = ProxyUtil.from_orm(proxy)
+        ok = await proxy_util.check()
+        if not ok:
+            await self._handle_proxy_failure(proxy)
+            return False
+        return True
 
-    # ----------------- Обработка неудачной проверки -----------------
     async def _handle_proxy_failure(self, proxy: Proxy):
         old_failures = proxy.failures
         proxy.failures += 1
+        if proxy.failures >= self.MAX_FAILURES:
+            proxy.active = False
+            self._add_log(
+                Status.ERROR,
+                "Proxy deactivated due to failures",
+                {"proxy_id": proxy.id, "failures": proxy.failures},
+            )
+        await proxy.save(update_fields=["failures", "active"])
         self._add_log(
             Status.WARNING,
             "Proxy failed check",
@@ -270,16 +103,7 @@ class ProxyPool:
                 "failures": proxy.failures,
             },
         )
-        if proxy.failures >= self.MAX_FAILURES:
-            proxy.active = False
-            self._add_log(
-                Status.ERROR,
-                "Proxy deactivated due to failures",
-                {"proxy_id": proxy.id, "failures": proxy.failures},
-            )
-        await proxy.save(update_fields=["failures", "active"])
 
-    # ----------------- Деактивация аккаунта -----------------
     async def _deactivate_account(self, account: Account):
         account.active = False
         account.status = AccountStatus.NOPROXY
@@ -291,12 +115,55 @@ class ProxyPool:
         )
 
     async def release_proxy_lock(self, proxy: Proxy):
-        """Снять блокировку с прокси после привязки к аккаунту"""
         proxy.locked_until = None  # type: ignore
         proxy.lock_session = None  # type: ignore
         await proxy.save(update_fields=["locked_until", "lock_session"])
+        self._add_log(Status.INFO, "Proxy lock released", {"proxy_id": proxy.id})
+
+    async def _assign_proxy(self, account: Account, proxy: Proxy):
+        async with in_transaction() as conn:
+            account.proxy = proxy
+            await account.save(update_fields=["proxy_id"], using_db=conn)
+            await self.release_proxy_lock(proxy)
+
+    async def acquire_proxy(self, country: str) -> Optional[Proxy]:
+        for _ in range(1, self.MAX_RETRIES + 1):
+            proxy = await self._get_free_proxy(country)
+            if not proxy:
+                self._add_log(
+                    Status.ERROR,
+                    "No available proxies for user/country",
+                    {"user_id": self.user_id, "country": country},
+                )
+                return None
+            else:
+                if await self._check_proxy(proxy):
+                    # не разлочиваем, разлочим в assign_proxy
+                    return proxy
+                else:
+                    await self.release_proxy_lock(proxy)
+                    continue
+
         self._add_log(
-            Status.INFO,
-            "Proxy lock released after account binding",
-            {"proxy_id": proxy.id},
+            Status.ERROR,
+            "No working proxies for user/country",
+            {"user_id": self.user_id, "country": country},
         )
+        return None
+
+    async def verify_proxy(self, account: Account) -> Optional[Proxy]:
+        if account.proxy:
+            proxy = account.proxy
+            ok = await self._check_proxy(proxy)
+            if not ok:
+                if proxy.failures >= self.MAX_FAILURES:
+                    await self._deactivate_account(account)
+                return None
+            return proxy
+
+        proxy = await self.acquire_proxy(account.country)
+        if proxy:
+            await self._assign_proxy(account, proxy)
+            return proxy
+
+        return None

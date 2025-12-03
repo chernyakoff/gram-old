@@ -139,7 +139,7 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
     pool = ProxyPool(user_id)
 
     for orm_account in accounts:
-        proxy = await pool.ensure_account_has_working_proxy(orm_account)
+        proxy = await pool.verify_proxy(orm_account)
 
         if not proxy:
             await logger.from_proxy_pool(pool)
