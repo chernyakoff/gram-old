@@ -4,7 +4,7 @@
       <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
         <template #profile>
           <div class="p-8">
-            <ProfileTab />
+            <ProfileTab v-model:validation-errors="validationErrors" />
           </div>
         </template>
         <template #photos>
@@ -17,7 +17,7 @@
     <template #footer>
       <UButton
         label="Сохранить"
-        :disabled="!editor.hasChanges"
+        :disabled="!editor.hasChanges || !isFormValid"
         color="neutral"
         class="justify-center"
         @click="onSubmit"
@@ -35,11 +35,13 @@
 
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui'
-import { watch } from 'vue'
+import { watch, ref, computed } from 'vue'
+import * as v from 'valibot'
 import { useAccountEditor } from '@/stores/account-store'
 import { useAccounts } from '@/composables/use-accounts'
 import { useUploadStore } from '@/stores/upload-store'
 import { useBackgroundJobs } from '@/stores/jobs-store'
+import { accountSchema } from '@/schemas/accounts'
 import ProfileTab from './profile-tab.vue'
 import GalleryTab from './gallery-tab.vue'
 
@@ -61,6 +63,12 @@ const { get, update } = useAccounts()
 const { uploadAll, waitForAll } = useUploadStore()
 const jobsStore = useBackgroundJobs()
 
+const validationErrors = ref<Record<string, string>>({})
+
+const isFormValid = computed(() => {
+  return Object.keys(validationErrors.value).length === 0
+})
+
 // Загрузка данных
 watch(
   [open, () => props.accountId],
@@ -68,6 +76,7 @@ watch(
     if (isOpen && id) {
       const account = await get(id)
       await editor.initialize(account)
+      validationErrors.value = {}
     }
   },
   { immediate: true },
@@ -75,11 +84,41 @@ watch(
 
 // Очистка
 watch(open, (isOpen) => {
-  if (!isOpen) editor.reset()
+  if (!isOpen) {
+    editor.reset()
+    validationErrors.value = {}
+  }
 })
 
 // Сохранение
 async function onSubmit() {
+  // Валидация перед отправкой
+  try {
+    await v.parseAsync(accountSchema, editor.profile)
+    validationErrors.value = {}
+  } catch (err) {
+    if (err instanceof v.ValiError) {
+      // Преобразуем ошибки в удобный формат
+      validationErrors.value = err.issues.reduce(
+        (acc, issue) => {
+          const path = issue.path?.[0]?.key as string
+          if (path) {
+            acc[path] = issue.message
+          }
+          return acc
+        },
+        {} as Record<string, string>,
+      )
+
+      toast.add({
+        title: 'Ошибка валидации',
+        description: 'Проверьте правильность заполнения полей',
+        color: 'error',
+      })
+      return
+    }
+  }
+
   const { toUpload } = editor.photosChanges
   editor.isSaving = true
   open.value = false

@@ -4,13 +4,14 @@ from datetime import timedelta
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 from pydantic import BaseModel
+from telethon import TelegramClient
 from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
-from app.common.utils.functions import generate_message, randomize_message
+from app.common.utils.functions import generate_message, pick, randomize_message
 from app.common.utils.proxy_pool import ProxyPool
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
@@ -40,6 +41,13 @@ async def release_account(account: orm.Account, error: str | None = None):
     account.update_from_dict(update_data)
     async with in_transaction():
         await account.save(update_fields=list(update_data.keys()))
+
+
+async def renew_account_info(client: TelegramClient, account: orm.Account):
+    me = await client.get_me(input_peer=False)
+    keys = ["username", "first_name", "last_name", "premium"]
+    account.update_from_dict(pick(keys, me.to_dict()))
+    await account.save(update_fields=keys)
 
 
 @hatchet.task(
@@ -112,6 +120,8 @@ async def dialog_task(input: DialogIn, ctx: Context):
             return
 
         logger.info(f"Account {account.id} подключен к Telegram")
+
+        await renew_account_info(client, account)
 
         project = await orm.Project.get(id=account.project_id)  # type: ignore
         prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore

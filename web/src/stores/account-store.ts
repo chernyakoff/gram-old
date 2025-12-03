@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { parseAsync } from 'valibot'
+import { parse } from 'valibot'
 import type { AccountOut } from '@/types/openapi'
 import { accountSchema, type AccountSchema, type AccountUpdatePayload } from '@/schemas/accounts'
 import type { AccountPhotosChanges, EditableAccountPhoto } from '@/schemas/accounts'
@@ -60,7 +60,7 @@ export const useAccountEditor = defineStore('accountEditor', () => {
 
   // Actions
   async function initialize(account: AccountOut) {
-    profile.value = await parseAsync(accountSchema, account)
+    profile.value = parse(accountSchema, account)
     photos.value = parsePhotos(account.photos)
     originalProfile.value = { ...profile.value }
     currentAccountId.value = account.id

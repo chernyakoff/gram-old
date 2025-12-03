@@ -45,8 +45,8 @@
       <UButton icon="i-lucide-upload" label="Загрузить фото" block @click="fileInput?.click()" />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange" />
 
-      <p v-if="error" class="text-red-500 text-sm mt-2">
-        {{ error }}
+      <p v-if="uploadError" class="text-red-500 text-sm mt-2">
+        {{ uploadError }}
       </p>
     </div>
   </div>
@@ -59,12 +59,13 @@ import { photo as telegramPhoto } from '@/schemas/atoms/telegram'
 import { useAccountEditor } from '@/stores/account-store'
 import type { EditableAccountPhoto } from '@/schemas/accounts'
 
+const uploadError = defineModel<string | undefined>('uploadError')
+
 const editor = useAccountEditor()
 
 const carouselRef = ref()
 const fileInput = ref<HTMLInputElement>()
 const activeIndex = ref(0)
-const error = ref<string>()
 
 function selectPhoto(index: number) {
   activeIndex.value = index
@@ -75,7 +76,7 @@ async function onFileChange(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
 
-  error.value = undefined
+  uploadError.value = undefined
 
   try {
     // Валидация файла
@@ -84,9 +85,9 @@ async function onFileChange(event: Event) {
     selectPhoto(0)
   } catch (err) {
     if (err instanceof v.ValiError) {
-      error.value = err.issues[0]?.message ?? 'Файл не прошёл проверку'
+      uploadError.value = err.issues[0]?.message ?? 'Файл не прошёл проверку'
     } else {
-      error.value = 'Ошибка при валидации файла'
+      uploadError.value = 'Ошибка при валидации файла'
     }
   }
 

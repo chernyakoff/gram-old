@@ -5,28 +5,40 @@ import * as telegram from '@/schemas/atoms/telegram'
 // Схемы валидации
 // ============================================
 
-export const accountSchema = v.objectAsync({
-  username: v.nullable(telegram.username()),
-  channel: v.nullable(telegram.username()),
-  about: v.nullable(
-    v.pipe(
-      v.string('должно быть строкой'),
-      v.maxLength(140, 'должно содержать не более 64 символов'),
+// Динамическая валидация about в зависимости от premium
+export const accountSchema = v.pipe(
+  v.object({
+    username: v.nullable(telegram.username()),
+    channel: v.nullable(telegram.username()),
+    premium: v.boolean(),
+    about: v.nullable(v.string('должно быть строкой')),
+
+    firstName: v.nullable(
+      v.pipe(
+        v.string('должно быть строкой'),
+        v.maxLength(32, 'должно содержать не более 32 символов'),
+      ),
     ),
-  ),
-  firstName: v.nullable(
-    v.pipe(
-      v.string('должно быть строкой'),
-      v.maxLength(32, 'должно содержать не более 32 символов'),
+    lastName: v.nullable(
+      v.pipe(
+        v.string('должно быть строкой'),
+        v.maxLength(32, 'должно содержать не более 32 символов'),
+      ),
     ),
-  ),
-  lastName: v.nullable(
-    v.pipe(
-      v.string('должно быть строкой'),
-      v.maxLength(32, 'должно содержать не более 32 символов'),
+  }),
+  v.forward(
+    v.partialCheck(
+      [['about'], ['premium']],
+      (input) => {
+        if (!input.about) return true
+        const maxLength = input.premium ? 140 : 70
+        return input.about?.length <= maxLength
+      },
+      'Превышена допустимая длина',
     ),
+    ['about'],
   ),
-})
+)
 
 export type AccountSchema = v.InferOutput<typeof accountSchema>
 
