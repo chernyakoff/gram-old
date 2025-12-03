@@ -154,7 +154,7 @@ class Account(Model, TimestampMixin):
     first_name = fields.CharField(max_length=64, null=True)
     last_name = fields.CharField(max_length=64, null=True)
     phone = fields.CharField(max_length=32, null=True)
-    about = fields.CharField(max_length=70, null=True)
+    about = fields.CharField(max_length=150, null=True)
     channel = fields.CharField(max_length=34, null=True)
     twofa = fields.CharField(max_length=64, null=True)
     app_id = fields.IntField(null=False)
