@@ -77,8 +77,18 @@ class AIService:
         """Формирует историю сообщений для AI"""
         history = []
         for msg in messages:
-            role = "assistant" if msg.sender == enums.MessageSender.ACCOUNT else "user"
-            history.append({"role": role, "content": msg.text})
+            if msg.sender == enums.MessageSender.SYSTEM:
+                # Добавляем маркер что это важное указание
+                role = "assistant"
+                content = f"[ВАЖНОЕ УТОЧНЕНИЕ] {msg.text}"
+            elif msg.sender == enums.MessageSender.ACCOUNT:
+                role = "assistant"
+                content = msg.text
+            else:
+                role = "user"
+                content = msg.text
+
+            history.append({"role": role, "content": content})
         return history
 
     async def _build_system_prompt(

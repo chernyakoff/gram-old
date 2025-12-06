@@ -102,6 +102,10 @@ export interface components {
             startedAt: string;
         };
         DialogStatus: "init" | "engage" | "offer" | "closing" | "complete";
+        DialogSystemMessageIn: {
+            dialogId: number;
+            message: string;
+        };
         EmbedAccountOut: {
             id: number;
             phone: string;
@@ -304,6 +308,7 @@ export type ChatOut = components['schemas']['ChatOut'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
+export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type LicenseIn = components['schemas']['LicenseIn'];

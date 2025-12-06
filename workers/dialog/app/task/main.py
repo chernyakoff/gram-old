@@ -76,6 +76,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
     proxy = await pool.verify_proxy(account)
     if not proxy:
         logger.from_proxy_pool(pool)
+        await release_account(account, error="No proxy")
         return
 
     client = None
@@ -148,11 +149,17 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         manager.setup_event_handlers()
 
+        system_sent, dialogs_replied = await manager.check_and_process_dialogs()
+        logger.info(
+            f"System-сообщений отправлено: {system_sent}, "
+            f"Диалогов с ответами: {dialogs_replied}"
+        )
+
         # Проверяем старые диалоги на новые сообщения
-        old_dialogs_with_messages = await manager.check_old_dialogs_for_new_messages()
+        """ old_dialogs_with_messages = await manager.check_old_dialogs_for_new_messages()
         logger.info(
             f"Старых диалогов с новыми сообщениями: {old_dialogs_with_messages}"
-        )
+        ) """
 
         # Отправляем первые сообщения новым получателям
         new_dialogs_started = 0
@@ -219,12 +226,27 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         logger.info(f"Новых диалогов начато: {new_dialogs_started}")
 
-        # Если не было ни новых диалогов, ни ответов в старых - сразу выключаемся
-        if new_dialogs_started == 0 and old_dialogs_with_messages == 0:
+        total_activity = new_dialogs_started + dialogs_replied + system_sent
+
+        total_activity = new_dialogs_started + dialogs_replied + system_sent
+
+        if total_activity == 0:
             logger.info(
-                "🛑 Нет новых диалогов и нет ответов в старых - завершаем работу"
+                "🛑 Нет активности:\n"
+                "   - Новых диалогов: 0\n"
+                "   - Ответов в старых: 0\n"
+                "   - System-сообщений: 0\n"
+                "   → Завершаем работу"
             )
-            return  # finally сработает и disconnect будет вызван
+            return  # finally сработает
+
+        logger.info(
+            f"✅ Есть активность (всего: {total_activity}):\n"
+            f"   - Новых диалогов: {new_dialogs_started}\n"
+            f"   - Ответов: {dialogs_replied}\n"
+            f"   - System-сообщений: {system_sent}\n"
+            f"   - Активных диалогов ожидающих ответа: {manager.active_dialogs_count}"
+        )
 
         # Основной цикл - держим соединение пока есть активные диалоги
         logger.info(

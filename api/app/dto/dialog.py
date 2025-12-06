@@ -21,3 +21,8 @@ class DialogMessageOut(BaseModel):
     sender: enums.MessageSender
     text: str
     created_at: datetime
+
+
+class DialogSystemMessageIn(BaseModel):
+    dialog_id: int
+    message: str

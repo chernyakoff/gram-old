@@ -71,6 +71,165 @@ class DialogManager:
         # Счетчик активных диалогов (тех, что ждут ответа)
         self.active_dialogs_count = 0
 
+    async def check_and_process_dialogs(self) -> tuple[int, int]:
+        """
+        Проверяет диалоги в правильном порядке:
+        1. Отправляет system-сообщения
+        2. Получает новые сообщения от юзеров
+        3. Генерирует AI-ответы с учётом ВСЕГО контекста
+
+        Возвращает: (dialogs_with_system, dialogs_with_replies)
+        """
+        dialogs = await orm.Dialog.filter(
+            account_id=self.account.id, finished_at__isnull=True
+        ).prefetch_related("recipient", "messages")
+
+        dialogs_with_system = 0
+        dialogs_with_replies = 0
+
+        for dialog in dialogs:
+            try:
+                # ШАГ 1: Проверяем и отправляем system-сообщения
+                has_system = await self._process_system_messages_for_dialog(dialog)
+                if has_system:
+                    dialogs_with_system += 1
+                    await asyncio.sleep(random.randint(5, 10))
+
+                # ШАГ 2: Проверяем новые сообщения от юзера в Telegram
+                new_messages = await self._get_new_messages_from_telegram(dialog)
+
+                if not new_messages:
+                    # Если нет новых - но были system, запускаем ожидание
+                    if has_system:
+                        self.active_dialogs_count += 1  # 👈 ВАЖНО!
+                        asyncio.create_task(
+                            self.start_waiting_for_first_reply(dialog, dialog.recipient)
+                        )
+                    continue
+
+                # ШАГ 3: Сохраняем новые сообщения в БД
+                for msg in new_messages:
+                    await orm.Message.create(
+                        dialog=dialog,
+                        sender=enums.MessageSender.RECIPIENT,
+                        tg_message_id=msg.id,
+                        text=msg.text or "",
+                    )
+
+                dialogs_with_replies += 1
+
+                # ШАГ 4: Генерируем AI-ответ с учётом ВСЕХ сообщений
+                await self._process_dialog_reply(dialog, dialog.recipient, new_messages)
+
+            except FloodWaitError:
+                self.logger.warning("FloodWait при обработке диалогов - прерываем")
+                return dialogs_with_system, dialogs_with_replies
+            except Exception as e:
+                self.logger.error(f"Ошибка при обработке диалога {dialog.id}: {e}")
+                import traceback
+
+                self.logger.error(traceback.format_exc())
+                continue
+
+        return dialogs_with_system, dialogs_with_replies
+
+    async def _process_system_messages_for_dialog(self, dialog: orm.Dialog) -> bool:
+        """
+        Проверяет и отправляет system-сообщения для конкретного диалога.
+        Возвращает True если были отправлены system-сообщения.
+        """
+        messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+
+        if not messages:
+            return False
+
+        # Ищем неотправленные system-сообщения в конце
+        system_messages = []
+        for msg in reversed(messages):
+            if msg.sender == enums.MessageSender.SYSTEM and msg.tg_message_id is None:
+                system_messages.insert(0, msg)
+            elif (
+                msg.sender == enums.MessageSender.SYSTEM
+                and msg.tg_message_id is not None
+            ):
+                # Встретили отправленное system - продолжаем искать
+                continue
+            else:
+                # Встретили не-system - прерываем
+                break
+
+        if not system_messages:
+            return False
+
+        # Отправляем все накопленные system-сообщения
+        for sys_msg in system_messages:
+            try:
+                msg = await self.telegram_service.send_message(
+                    dialog.recipient, sys_msg.text, dialog
+                )
+
+                if msg:
+                    sys_msg.tg_message_id = msg.id
+                    await sys_msg.save(update_fields=["tg_message_id"])
+
+                    self.logger.info(
+                        f"[{dialog.recipient.username}] Отправлено system: {sys_msg.text[:50]}"
+                    )
+
+                    await asyncio.sleep(random.randint(2, 5))
+            except Exception as e:
+                self.logger.error(f"Ошибка отправки system-сообщения {sys_msg.id}: {e}")
+                # Не прерываем, пытаемся отправить следующее
+                continue
+
+        return True
+
+    async def _get_new_messages_from_telegram(self, dialog: orm.Dialog) -> list:
+        """
+        Получает новые сообщения от юзера из Telegram.
+        Возвращает список новых сообщений (отсортированных по времени).
+        """
+        peer = self.telegram_service._get_peer_from_dialog(dialog)
+
+        if not peer:
+            entity = await self.telegram_service.get_entity(dialog.recipient)
+            if isinstance(entity, TelethonUser):
+                dialog.update_from_dict(
+                    {
+                        "recipient_peer_id": entity.id,
+                        "recipient_access_hash": entity.access_hash,
+                    }
+                )
+                await dialog.save()
+                peer = self.telegram_service._get_peer_from_dialog(dialog)
+
+        if not peer:
+            return []
+
+        # Получаем последнее сообщение из БД
+        last_db_message = (
+            await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+        )
+
+        if not last_db_message or not last_db_message.tg_message_id:
+            return []
+
+        # Получаем новые сообщения из Telegram
+        new_messages = []
+        async for msg in self.client.iter_messages(
+            peer, min_id=last_db_message.tg_message_id
+        ):
+            if msg.id == last_db_message.tg_message_id:
+                continue
+            if msg.out:  # Пропускаем исходящие
+                continue
+            new_messages.append(msg)
+
+        if new_messages:
+            new_messages.sort(key=lambda m: m.date)
+
+        return new_messages
+
     def register_session_recipient(self, recipient_id: int):
         """Регистрирует recipient как часть текущей сессии"""
         self.session_recipients_ids.add(recipient_id)
@@ -359,6 +518,33 @@ class DialogManager:
         messages: list[orm.Message],
     ):
         """Генерирует ответ от AI и отправляет его"""
+
+        fresh_messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+
+        # Ищем неотправленные system-сообщения в конце
+        unsent_system = []
+        for msg in reversed(fresh_messages):
+            if msg.sender == enums.MessageSender.SYSTEM and msg.tg_message_id is None:
+                unsent_system.insert(0, msg)
+            else:
+                break
+
+        # Если есть - отправляем ДО генерации AI-ответа
+        if unsent_system:
+            self.logger.info(
+                f"[{recipient.username}] Обнаружены новые system-сообщения, отправляем их перед AI-ответом"
+            )
+            for sys_msg in unsent_system:
+                msg = await self.telegram_service.send_message(
+                    recipient, sys_msg.text, dialog
+                )
+                if msg:
+                    sys_msg.tg_message_id = msg.id
+                    await sys_msg.save(update_fields=["tg_message_id"])
+                    await asyncio.sleep(random.randint(2, 5))
+
+            # Перезагружаем messages чтобы AI видел актуальный порядок
+            messages = fresh_messages
 
         MAX_RETRIES = 3
 

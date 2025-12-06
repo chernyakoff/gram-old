@@ -7,7 +7,28 @@
       :assistant="{ side: 'left', variant: 'soft', icon: 'i-lucide-bot' }"
     >
       <template #content="{ message }">
-        <div class="min-w-20 p-2">
+        <!-- Системное сообщение - центрированное -->
+        <div v-if="message.role === 'system'" class="flex justify-center w-full">
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 max-w-md">
+            <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <UIcon name="i-lucide-info" class="size-4" />
+              <p class="text-sm">{{ getTextFromMessage(message) }}</p>
+            </div>
+            <small class="text-gray-400 text-xs block text-center mt-1">
+              {{
+                (message as UIMessageWithTime).createdAt
+                  ? new Date((message as UIMessageWithTime).createdAt!).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : ''
+              }}
+            </small>
+          </div>
+        </div>
+
+        <!-- Обычные сообщения пользователя и ассистента -->
+        <div v-else class="min-w-20 p-2">
           <p class="mb-4">{{ getTextFromMessage(message) }}</p>
 
           <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
@@ -30,9 +51,10 @@
         v-model="input"
         icon="i-lucide-search"
         variant="naked"
+        :disabled="loading"
         @submit="handleSubmit"
       >
-        <UChatPromptSubmit />
+        <UChatPromptSubmit :loading="loading" />
       </UChatPrompt>
     </template>
   </UChatPalette>
@@ -43,10 +65,22 @@ import type { DialogMessageOut } from '@/types/openapi'
 import type { UIMessage, TextUIPart } from 'ai'
 import { computed, ref } from 'vue'
 import { getTextFromMessage } from '@nuxt/ui/utils/ai'
+import { useDialogs } from '@/composables/use-dialogs'
+
 interface UIMessageWithTime extends UIMessage {
   createdAt?: string
 }
 
+const props = defineProps<{
+  messages: DialogMessageOut[]
+  dialogId: number
+}>()
+
+const emit = defineEmits<{
+  'messages-updated': [messages: DialogMessageOut[]]
+}>()
+
+const { add, loading } = useDialogs()
 const input = ref('')
 
 function toUIMessage(msg: DialogMessageOut): UIMessageWithTime {
@@ -74,13 +108,26 @@ function toUIMessage(msg: DialogMessageOut): UIMessageWithTime {
   }
 }
 
-function handleSubmit() {
-  console.log('asas')
+async function handleSubmit() {
+  if (!input.value.trim() || loading.value) return
+
+  const message = input.value.trim()
+  input.value = ''
+
+  try {
+    const updatedMessages = await add({
+      dialogId: props.dialogId,
+      message: message,
+    })
+
+    // Обновляем список сообщений через emit
+    emit('messages-updated', updatedMessages)
+  } catch (error) {
+    console.error('Ошибка отправки сообщения:', error)
+    // Восстанавливаем текст в случае ошибки
+    input.value = message
+  }
 }
 
-const { messages } = defineProps<{
-  messages: DialogMessageOut[]
-}>()
-
-const uiMessages = computed<UIMessageWithTime[]>(() => messages.map(toUIMessage))
+const uiMessages = computed<UIMessageWithTime[]>(() => props.messages.map(toUIMessage))
 </script>

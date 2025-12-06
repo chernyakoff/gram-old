@@ -1,6 +1,6 @@
 import { useApi } from '@/composables/use-api'
 
-import type { DialogMessageOut, DialogOut } from '@/types/openapi'
+import type { DialogMessageOut, DialogOut, DialogSystemMessageIn } from '@/types/openapi'
 import { ref } from 'vue'
 
 export function useDialogs() {
@@ -19,5 +19,9 @@ export function useDialogs() {
     }
   }
 
-  return { get, dialogs, loading, error, success }
+  async function add(body: DialogSystemMessageIn) {
+    return await api<DialogMessageOut[]>('dialogs/add', { method: 'POST', body })
+  }
+
+  return { get, add, dialogs, loading, error, success }
 }

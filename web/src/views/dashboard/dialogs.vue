@@ -22,7 +22,12 @@
     <Menu v-model="selectedDialog" :dialogs="filteredDialogs" :statuses="statuses" />
   </UDashboardPanel>
 
-  <Detail v-if="selectedDialog" :messages="messages" />
+  <Detail
+    v-if="selectedDialog"
+    :messages="messages"
+    :dialog-id="selectedDialog.id"
+    @messages-updated="handleMessagesUpdated"
+  />
   <div v-else class="hidden lg:flex flex-1 items-center justify-center">
     <UIcon name="i-lucide-logs" class="size-32 text-dimmed" />
   </div>
@@ -35,6 +40,7 @@ import { useTitle } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDialogs } from '@/composables/use-dialogs'
 import type { DialogMessageOut, DialogOut } from '@/types/openapi'
+
 const title = 'Диалоги'
 useTitle(title)
 
@@ -53,6 +59,10 @@ watch(selectedDialog, async (dialog) => {
     messages.value = []
   }
 })
+
+function handleMessagesUpdated(updatedMessages: DialogMessageOut[]) {
+  messages.value = updatedMessages
+}
 
 const filteredDialogs = computed(() => {
   if (statusFilter.value === 'all') return dialogs.value

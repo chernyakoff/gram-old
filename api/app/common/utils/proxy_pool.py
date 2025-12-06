@@ -82,7 +82,19 @@ class ProxyPool:
         if not ok:
             await self._handle_proxy_failure(proxy)
             return False
+
+        await self._handle_proxy_success(proxy)
         return True
+
+    async def _handle_proxy_success(self, proxy: Proxy):
+        if proxy.failures > 0:
+            proxy.failures -= 1
+            await proxy.save(update_fields=["failures"])
+            self._add_log(
+                Status.INFO,
+                "Proxy failure counter decreased",
+                {"proxy_id": proxy.id, "failures": proxy.failures},
+            )
 
     async def _handle_proxy_failure(self, proxy: Proxy):
         old_failures = proxy.failures
