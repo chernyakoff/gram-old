@@ -1,4 +1,5 @@
 import asyncio
+import re
 import tempfile
 import zipfile
 from io import BytesIO
@@ -9,9 +10,11 @@ from aiopath import AsyncPath
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient
+from telethon.errors import PasswordHashInvalidError, SessionPasswordNeededError
 from telethon.sessions import StringSession
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
+from telethon.types import Message
 from tortoise.exceptions import IntegrityError
 
 from app.client import hatchet
@@ -32,7 +35,7 @@ class AccountsUploadIn(BaseModel):
 async def unzip_from_s3(file_id: str) -> AsyncPath:
     tmp_dir = AsyncPath(tempfile.mkdtemp())
 
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client() as s3:  # type: ignore
         content_bytes = await s3.get(file_id)  # получаем bytes
 
     zip_bytes = BytesIO(content_bytes)
@@ -66,7 +69,7 @@ async def get_account_files(tmp_dir: AsyncPath) -> list[AccountFile]:
 async def save_photos(client: TelegramClient, account_in: AccountIn):
     insert: list[orm.AccountPhoto] = []
     i = 0
-    async with AsyncS3Client() as s3:
+    async with AsyncS3Client() as s3:  # type: ignore
         async for photo in client.iter_profile_photos("me"):
             buf = BytesIO()
             await client.download_media(photo, file=buf)
@@ -125,10 +128,13 @@ async def save_account(
 
         try:
             await orm_account.save()
+            saved_id = orm_account.id  # <-- сохраняем, но НЕ возвращаем здесь
             await logger.success(account.phone)
-            await pool.release_proxy_lock(proxy)
         except IntegrityError:
             await logger.error(f"{account.phone} уже есть в базе")
+            return None
+        finally:
+            # Даже если уже есть в базе — освободим прокси
             await pool.release_proxy_lock(proxy)
 
         try:
@@ -136,12 +142,120 @@ async def save_account(
         except Exception as e:
             await logger.error(f"{account.phone} {e}")
 
+        return saved_id
     except Exception as e:
         await logger.error(f"{account.phone} {e}")
         await pool.release_proxy_lock(proxy)
 
     finally:
         await client.disconnect()  # type: ignore
+
+
+async def get_telegram_code(app: TelegramClient) -> str | None:
+    messages = await app.get_messages(777000, limit=5)
+
+    # Гарантируем, что messages — список
+    if not isinstance(messages, list):
+        messages = [messages]
+
+    for message in messages:
+        if not isinstance(message, Message) or not message.message:
+            continue  # Пропускаем None или пустые сообщения
+
+        match = re.search(r"\b(\d{5})\b", message.message)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogger):
+    orm_account = await orm.Account.get(id=account_id)
+
+    await logger.info("Дуплициуем сессию")
+
+    proxy = await pool.verify_proxy(orm_account)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    dup_account_util = AccountUtil.from_orm(orm_account)
+    dup_account_util.session_string = None
+
+    dup_client = dup_account_util.create_client(proxy)
+    phone_code_hash = None
+    code = None
+
+    try:
+        await dup_client.connect()
+        result = await dup_client.send_code_request(orm_account.phone)
+        phone_code_hash = result.phone_code_hash
+    except Exception as e:
+        await logger.error(e)
+        return
+    finally:
+        await dup_client.disconnect()  # type: ignore
+
+    await asyncio.sleep(2)
+
+    main_account_util = AccountUtil.from_orm(orm_account)
+    main_client = main_account_util.create_client(proxy)
+
+    try:
+        await main_client.connect()
+        if not await main_client.is_user_authorized():
+            await logger.error("Основной аккаунт  вылетел из сессии")
+            return
+
+        code = await get_telegram_code(main_client)
+        if not code:
+            await logger.error("Не удалось получить код")
+            return
+        await logger.success(f" Получен код: {code}")
+
+    except Exception as e:
+        await logger.error(e)
+        return
+    finally:
+        await main_client.disconnect()  # type: ignore
+
+    if not code or not phone_code_hash:
+        return
+
+    dup_client = dup_account_util.create_client(proxy)
+    try:
+        await dup_client.connect()
+        try:
+            await dup_client.sign_in(
+                phone=orm_account.phone,
+                code=code,
+                phone_code_hash=phone_code_hash,
+            )
+        except SessionPasswordNeededError:
+            # Если требуется 2FA пароль
+            if orm_account.twofa is None:
+                await logger.error("Пароль 2FA требуется, но не передан!")
+                return
+
+            try:
+                await dup_client.sign_in(password=orm_account.twofa)
+            except PasswordHashInvalidError:
+                await logger.error("2FA пароль неверный")
+
+        await logger.success("Сессия дуплицирована")
+
+        dup_session = StringSession.save(dup_client.session)  # type: ignore
+        try:
+            await orm.Account.filter(id=orm_account.id).delete()
+            await orm.AccountBackup.create(session=dup_session, id=orm_account.id)
+        except:
+            pass
+
+    except Exception as e:
+        await logger.error(e)
+        return
+    finally:
+        await dup_client.disconnect()  # type: ignore
 
 
 @hatchet.task(name="accounts-upload", input_validator=AccountsUploadIn)
@@ -181,8 +295,15 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     tasks = [
         save_account(input.user_id, account, proxy_pool, logger) for account in accounts
     ]
-    await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
+
+    saved_ids = [r for r in results if r]
 
     async with AsyncS3Client() as s3:  # type: ignore
         await s3.delete(input.s3path)
     await clear_dir(tmp_dir)
+
+    tasks = [
+        duplicate_session(account_id, proxy_pool, logger) for account_id in saved_ids
+    ]
+    await asyncio.gather(*tasks)

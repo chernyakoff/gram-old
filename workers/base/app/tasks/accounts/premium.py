@@ -14,6 +14,7 @@ from telethon.tl.types import (
     MessageMediaInvoice,
 )
 from telethon.tl.types.payments import PaymentVerificationNeeded
+from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import orm
@@ -97,6 +98,9 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     card = input.card
 
     orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
+    orm_account.busy = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     user_id = orm_account.user_id
 
@@ -106,7 +110,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         await logger.error("отсутствуют валидные прокси")
         return BuyPremiumOut(status="error", message="отсутствуют валидные прокси")
 
-    account = await AccountUtil.from_orm(orm_account)
+    account = AccountUtil.from_orm(orm_account)
 
     client = account.create_client(proxy)
     try:
@@ -133,7 +137,6 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
             (m for m in messages if isinstance(m.media, MessageMediaInvoice)),
             None,
         )
-        print(invoice_msg)
 
         if not invoice_msg:
             raise Exception("Не найдено сообщение с invoice")
@@ -142,7 +145,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         public_token = None
         peer = await client.get_input_entity(invoice_msg.peer_id)
         invoice = InputInvoiceMessage(peer=peer, msg_id=invoice_msg.id)
-        form_info = await client(GetPaymentFormRequest(invoice=invoice))
+        form_info = await client(GetPaymentFormRequest(invoice=invoice))  # type: ignore
         native = getattr(form_info, "native_params", None)
         if native:
             # Это telethon.tl.types.DataJSON
@@ -166,6 +169,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
             )
         )
         orm_account.premium = True
+        orm_account.busy = False
         await orm_account.save()
         if isinstance(send_data, PaymentVerificationNeeded):
             return BuyPremiumOut(status="success", verification_url=send_data.url)

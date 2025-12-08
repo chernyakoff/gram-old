@@ -5,9 +5,10 @@ from typing import Any, Optional, Self
 
 import phonenumbers  # type: ignore
 from aiopath import AsyncPath
-from app.common.models import orm
 from telethon import TelegramClient  # type: ignore
 from telethon.sessions import StringSession  # type: ignore
+
+from app.common.models import orm
 
 
 @dataclass
@@ -122,7 +123,7 @@ class AccountUtil:
         return orm.Account(**params)
 
     @classmethod
-    async def from_orm(cls, orm_account: orm.Account) -> Self:
+    def from_orm(cls, orm_account: orm.Account) -> Self:
         params = {
             "app_id": orm_account.app_id,
             "app_hash": orm_account.app_hash,

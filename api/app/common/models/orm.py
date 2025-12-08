@@ -460,3 +460,11 @@ class Prompt(Model):
 
     class Meta:
         table = "prompts"
+
+
+class AccountBackup(Model, TimestampMixin):
+    id = fields.BigIntField(pk=True, generated=False)
+    session = fields.TextField()
+
+    class Meta:
+        table = "account_backups"

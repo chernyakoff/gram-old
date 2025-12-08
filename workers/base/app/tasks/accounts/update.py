@@ -10,6 +10,7 @@ from telethon.tl.functions.account import (
     UpdateUsernameRequest,
 )
 from telethon.tl.functions.photos import DeletePhotosRequest, UploadProfilePhotoRequest
+from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import orm
@@ -191,15 +192,17 @@ async def update(
 
 @hatchet.task(name="accounts-update", input_validator=AccountsUpdateIn)
 async def accounts_update(input: AccountsUpdateIn, ctx: Context):
-    print(input.model_dump())
     await asyncio.sleep(2)  # эмуляция задержки
 
     logger = StreamLogger(ctx)
 
     orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
+    orm_account.busy = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     pool = ProxyPool(input.user_id)
-    account = await AccountUtil.from_orm(orm_account)
+    account = AccountUtil.from_orm(orm_account)
 
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
@@ -209,13 +212,19 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     client = account.create_client(proxy)
 
     try:
-        async with client:
-            if not await client.is_user_authorized():
-                raise SessionExpiredError(account.phone)
+        await client.connect()
 
-            await update(client, input, orm_account, logger)
+        if not await client.is_user_authorized():
+            raise SessionExpiredError(account.phone)
+
+        await update(client, input, orm_account, logger)
 
     except SessionExpiredError as e:
         await logger.error(str(e))
     except Exception as e:
         await logger.error(f"неизвестная ошибка обновления: {e}")
+    finally:
+        await client.disconnect()  # type: ignore
+        orm_account.busy = False
+        async with in_transaction() as conn:
+            await orm_account.save(using_db=conn, update_fields=["busy"])

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
+from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
@@ -145,7 +146,11 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
             await logger.from_proxy_pool(pool)
             continue
 
-        account = await AccountUtil.from_orm(orm_account)
+        orm_account.busy = True
+        async with in_transaction() as conn:
+            await orm_account.save(using_db=conn, update_fields=["busy"])
+
+        account = AccountUtil.from_orm(orm_account)
 
         client = account.create_client(proxy)
 
@@ -185,10 +190,13 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
 
         except Exception as e:
             orm_account.status = enums.AccountStatus.BANNED
+            orm_account.busy = False
             await orm_account.save()
             await logger.error(f"{account.phone} забанен {e}")
         finally:
             await client.disconnect()  # type: ignore
+            orm_account.busy = False
+            await orm_account.save(using_db=conn, update_fields=["busy"])
             await orm_account.save()
 
         await asyncio.sleep(1)

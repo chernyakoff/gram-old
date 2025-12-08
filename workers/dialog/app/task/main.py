@@ -71,7 +71,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     pool = ProxyPool(account.user_id)
 
-    account_util = await AccountUtil.from_orm(account)
+    account_util = AccountUtil.from_orm(account)
 
     proxy = await pool.verify_proxy(account)
     if not proxy:
@@ -167,7 +167,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
         first_message = randomize_message(first_message)
 
         for recipient_id in input.recipients_id:
-            recipient = await orm.Recipient.get(id=recipient_id)
+            recipient = await orm.Recipient.get_or_none(id=recipient_id)
+            if not recipient:
+                continue
 
             # Получаем entity
             entity = await manager.telegram_service.get_entity(recipient)
