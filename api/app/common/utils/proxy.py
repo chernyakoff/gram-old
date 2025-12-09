@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType  # type: ignore
-
 from app.common.models.orm import Proxy
 from app.config import config
 

@@ -180,7 +180,7 @@ async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogg
         return
 
     dup_account_util = AccountUtil.from_orm(orm_account)
-    dup_account_util.session_string = None
+    dup_account_util.memory_session = True
 
     dup_client = dup_account_util.create_client(proxy)
     phone_code_hash = None

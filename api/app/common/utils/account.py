@@ -6,7 +6,7 @@ from typing import Any, Optional, Self
 import phonenumbers  # type: ignore
 from aiopath import AsyncPath
 from telethon import TelegramClient  # type: ignore
-from telethon.sessions import StringSession  # type: ignore
+from telethon.sessions import MemorySession, StringSession  # type: ignore
 
 from app.common.models import orm
 
@@ -70,6 +70,7 @@ class AccountUtil:
     phone: str
     session_file: Optional[AsyncPath] = None
     session_string: Optional[str] = None
+    memory_session: bool = False
 
     def __post_init__(self):
         if not (self.session_file or self.session_string):
@@ -98,6 +99,8 @@ class AccountUtil:
                 "rdns": True,
             },
         }
+        if self.memory_session:
+            params["session"] = MemorySession()
         return TelegramClient(**params)
 
     def to_orm(self, account: AccountIn) -> orm.Account:

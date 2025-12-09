@@ -179,6 +179,7 @@ class Account(Model, TimestampMixin):
     )
     muted_until = fields.DatetimeField(null=True)
     premium = fields.BooleanField(default=False)
+    premium_stopped = fields.BooleanField(default=False)
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
     dialogs: fields.ReverseRelation["Dialog"]
@@ -199,7 +200,7 @@ class Account(Model, TimestampMixin):
     out_daily_limit = fields.IntField(
         description="Исходящих сообщений с одного аккаунта в сутки",
         null=False,
-        default=6,
+        default=1,
     )
 
     user_id: int
