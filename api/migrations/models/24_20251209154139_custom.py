@@ -9,7 +9,7 @@ ALTER TABLE accounts
 ALTER TABLE accounts
     ADD CONSTRAINT accounts_project_id_fkey
         FOREIGN KEY (project_id)
-        REFERENCES project(id)
+        REFERENCES projects(id)
         ON DELETE SET NULL;
         """
 
