@@ -41,12 +41,19 @@
         </template>
         <template #premium-cell="{ row }">
           <div class="flex items-center gap-1 justify-center">
-            <template v-if="row.original.premium">⭐</template>
-
-            <template v-else>
+            <template v-if="!row.original.premium">
               <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
                 <UIcon name="bx:cart" class="h-6 w-6" />
               </button>
+            </template>
+
+            <template v-else-if="row.original.premium && !row.original.premiumStopped">
+              <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
+                <UIcon name="bxs:star" class="h-6 w-6 text-yellow-400" />
+              </button>
+            </template>
+            <template v-else>
+              <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
             </template>
           </div>
         </template>

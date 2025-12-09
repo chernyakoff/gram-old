@@ -1,33 +1,22 @@
 import asyncio
-import json
-from typing import Literal, Optional, cast
+from datetime import timedelta
+from typing import Literal, Optional
 
-import aiohttp
 from hatchet_sdk import Context
 from pydantic import BaseModel
-from telethon import TelegramClient, types
+from telethon import TelegramClient
 from telethon.events import NewMessage
-from telethon.sessions import StringSession
-from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
 from telethon.tl.types import (
-    DataJSON,
-    InputInvoiceMessage,
-    InputPaymentCredentials,
     KeyboardButton,
-    KeyboardButtonCallback,
-    MessageMediaInvoice,
     ReplyInlineMarkup,
     ReplyKeyboardMarkup,
 )
-from telethon.tl.types.payments import PaymentVerificationNeeded
-from telethon.types import Message
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.account import AccountUtil
 from app.common.utils.proxy_pool import ProxyPool
-from app.tasks.accounts.exceptions import SessionExpiredError
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -51,7 +40,9 @@ class StopPremiumOut(BaseModel):
     message: Optional[str] = None
 
 
-async def cancel_premium(client: TelegramClient) -> str:
+async def _stop_premium(
+    client: TelegramClient, logger: StreamLogger
+) -> Literal["error", "success"]:
     finished = False  # флаг завершения цепочки
     steps_done = 0  # количество успешно пройденных шагов
 
@@ -80,10 +71,9 @@ async def cancel_premium(client: TelegramClient) -> str:
         nonlocal finished, steps_done
         try:
             msg = event.message
-            print("\n=== Новое сообщение от @PremiumBot ===")
-            print(msg.message)
+            await logger.info(msg.message)
 
-            await debug_keyboard(msg)
+            # await debug_keyboard(msg)
 
             mk = msg.reply_markup
             if mk and isinstance(mk, (ReplyKeyboardMarkup, ReplyInlineMarkup)):
@@ -92,18 +82,18 @@ async def cancel_premium(client: TelegramClient) -> str:
                     ri, ci = pos
                     try:
                         await msg.click(ri, ci)
-                        print(f"Нажата кнопка [{ri},{ci}]")
+                        await logger.info(f"Нажата кнопка [{ri},{ci}]")
                         steps_done += 1
                         return
                     except Exception:
                         continue
             else:
                 # клавиатуры нет → цепочка завершена
-                print("Цепочка сообщений завершена, отключаемся")
+                await logger.info("Цепочка сообщений завершена, отключаемся")
                 finished = True
                 await client.disconnect()  # type: ignore
         except Exception as e:
-            print("Ошибка в обработчике:", e)
+            await logger.error(f"Ошибка в обработчике: {e}")
 
     async def monitor_timeout():
         nonlocal finished
@@ -112,13 +102,15 @@ async def cancel_premium(client: TelegramClient) -> str:
                 return
             await asyncio.sleep(1)
         if not finished:
-            print(f"Таймаут {MAX_WAIT_SECONDS}s: отключаем клиента принудительно")
+            await logger.warning(
+                f"Таймаут {MAX_WAIT_SECONDS}s: отключаем клиента принудительно"
+            )
             await client.disconnect()  # type: ignore
 
     try:
         await client.connect()
         if not await client.is_user_authorized():
-            print("Сессия не авторизована")
+            await logger.error("Вылетел из сессии")
             return "error"
 
         await client.send_message("@PremiumBot", "/stop")
@@ -129,18 +121,46 @@ async def cancel_premium(client: TelegramClient) -> str:
         return "success" if steps_done > 0 else "error"
 
     except Exception as e:
-        print("Ошибка в основном блоке:", e)
+        await logger.error(f"Ошибка в основном блоке: {e}")
         return "error"
 
     finally:
         await client.disconnect()  # type: ignore
-        print("Сессия завершена")
 
 
-@hatchet.task(name="stop-premium", input_validator=StopPremiumIn)
-async def buy_premium(input: StopPremiumIn, ctx: Context) -> StopPremiumOut:
+@hatchet.task(
+    name="stop-premium",
+    input_validator=StopPremiumIn,
+    execution_timeout=timedelta(minutes=3),
+    schedule_timeout=timedelta(minutes=3),
+)
+async def stop_premium(input: StopPremiumIn, ctx: Context) -> StopPremiumOut:
     logger = StreamLogger(ctx)
-
     orm_account = await orm.Account.get(id=input.account_id)
+    account_util = AccountUtil.from_orm(orm_account)
+    pool = ProxyPool(orm_account.user_id)
 
-    return StopPremiumOut(status="success")
+    proxy = await pool.verify_proxy(orm_account)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return StopPremiumOut(status="error", message="Ошибка прокси")
+
+    client = account_util.create_client(proxy)
+    orm_account.busy = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
+
+    status = await _stop_premium(client, logger)
+    if status == "error":
+        message = "Не удалось отключить подписку"
+        orm_account.premium_stopped = False
+    else:
+        message = "Подписка успешно отключена"
+        orm_account.premium_stopped = True
+
+    orm_account.busy = False
+    orm_account.premium_stopped = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy", "premium_stopped"])
+
+    return StopPremiumOut(status=status, message=message)

@@ -133,3 +133,15 @@ async def set_limit(data: SetLimitIn, user=Depends(get_current_user)):
     await orm.Account.filter(id__in=data.account_ids, user_id=user.id).update(
         out_daily_limit=data.out_daily_limit
     )
+
+
+@router.get(f"/{id}/stop-premium", response_model=models.StopPremiumOut)
+async def stop_premium(id: int, user=Depends(get_current_user)):
+    account = await orm.Account.get_or_none(user_id=user.id, id=id)
+    if not account:
+        raise HTTPException(status_code=404, detail="not found")
+
+    response = await tasks.stop_premium.aio_run(
+        input=models.StopPremiumIn(account_id=id)
+    )
+    return response

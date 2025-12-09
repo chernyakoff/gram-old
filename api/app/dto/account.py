@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 from tortoise_serializer import ContextType, Serializer
@@ -39,6 +39,7 @@ class AccountOut(AccountBase):
     id: int
     phone: str
     premium: bool
+    premium_stopped: bool
     twofa: str | None
     country: str
     active: bool

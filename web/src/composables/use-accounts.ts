@@ -11,6 +11,7 @@ import type {
   BuyPremiumOut,
   CardDetails,
   SetLimitIn,
+  StopPremiumOut,
   WorkflowOut,
 } from '@/types/openapi'
 
@@ -30,6 +31,10 @@ export function useAccounts() {
 
   async function premium(id: number, body: CardDetails): Promise<BuyPremiumOut> {
     return await api<BuyPremiumOut>(`accounts/${id}/premium`, { method: 'POST', body })
+  }
+
+  async function stopPremium(id: number): Promise<StopPremiumOut> {
+    return await api<StopPremiumOut>(`accounts/${id}/premium`, { method: 'GET' })
   }
 
   async function del(ids: number[]) {
@@ -85,6 +90,7 @@ export function useAccounts() {
     accounts,
     bindProject,
     setLimit,
+    stopPremium,
     loading,
     error,
     success,
