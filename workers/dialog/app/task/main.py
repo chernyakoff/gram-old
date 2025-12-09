@@ -11,11 +11,11 @@ from tortoise.transactions import in_transaction
 
 from app.client import hatchet
 from app.common.models import enums, orm
+from app.common.utils.account import AccountUtil
 from app.common.utils.functions import generate_message, pick, randomize_message
 from app.common.utils.proxy_pool import ProxyPool
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
-from app.utils.account import AccountUtil
 from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
 
