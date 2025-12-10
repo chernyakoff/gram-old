@@ -20,6 +20,7 @@ class LicenseType(IntEnum):
 class Role(IntEnum):
     USER = 0
     ADMIN = 7
+    ENGINEER = 1
 
 
 class AccountStatus(StrEnum):
