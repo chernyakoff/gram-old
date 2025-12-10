@@ -202,11 +202,13 @@ async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogg
     dup_client = dup_account_util.create_client(proxy)
     phone_code_hash = None
     code = None
+    dup_session = None
 
     try:
         await dup_client.connect()
         result = await dup_client.send_code_request(orm_account.phone)
         phone_code_hash = result.phone_code_hash
+
     except Exception as e:
         await logger.error(e)
         return
@@ -239,7 +241,6 @@ async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogg
     if not code or not phone_code_hash:
         return
 
-    dup_client = dup_account_util.create_client(proxy)
     try:
         await dup_client.connect()
         try:
