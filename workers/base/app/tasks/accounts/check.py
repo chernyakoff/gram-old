@@ -106,12 +106,13 @@ async def save_photos(client: TelegramClient, account: orm.Account):
 
 
 async def renew_info(app: TelegramClient, orm_account: orm.Account):
-    response = await app(GetFullUserRequest("me"))  # type: ignore
-    response = cast(UserFull, response)
+    me = await app.get_me(input_peer=False)
     params = pick(
         ["id", "username", "first_name", "last_name", "premium"],
-        response.users[0],
+        me.to_dict(),
     )
+    response = await app(GetFullUserRequest("me"))  # type: ignore
+    response = cast(UserFull, response)
     params["about"] = response.full_user.about
     params["channel"] = (
         response.chats[0].username if response.chats else None  # type: ignore
@@ -183,6 +184,9 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
 
             orm_account.status = enums.AccountStatus.GOOD
             await logger.success(f"{account.phone} в порядке!")
+
+            if orm_account.premium is False:
+                orm_account.premium_stopped = False
 
         except SessionExpiredError:
             await logger.error(f"{account.phone} вылет из сессии")

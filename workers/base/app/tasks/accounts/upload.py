@@ -2,6 +2,7 @@ import asyncio
 import re
 import tempfile
 import zipfile
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import cast
 from uuid import uuid4
@@ -15,6 +16,7 @@ from telethon.sessions import StringSession
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
 from telethon.types import Message
+from tortoise import timezone as tz
 from tortoise.exceptions import IntegrityError
 
 from app.client import hatchet
@@ -151,22 +153,37 @@ async def save_account(
         await client.disconnect()  # type: ignore
 
 
-async def get_telegram_code(app: TelegramClient) -> str | None:
-    messages = await app.get_messages(777000, limit=5)
+async def _get_telegram_code(app: TelegramClient) -> str | None:
+    messages = await app.get_messages(777000, limit=20)
 
     # Гарантируем, что messages — список
     if not isinstance(messages, list):
         messages = [messages]
 
+    now = datetime.now(timezone.utc)
+
     for message in messages:
-        if not isinstance(message, Message) or not message.message:
-            continue  # Пропускаем None или пустые сообщения
+        # Проверяем нормальность сообщения
+        if not isinstance(message, Message) or not message.message or not message.date:
+            continue
+
+        # Проверяем что сообщение свежее (например, не старше 2 минут)
+        if (now - message.date).total_seconds() > 120:
+            continue
 
         match = re.search(r"\b(\d{5})\b", message.message)
         if match:
             return match.group(1)
 
     return None
+
+
+async def get_telegram_code(app: TelegramClient) -> str | None:
+    for _ in range(10):
+        code = await _get_telegram_code(app)
+        if code:
+            return code
+        await asyncio.sleep(1)
 
 
 async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogger):

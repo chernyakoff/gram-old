@@ -48,9 +48,7 @@
             </template>
 
             <template v-else-if="row.original.premium && !row.original.premiumStopped">
-              <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
-                <UIcon name="bxs:star" class="h-6 w-6 text-yellow-400" />
-              </button>
+              <StopPremiumModal :account="row.original" @completed="refresh" />
             </template>
             <template v-else>
               <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
@@ -112,6 +110,7 @@ import SetLimitmodal from '@/components/dashboard/accounts/limit-modal.vue'
 import CheckModal from '@/components/dashboard/accounts/check-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
 import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
+import StopPremiumModal from '@/components/dashboard/accounts/stop-premium-modal.vue'
 import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'

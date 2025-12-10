@@ -198,8 +198,6 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
 
     orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
     orm_account.busy = True
-    async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     pool = ProxyPool(input.user_id)
     account = AccountUtil.from_orm(orm_account)
@@ -210,6 +208,8 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
         return
 
     client = account.create_client(proxy)
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     try:
         await client.connect()

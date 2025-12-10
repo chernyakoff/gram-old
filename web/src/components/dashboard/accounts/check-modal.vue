@@ -1,14 +1,16 @@
 <template>
   <UModal
     v-model:open="open"
-    :title="`Порверка акканутов`"
-    :description="`Будет проверено ${selectedIds.length} ${plur(selectedIds.length)}.`">
+    :title="`Проверка акканутов`"
+    :description="`Будет проверено ${selectedIds.length} ${plur(selectedIds.length)}.`"
+  >
     <UButton
       v-if="selectedIds.length"
       label="Проверить аккаунты"
       color="neutral"
       variant="subtle"
-      icon="bx:search-alt">
+      icon="bx:search-alt"
+    >
       <template #trailing>
         <UKbd>
           {{ selectedIds.length }}
@@ -49,7 +51,7 @@ const plur = (n: number): string => {
   return pluralize(n, ['аккаунт', 'аккаунта', 'аккаунтов'])
 }
 
-async function onSubmit () {
+async function onSubmit() {
   open.value = false
   toast.add({
     title: 'Проверка аккаунтов запущена',

@@ -41,9 +41,13 @@ async def cleanup_stale_locks():
     await orm.Proxy.filter(locked_until__lt=now, lock_session__not_isnull=True).update(
         locked_until=None, lock_session=None
     )
-    await orm.Account.filter(lease_expires_at=now, busy=True).update(
-        lease_expires_at=None, busy=False
-    )
+    await execute_query("""
+UPDATE accounts
+SET lease_expires_at = NULL,
+    busy = FALSE
+WHERE lease_expires_at <= NOW()
+  AND busy = TRUE;
+""")
 
 
 async def complete_old_dialogs():

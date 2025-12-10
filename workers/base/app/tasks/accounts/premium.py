@@ -98,9 +98,6 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     card = input.card
 
     orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
-    orm_account.busy = True
-    async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     user_id = orm_account.user_id
 
@@ -111,6 +108,9 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         return BuyPremiumOut(status="error", message="отсутствуют валидные прокси")
 
     account = AccountUtil.from_orm(orm_account)
+    orm_account.busy = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
 
     client = account.create_client(proxy)
     try:
@@ -168,7 +168,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
                 credentials=InputPaymentCredentials(data=DataJSON(tokenized_card)),
             )
         )
-        orm_account.premium = True
+
         orm_account.busy = False
         await orm_account.save()
         if isinstance(send_data, PaymentVerificationNeeded):

@@ -35,11 +35,6 @@ class StopPremiumIn(BaseModel):
     account_id: int
 
 
-class StopPremiumOut(BaseModel):
-    status: Literal["error", "success"]
-    message: Optional[str] = None
-
-
 async def _stop_premium(
     client: TelegramClient, logger: StreamLogger
 ) -> Literal["error", "success"]:
@@ -134,7 +129,8 @@ async def _stop_premium(
     execution_timeout=timedelta(minutes=3),
     schedule_timeout=timedelta(minutes=3),
 )
-async def stop_premium(input: StopPremiumIn, ctx: Context) -> StopPremiumOut:
+async def stop_premium(input: StopPremiumIn, ctx: Context):
+    await asyncio.sleep(2)
     logger = StreamLogger(ctx)
     orm_account = await orm.Account.get(id=input.account_id)
     account_util = AccountUtil.from_orm(orm_account)
@@ -143,7 +139,7 @@ async def stop_premium(input: StopPremiumIn, ctx: Context) -> StopPremiumOut:
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
         await logger.from_proxy_pool(pool)
-        return StopPremiumOut(status="error", message="Ошибка прокси")
+        return
 
     client = account_util.create_client(proxy)
     orm_account.busy = True
@@ -152,15 +148,13 @@ async def stop_premium(input: StopPremiumIn, ctx: Context) -> StopPremiumOut:
 
     status = await _stop_premium(client, logger)
     if status == "error":
-        message = "Не удалось отключить подписку"
+        await logger.error("Не удалось отключить подписку")
         orm_account.premium_stopped = False
     else:
-        message = "Подписка успешно отключена"
+        await logger.success("Подписка успешно отключена")
         orm_account.premium_stopped = True
 
     orm_account.busy = False
     orm_account.premium_stopped = True
     async with in_transaction() as conn:
         await orm_account.save(using_db=conn, update_fields=["busy", "premium_stopped"])
-
-    return StopPremiumOut(status=status, message=message)

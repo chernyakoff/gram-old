@@ -249,10 +249,6 @@ export interface components {
             closing: number[];
             complete: number[];
         };
-        StopPremiumOut: {
-            status: "error" | "success";
-            message?: string | null;
-        };
         SynonimizeIn: {
             text: string;
         };
@@ -340,7 +336,6 @@ export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
-export type StopPremiumOut = components['schemas']['StopPremiumOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];

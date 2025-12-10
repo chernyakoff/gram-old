@@ -47,6 +47,9 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
     me = await client.get_me(input_peer=False)
     keys = ["username", "first_name", "last_name", "premium"]
     account.update_from_dict(pick(keys, me.to_dict()))
+    if account.premium is False:
+        account.premium_stopped = False
+        keys.append("premium_stopped")
     await account.save(update_fields=keys)
 
 

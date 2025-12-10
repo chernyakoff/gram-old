@@ -135,13 +135,14 @@ async def set_limit(data: SetLimitIn, user=Depends(get_current_user)):
     )
 
 
-@router.get(f"/{id}/stop-premium", response_model=models.StopPremiumOut)
+@router.get("/{id}/stop-premium", response_model=WorkflowOut)
 async def stop_premium(id: int, user=Depends(get_current_user)):
     account = await orm.Account.get_or_none(user_id=user.id, id=id)
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 
-    response = await tasks.stop_premium.aio_run(
+    ref = await tasks.stop_premium.aio_run_no_wait(
         input=models.StopPremiumIn(account_id=id)
     )
-    return response
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}
