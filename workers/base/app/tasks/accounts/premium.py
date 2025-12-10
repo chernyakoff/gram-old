@@ -169,9 +169,9 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
             )
         )
 
-        orm_account.busy = False
         orm_account.premium = True
         await orm_account.save()
+
         if isinstance(send_data, PaymentVerificationNeeded):
             return BuyPremiumOut(status="success", verification_url=send_data.url)
         else:
@@ -184,4 +184,6 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         await logger.error(f"ошибка: {e}")
         return BuyPremiumOut(status="error", message=str(e))
     finally:
+        orm_account.busy = False
+        await orm_account.save()
         await client.disconnect()  # type: ignore
