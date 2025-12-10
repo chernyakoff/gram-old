@@ -124,6 +124,69 @@ class AccountsCheckIn(BaseModel):
     ids: list[int]
 
 
+async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger):
+    proxy = await pool.verify_proxy(orm_account)
+
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    orm_account.busy = True
+    async with in_transaction() as conn:
+        await orm_account.save(using_db=conn, update_fields=["busy"])
+
+    account = AccountUtil.from_orm(orm_account)
+
+    client = account.create_client(proxy)
+
+    try:
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            raise SessionExpiredError(account.phone)
+
+        if await is_frozen(client):
+            orm_account.status = enums.AccountStatus.FROZEN
+            await logger.error(f"{account.phone} заморожен")
+            return
+
+        muted_until = await check_spamblock(client)
+        if muted_until:
+            orm_account.status = enums.AccountStatus.MUTED
+            orm_account.muted_until = muted_until
+            await logger.error(
+                f"{account.phone} в муте до {muted_until.strftime('%d.%m.%Y')}"
+            )
+        else:
+            orm_account.muted_until = None  # type: ignore
+
+        await renew_info(client, orm_account)
+        await logger.success(f"{account.phone} данные обновлены")
+
+        await save_photos(client, orm_account)
+        await logger.success(f"{account.phone} фото скачаны")
+
+        orm_account.status = enums.AccountStatus.GOOD
+        await logger.success(f"{account.phone} в порядке!")
+
+        if orm_account.premium is False:
+            orm_account.premium_stopped = False
+
+    except SessionExpiredError:
+        await logger.error(f"{account.phone} вылет из сессии")
+        orm_account.status = enums.AccountStatus.EXITED
+
+    except Exception as e:
+        orm_account.status = enums.AccountStatus.BANNED
+        orm_account.busy = False
+        await orm_account.save()
+        await logger.error(f"{account.phone} забанен {e}")
+    finally:
+        await client.disconnect()  # type: ignore
+        orm_account.busy = False
+        await orm_account.save()
+
+
 @hatchet.task(
     name="accounts-check",
     input_validator=AccountsCheckIn,
@@ -137,70 +200,7 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
         await orm.Account.filter(id__in=input.ids).prefetch_related("proxy").all()
     )
     user_id = accounts[0].user_id
-
     pool = ProxyPool(user_id)
 
-    for orm_account in accounts:
-        proxy = await pool.verify_proxy(orm_account)
-
-        if not proxy:
-            await logger.from_proxy_pool(pool)
-            continue
-
-        orm_account.busy = True
-        async with in_transaction() as conn:
-            await orm_account.save(using_db=conn, update_fields=["busy"])
-
-        account = AccountUtil.from_orm(orm_account)
-
-        client = account.create_client(proxy)
-
-        try:
-            await client.connect()
-
-            if not await client.is_user_authorized():
-                raise SessionExpiredError(account.phone)
-
-            if await is_frozen(client):
-                orm_account.status = enums.AccountStatus.FROZEN
-                await logger.error(f"{account.phone} заморожен")
-                continue
-
-            muted_until = await check_spamblock(client)
-            if muted_until:
-                orm_account.status = enums.AccountStatus.MUTED
-                orm_account.muted_until = muted_until
-                await logger.error(
-                    f"{account.phone} в муте до {muted_until.strftime('%d.%m.%Y')}"
-                )
-            else:
-                orm_account.muted_until = None  # type: ignore
-
-            await renew_info(client, orm_account)
-            await logger.success(f"{account.phone} данные обновлены")
-
-            await save_photos(client, orm_account)
-            await logger.success(f"{account.phone} фото скачаны")
-
-            orm_account.status = enums.AccountStatus.GOOD
-            await logger.success(f"{account.phone} в порядке!")
-
-            if orm_account.premium is False:
-                orm_account.premium_stopped = False
-
-        except SessionExpiredError:
-            await logger.error(f"{account.phone} вылет из сессии")
-            orm_account.status = enums.AccountStatus.EXITED
-
-        except Exception as e:
-            orm_account.status = enums.AccountStatus.BANNED
-            orm_account.busy = False
-            await orm_account.save()
-            await logger.error(f"{account.phone} забанен {e}")
-        finally:
-            await client.disconnect()  # type: ignore
-            orm_account.busy = False
-            await orm_account.save(using_db=conn, update_fields=["busy"])
-            await orm_account.save()
-
-        await asyncio.sleep(1)
+    tasks = [_check(account, pool, logger) for account in accounts]
+    await asyncio.gather(*tasks)
