@@ -28,7 +28,7 @@ LEASE_HOURS = 2
 MAX_ACCOUNTS_PER_CYCLE = 50
 RECIPIENT_LEASE_MINUTES = 30
 
-heartbeat = hatchet.workflow(name="heartbeat", on_crons=["15 * * * *"])
+heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
 
 
 async def execute_query(query: str):
