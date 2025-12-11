@@ -115,6 +115,12 @@ export interface components {
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
+        ImpersonateIn: {
+            username: string;
+        };
+        ImpersonateOut: {
+            access: string;
+        };
         LicenseIn: {
             username: string;
             days: number;
@@ -267,7 +273,7 @@ export interface components {
         UserLoginOut: {
             accessToken: string;
         };
-        UserOut: {
+        UserMeOut: {
             id: number;
             username: string | null;
             firstName: string | null;
@@ -275,6 +281,8 @@ export interface components {
             photoUrl: string | null;
             role: string;
             hasLicense: boolean;
+            impersonated?: boolean | null;
+            realUserId?: number | null;
         };
         ValidationError: {
             loc: (string | number)[];
@@ -312,6 +320,8 @@ export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
+export type ImpersonateIn = components['schemas']['ImpersonateIn'];
+export type ImpersonateOut = components['schemas']['ImpersonateOut'];
 export type LicenseIn = components['schemas']['LicenseIn'];
 export type LicenseOut = components['schemas']['LicenseOut'];
 export type MailingIn = components['schemas']['MailingIn'];
@@ -340,6 +350,6 @@ export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
-export type UserOut = components['schemas']['UserOut'];
+export type UserMeOut = components['schemas']['UserMeOut'];
 export type ValidationError = components['schemas']['ValidationError'];
 export type WorkflowOut = components['schemas']['WorkflowOut'];

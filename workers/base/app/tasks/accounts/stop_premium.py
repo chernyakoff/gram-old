@@ -132,7 +132,7 @@ async def _stop_premium(
 async def stop_premium(input: StopPremiumIn, ctx: Context):
     await asyncio.sleep(2)
     logger = StreamLogger(ctx)
-    orm_account = await orm.Account.get(id=input.account_id)
+    orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
     account_util = AccountUtil.from_orm(orm_account)
     pool = ProxyPool(orm_account.user_id)
 

@@ -241,7 +241,7 @@ class AccountPhoto(Model):
 class Project(Model, TimestampMixin):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=64, null=False)
-    status = fields.BooleanField(default=True)
+    status = fields.BooleanField(default=False)
     accounts = fields.ReverseRelation[Account]
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="projects", null=False

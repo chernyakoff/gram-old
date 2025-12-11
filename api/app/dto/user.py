@@ -37,3 +37,8 @@ class UserOut(Serializer):
         cls, instance: orm.User, context: ContextType
     ) -> bool:
         return bool(instance.license_end_date and instance.license_end_date > tz.now())
+
+
+class UserMeOut(UserOut):
+    impersonated: bool | None = None
+    real_user_id: int | None = None

@@ -10,7 +10,7 @@ from jose import ExpiredSignatureError, JWTError, jwt
 from app.common.models import enums, orm
 from app.common.utils.functions import pick
 from app.config import config
-from app.dto.user import UserLoginIn, UserLoginOut, UserOut
+from app.dto.user import UserLoginIn, UserLoginOut, UserMeOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,6 +61,26 @@ def create_refresh_token(data: dict) -> str:
     return jwt.encode(
         to_encode, config.api.jwt.secret, algorithm=config.api.jwt.algorithm
     )
+
+
+def create_impersonation_tokens(target_user_id: int, admin_id: int):
+    access = create_access_token(
+        {
+            "sub": str(target_user_id),
+            "real_sub": str(admin_id),
+            "impersonated": True,
+        }
+    )
+
+    refresh = create_refresh_token(
+        {
+            "sub": str(target_user_id),
+            "real_sub": str(admin_id),
+            "impersonated": True,
+        }
+    )
+
+    return access, refresh
 
 
 def decode_token(token: str) -> dict:
@@ -132,9 +152,25 @@ async def login(data: UserLoginIn, response: Response):
     return {"access_token": access_token}
 
 
-@router.get("/me", response_model=UserOut)
-async def me(user=Depends(get_current_user)) -> UserOut:
-    return await UserOut.from_tortoise_orm(user)
+@router.get("/me", response_model=UserMeOut)
+async def me(user=Depends(get_current_user), authorization: str = Header(...)):
+    token = authorization.split(" ", 1)[1]
+    payload = decode_token(token)
+
+    user_out = await UserOut.from_tortoise_orm(user)
+
+    data = user_out.model_dump()
+
+    # НЕ имперсонация → возвращаем чистую модель
+    if not payload.get("impersonated"):
+        return UserMeOut(**data)
+
+    # Имперсонация → добавляем флаги
+    return UserMeOut(
+        **data,
+        impersonated=True,
+        real_user_id=int(payload["real_sub"]),
+    )
 
 
 @router.post("/logout")
