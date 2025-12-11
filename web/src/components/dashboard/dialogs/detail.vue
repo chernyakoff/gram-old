@@ -12,7 +12,7 @@
           <div class="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 max-w-md">
             <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <UIcon name="i-lucide-info" class="size-4" />
-              <p class="text-sm">{{ getTextFromMessage(message) }}</p>
+              <p class="text-sm whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
             </div>
             <small class="text-gray-400 text-xs block text-center mt-1">
               {{
@@ -29,7 +29,7 @@
 
         <!-- Обычные сообщения пользователя и ассистента -->
         <div v-else class="min-w-20 p-2">
-          <p class="mb-4">{{ getTextFromMessage(message) }}</p>
+          <p class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
 
           <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
             {{
