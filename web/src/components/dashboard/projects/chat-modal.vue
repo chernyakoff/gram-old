@@ -19,7 +19,7 @@
         >
           <template #content="{ message }">
             <div class="min-w-20 p-2">
-              <p class="mb-4">{{ getTextFromMessage(message) }}</p>
+              <p class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
               <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
                 <UBadge
                   :style="{

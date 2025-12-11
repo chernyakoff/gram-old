@@ -1,7 +1,7 @@
 import asyncio
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel
+from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
 from pydantic import BaseModel
 from tortoise import Tortoise
 from tortoise import timezone as tz
@@ -297,6 +297,12 @@ async def task(input: EmptyModel, ctx: Context):
                 await dialog_task.aio_run_no_wait(
                     input=DialogIn(
                         account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)
+                    ),
+                    options=TriggerWorkflowOptions(
+                        additional_metadata={
+                            "account_id": acc.id,
+                            "user_id": acc.user_id,
+                        }
                     ),
                 )
 

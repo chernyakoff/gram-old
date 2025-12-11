@@ -3,32 +3,27 @@ import logging
 from cyclopts import App
 
 from app.common.models import orm
-from app.utils.notify import notify_mailing_end
-
-logging.basicConfig(
-    level=logging.WARNING,  # или DEBUG для больше боли
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-
-logger = logging.getLogger(__name__)
-
-
-LEASE_HOURS = 6  # сколько "занятый" аккаунт считается занятым
-MAX_ACCOUNTS_PER_CYCLE = 50  # сколько аккаунтов проверяем за 1 тик
-RECIPIENT_LEASE_MINUTES = 30  # время аренды recipient перед отправкой в таск
-
+from app.common.utils.functions import generate_message, randomize_message
 
 app = App(name="dev", help="dev tests etc")
 
+TEXT = """
+{Здравствуйте! 👋|Добрый день! ☀️|Приветствую! 🤝}
 
-@app.command
-async def notify(id: str):
-    if id.isdigit():
-        user = await orm.User.get_or_none(id=id)
-    else:
-        user = await orm.User.get_or_none(username=id.removeprefix("@"))
-    if not user:
-        logger.error("пользователь не найден")
-        return
+{Вижу|Заметил|Обратил внимание}, что {Вы глубоко в теме|Вы разбираетесь в вопросах|Вам близка тема} **{ЗОЖ|правильного питания|биохакинга|оздоровления}**. 🌱
 
-    await notify_mailing_end(user.id, "тест", "test")
+{Есть вопрос к Вам как к практику|Интересно Ваше мнение|Можно один вопрос}, {если найдется минутка|если Вы не против}. 🧐
+
+{Скажите,|Подскажите,} выбирая {БАДы|витамины|витаминные комплексы}, Вы {смотрите только на **состав**|цените **натуральность**} 💊 или {Вам важнее **биодоступность**|учитываете **реальное усвоение**|проверяете **доставку в клетку**}? 🧬
+
+{Есть статистика,|Многие говорят,|Известно,} что {у обычных форм **КПД всего 10–30%**|стандартные витамины **почти не усваиваются**}, {а остальное — «на ветер»|и это пустая переплата}. 📉
+
+{Что думаете об этом?|Как решаете этот момент?|Это критично для Вас или нет?}
+"""
+
+
+@app.default
+async def _():
+    m = generate_message(TEXT)
+    m = randomize_message(m)
+    print(m)

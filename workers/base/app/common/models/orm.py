@@ -207,7 +207,7 @@ class Account(Model, TimestampMixin):
     out_daily_limit = fields.IntField(
         description="Исходящих сообщений с одного аккаунта в сутки",
         null=False,
-        default=1,
+        default=2,
     )
 
     user_id: int
