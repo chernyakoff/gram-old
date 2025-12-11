@@ -48,7 +48,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
-                msg.text = f"{msg.text}\n{get_status_addon(chat.status)}"
+                msg.text = f"{msg.text}\n{get_status_addon()}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 

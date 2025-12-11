@@ -45,7 +45,7 @@ class AIService:
 
         for msg in reversed(messages):
             if msg["role"] == "user":
-                msg["content"] += f"\n{get_status_addon(status)}"
+                msg["content"] += f"\n{get_status_addon()}"
                 if status == enums.DialogStatus.CLOSING:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"

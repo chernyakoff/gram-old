@@ -429,7 +429,6 @@ PROMPT_FIELDS = [
     "closing",
     "instruction",
     "rules",
-    "transitions",
 ]
 
 
@@ -446,7 +445,6 @@ class Prompt(Model):
     closing = fields.TextField(null=False)
     instruction = fields.TextField(null=False)
     rules = fields.TextField(null=False)
-    transitions = fields.TextField(null=False)
 
     def to_dict(self) -> dict:
         return pick(

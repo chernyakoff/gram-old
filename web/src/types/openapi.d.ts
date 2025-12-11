@@ -205,7 +205,6 @@ export interface components {
             closing: string;
             instruction: string;
             rules: string;
-            transitions: string;
         };
         PromptOut: {
             role: string;
@@ -216,7 +215,6 @@ export interface components {
             closing: string;
             instruction: string;
             rules: string;
-            transitions: string;
         };
         ProxiesBulkCreateIn: {
             proxies: string[];

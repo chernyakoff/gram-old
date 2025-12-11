@@ -210,14 +210,6 @@
                     class="w-full"
                   />
                 </UFormField>
-                <UFormField name="prompt.transitions" class="w-full mb-4" label="Переходы">
-                  <MTextrarea
-                    fullscreenTitle="Переходы"
-                    :rows="8"
-                    v-model="state.prompt.transitions"
-                    class="w-full"
-                  />
-                </UFormField>
               </template>
               <template #json>
                 <div class="space-y-4 mb-4">
@@ -350,7 +342,6 @@ const state = reactive<ProjectInSchema>({
     closing: '',
     instruction: '',
     rules: '',
-    transitions: '',
   },
 })
 

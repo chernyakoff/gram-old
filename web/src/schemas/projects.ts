@@ -38,7 +38,6 @@ export const promptInSchema = v.object({
   closing: optionalTextSchema,
   instruction: optionalTextSchema,
   rules: optionalTextSchema,
-  transitions: optionalTextSchema,
 })
 
 export type PromptInSchema = v.InferOutput<typeof promptInSchema>
@@ -103,7 +102,6 @@ export const projectInSchema = v.pipe(
   validatePromptField('closing'),
   validatePromptField('instruction'),
   validatePromptField('rules'),
-  validatePromptField('transitions'),
 )
 
 export type ProjectInSchema = v.InferOutput<typeof projectInSchema>

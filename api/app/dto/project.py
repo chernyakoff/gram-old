@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from tortoise_serializer import Serializer
 
 
-
 class BriefIn(BaseModel):
     description: str
     offer: str
@@ -35,7 +34,6 @@ class PromptIn(BaseModel):
     closing: str
     instruction: str
     rules: str
-    transitions: str
 
 
 class PromptOut(Serializer):
@@ -47,7 +45,6 @@ class PromptOut(Serializer):
     closing: str
     instruction: str
     rules: str
-    transitions: str
 
 
 class ProjectBase(Serializer):
@@ -103,7 +100,6 @@ def create_default_project() -> ProjectIn:
             closing="",
             instruction="",
             rules="",
-            transitions="",
         ),
         brief=BriefIn(
             description="",

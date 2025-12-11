@@ -3,6 +3,7 @@ import json
 import re
 from datetime import timedelta
 
+from aiopath import AsyncPath
 from anthropic import AsyncAnthropic
 from anthropic.types import Message
 from hatchet_sdk import Context
@@ -11,13 +12,16 @@ from pydantic import BaseModel
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.functions import pick
-from app.common.utils.generator import GENERATOR
 from app.config import config
 from app.utils.stream_logger import StreamLogger
 
 
 class GeneratePromptIn(BaseModel):
     project_id: int
+
+
+async def get_generator_prompt() -> str:
+    return await AsyncPath("app/common/utils/prompts/generator.txt").read_text()
 
 
 async def get_brief(project_id: int) -> str:
@@ -53,6 +57,8 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     client = AsyncAnthropic(**params)
 
     brief_json = await get_brief(project.id)
+
+    GENERATOR = await get_generator_prompt()
 
     message = await client.messages.create(
         max_tokens=16000,
@@ -147,24 +153,13 @@ def extract_json(text: str) -> dict:
 
 def validate_config(config: dict) -> None:
     """Проверяет, что конфигурация содержит все необходимые поля."""
-    required_keys = [
-        "role",
-        "context",
-        "init",
-        "engage",
-        "offer",
-        "closing",
-        "instruction",
-        "rules",
-        "transitions",
-    ]
 
-    missing_keys = [key for key in required_keys if key not in config]
+    missing_keys = [key for key in orm.PROMPT_FIELDS if key not in config]
 
     if missing_keys:
         raise ValueError(f"❌ Отсутствуют обязательные ключи: {missing_keys}")
 
     # Проверяем, что значения не пустые
-    empty_keys = [key for key in required_keys if not config.get(key)]
+    empty_keys = [key for key in orm.PROMPT_FIELDS if not config.get(key)]
     if empty_keys:
         raise ValueError(f"❌ Пустые значения в ключах: {empty_keys}")
