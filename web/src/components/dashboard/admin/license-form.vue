@@ -61,7 +61,7 @@ import { useTitle } from '@vueuse/core'
 import { reactive, ref } from 'vue'
 import { useAdmin } from '@/composables/use-admin'
 
-const title = 'Админка'
+const title = 'Админка - Лицензии'
 
 useTitle(title)
 

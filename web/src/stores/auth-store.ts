@@ -1,12 +1,19 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useApi } from '@/composables/use-api'
-import type { UserLoginIn, UserLoginOut, UserOut } from '@/types/openapi'
+import type {
+  ImpersonateIn,
+  ImpersonateOut,
+  UserLoginIn,
+  UserLoginOut,
+  UserMeOut,
+} from '@/types/openapi'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<UserOut | null>(null)
+  const user = ref<UserMeOut | null>(null)
   const accessToken = ref<string | null>(localStorage.getItem('accessToken'))
   const isAuthenticated = computed(() => !!accessToken.value)
+  const isImpersonated = computed(() => user.value?.impersonated ?? false)
   const { api } = useApi()
   async function login(user: UserLoginIn) {
     const data = await api<UserLoginOut>('auth', {
@@ -44,17 +51,37 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    const me = await api<UserOut>('auth/me')
+    const me = await api<UserMeOut>('auth/me')
     user.value = me
+  }
+
+  async function impersonate(data: ImpersonateIn) {
+    const result = await api<ImpersonateOut>('admin/impersonate', {
+      method: 'POST',
+      body: data,
+    })
+    accessToken.value = result.access
+    localStorage.setItem('accessToken', result.access)
+    await fetchUser()
+  }
+
+  async function stopImpersonate() {
+    await api('admin/stop-impersonate', { method: 'POST' })
+    // После остановки имперсонации нужно обновить токены
+    await refreshTokens()
+    await fetchUser()
   }
 
   return {
     user,
     accessToken,
     isAuthenticated,
+    isImpersonated,
     login,
     logout,
     refreshTokens,
     fetchUser,
+    impersonate,
+    stopImpersonate,
   }
 })

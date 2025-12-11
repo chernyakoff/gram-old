@@ -1,5 +1,6 @@
+<!-- AdminImpersonate.vue -->
 <template>
-  <UForm ref="form" :schema="licenseSchema" :state="state" @submit="onSubmit">
+  <UForm ref="form" :schema="impersonateSchema" :state="state" @submit="onSubmit">
     <div class="min-w-[800px] max-w-4xl mx-auto">
       <UFormField label="Username" name="username" class="mb-4">
         <UInput
@@ -11,30 +12,26 @@
         />
       </UFormField>
 
-      <UButton type="submit" :loading="loading" :disabled="loading">Вход</UButton>
+      <UButton type="submit" :loading="loading" :disabled="loading">Войти как пользователь</UButton>
 
-      <!-- Вывод результата -->
-      <div v-if="response" class="mt-6">
+      <!-- Успешный результат -->
+      <div v-if="impersonateSuccess" class="mt-6">
         <UAlert
-          :color="response.status === 'success' ? 'success' : 'error'"
-          :variant="response.status === 'success' ? 'soft' : 'solid'"
-          :title="response.status === 'success' ? 'Успешно' : 'Ошибка'"
-          :description="response.message"
-          :icon="
-            response.status === 'success'
-              ? 'i-heroicons-check-circle'
-              : 'i-heroicons-exclamation-circle'
-          "
+          color="success"
+          variant="soft"
+          title="Успешно"
+          description="Вход выполнен. Перенаправление..."
+          icon="i-heroicons-check-circle"
         />
       </div>
 
-      <!-- Общая ошибка -->
-      <div v-if="error && !response" class="mt-6">
+      <!-- Ошибка -->
+      <div v-if="impersonateError" class="mt-6">
         <UAlert
           color="error"
           variant="solid"
           title="Ошибка"
-          :description="error"
+          description="Пользователь не найден"
           icon="i-heroicons-exclamation-triangle"
         />
       </div>
@@ -43,29 +40,43 @@
 </template>
 
 <script setup lang="ts">
-import { licenseSchema, type LicenseSchema } from '@/schemas/admin'
-import type { LicenseIn, LicenseOut } from '@/types/openapi'
+import { impersonateSchema, type ImpersonateSchema } from '@/schemas/admin'
+import type { ImpersonateIn } from '@/types/openapi'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { useTitle } from '@vueuse/core'
 import { reactive, ref } from 'vue'
-import { useAdmin } from '@/composables/use-admin'
+import { useAuth } from '@/composables/use-auth'
 
-const title = 'Админка'
+const title = 'Админка - Имперсонация'
 
 useTitle(title)
 
-const { impersonate, loading, error } = useAdmin()
+const { impersonate } = useAuth()
 
 const state = reactive({
   username: '',
 })
 
-const response = ref<LicenseOut | null>(null)
+const loading = ref(false)
+const impersonateSuccess = ref(false)
+const impersonateError = ref(false)
 
-const onSubmit = async (event: FormSubmitEvent<LicenseSchema>) => {
-  response.value = null // Сбрасываем предыдущий результат
+const onSubmit = async (event: FormSubmitEvent<ImpersonateSchema>) => {
+  impersonateSuccess.value = false
+  impersonateError.value = false
+  loading.value = true
 
-  const data = event.data satisfies LicenseIn
-  const { access } = await impersonate(data)
+  try {
+    const data = event.data satisfies ImpersonateIn
+    await impersonate(data)
+
+    impersonateSuccess.value = true
+    // Редирект произойдёт автоматически через watch в useAuth
+  } catch (e) {
+    impersonateError.value = true
+    console.error('Impersonate error:', e)
+  } finally {
+    loading.value = false
+  }
 }
 </script>

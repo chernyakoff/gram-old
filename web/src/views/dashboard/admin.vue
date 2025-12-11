@@ -10,6 +10,7 @@
     <template #body>
       <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4 w-full">
         <template #license><AdminLicenseForm /></template>
+        <template #impersonate><AdminImpersonateForm /></template>
       </UTabs>
     </template>
   </UDashboardPanel>
@@ -19,6 +20,7 @@
 import type { TabsItem } from '@nuxt/ui'
 import { useTitle } from '@vueuse/core'
 import AdminLicenseForm from '@/components/dashboard/admin/license-form.vue'
+import AdminImpersonateForm from '@/components/dashboard/admin/impersonate-form.vue'
 
 const title = 'Админка'
 

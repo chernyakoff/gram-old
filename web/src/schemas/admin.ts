@@ -12,4 +12,10 @@ export const licenseSchema = v.object({
   days: daysSchema,
 })
 
+export const impersonateSchema = v.object({
+  username: telegram.username(),
+})
+
 export type LicenseSchema = v.InferOutput<typeof licenseSchema>
+
+export type ImpersonateSchema = v.InferOutput<typeof impersonateSchema>

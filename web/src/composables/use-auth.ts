@@ -7,7 +7,7 @@ export function useAuth() {
   const auth = useAuthStore()
   const router = useRouter()
 
-  const { user, isAuthenticated, accessToken } = toRefs(auth)
+  const { user, isAuthenticated, accessToken, isImpersonated } = toRefs(auth)
 
   // Автоматический редирект при изменении user
   watch(
@@ -35,10 +35,13 @@ export function useAuth() {
   return {
     user,
     isAuthenticated,
+    isImpersonated,
     accessToken,
     login: auth.login,
     logout: auth.logout,
     refresh: auth.refreshTokens,
     fetchUser: auth.fetchUser,
+    impersonate: auth.impersonate,
+    stopImpersonate: auth.stopImpersonate,
   }
 }
