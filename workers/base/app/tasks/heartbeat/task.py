@@ -108,7 +108,11 @@ async def get_active_projects() -> list[orm.Project]:
 async def get_available_accounts(project: orm.Project, now, conn):
     return (
         await orm.Account.filter(
-            project=project, active=True, status=enums.AccountStatus.GOOD, busy=False
+            project=project,
+            active=True,
+            premium=True,
+            status=enums.AccountStatus.GOOD,
+            busy=False,
         )
         .limit(MAX_ACCOUNTS_PER_CYCLE)
         .using_db(conn)
