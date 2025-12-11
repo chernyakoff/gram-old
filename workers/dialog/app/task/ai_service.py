@@ -42,10 +42,11 @@ class AIService:
         history = self._build_history(dialog_messages)
         system_prompt = await self._build_system_prompt(project_prompt, status)
         messages = [{"role": "system", "content": system_prompt}] + history
+        STATUS_ADDON = await get_status_addon()
 
         for msg in reversed(messages):
             if msg["role"] == "user":
-                msg["content"] += f"\n{get_status_addon()}"
+                msg["content"] += f"\n{STATUS_ADDON}"
                 if status == enums.DialogStatus.CLOSING:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
