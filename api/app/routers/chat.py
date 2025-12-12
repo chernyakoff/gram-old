@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException
 from openai import AsyncOpenAI
 
@@ -62,18 +64,22 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
-    completion = await client.chat.completions.create(
-        model=config.openai.model,
-        messages=messages,  # type: ignore
+    raw_response = await client.responses.create(
+        model="gpt-5.1-codex-mini",  # config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
+        input=cast(Any, messages),
     )
 
-    response = completion.choices[0].message.content or ""
+    response = raw_response.output_text  # completion.choices[0].message.content or ""
 
+    add_status_alert = False
     status = get_ooc_status(response)
     if not status:
-        response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
+        add_status_alert = True
         status = chat.status
 
     response = strip_ooc_status(response)
     response = normalize_dashes(response)
+
+    if add_status_alert:
+        response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
     return ChatOut(text=response, status=status)
