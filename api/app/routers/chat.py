@@ -65,7 +65,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
     raw_response = await client.responses.create(
-        model="gpt-5.1-codex-mini",  # config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
+        model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
         input=cast(Any, messages),
     )
 
