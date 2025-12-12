@@ -16,7 +16,9 @@ PROMPT_TITLES = {
 
 
 def get_ooc_status(message: str) -> DialogStatus | None:
-    match = re.search(r"STATUS:\s*(init|engage|offer|closing)", message)
+    match = re.search(
+        r"STATUS:\s*(init|engage|offer|closing|negative|operator)", message
+    )
     if match:
         status = match.group(1)
         return DialogStatus(status)

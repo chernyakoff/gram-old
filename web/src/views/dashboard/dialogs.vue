@@ -76,5 +76,7 @@ const statuses = [
   { label: 'диалог', value: 'offer' },
   { label: 'закрытие', value: 'closing' },
   { label: 'заявка', value: 'complete' },
+  { label: 'негатив', value: 'negative' },
+  { label: 'оператор', value: 'operator' },
 ]
 </script>

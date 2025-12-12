@@ -40,3 +40,5 @@ class StatsOut(BaseModel):
     offer: list[int]
     closing: list[int]
     complete: list[int]
+    negative: list[int]
+    operator: list[int]

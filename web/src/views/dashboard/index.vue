@@ -143,6 +143,8 @@ const statsData = ref<StatsOut>({
   offer: [],
   closing: [],
   complete: [],
+  negative: [],
+  operator: [],
 })
 
 const range = shallowRef({

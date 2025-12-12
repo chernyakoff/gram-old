@@ -68,11 +68,10 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     )
 
     response = completion.choices[0].message.content or ""
-    print(response)
 
     status = get_ooc_status(response)
     if not status:
-        print("НЕ ВЕРНУЛ СТАТУС")
+        response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
         status = chat.status
 
     response = strip_ooc_status(response)

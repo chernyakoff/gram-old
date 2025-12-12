@@ -26,6 +26,8 @@ const labelsMap = {
   offer: 'диалог',
   closing: 'закрытие',
   complete: 'заявка',
+  negative: 'негатив',
+  operator: 'оператор',
 } as const
 
 // --- series для area chart ---

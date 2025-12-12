@@ -49,7 +49,9 @@ class DialogStatus(StrEnum):
     ENGAGE = "engage"  # проявил интерес
     OFFER = "offer"  # сделали предложение
     CLOSING = "closing"  # завершено (отказ / интерес / договорились о звонке)
-    COMPLETE = "complete"
+    COMPLETE = "complete"  # попрощались
+    NEGATIVE = "negative"  # послали нахер
+    OPERATOR = "operator"  # робот раскрыт -- требуется кожаный мешок
 
 
 class MessageSender(StrEnum):

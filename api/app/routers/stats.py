@@ -21,6 +21,8 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
     offer = [0] * days_count
     closing = [0] * days_count
     complete = [0] * days_count
+    negative = [0] * days_count
+    operator = [0] * days_count
 
     status_map = {
         DialogStatus.INIT.value: init,
@@ -28,6 +30,8 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
         DialogStatus.OFFER.value: offer,
         DialogStatus.CLOSING.value: closing,
         DialogStatus.COMPLETE.value: complete,
+        DialogStatus.NEGATIVE.value: negative,
+        DialogStatus.OPERATOR.value: operator,
     }
 
     for r in rows:
@@ -45,4 +49,6 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
         offer=offer,
         closing=closing,
         complete=complete,
+        negative=negative,
+        operator=operator,
     )
