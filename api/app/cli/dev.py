@@ -35,9 +35,13 @@ async def get_generator_prompt() -> str:
     return await AsyncPath("app/common/utils/prompts/generator.txt").read_text()
 
 
+async def get_system_prompt() -> str:
+    return await AsyncPath("app/common/utils/prompts/status_addon.txt").read_text()
+
+
 @app.command
 async def update_prompts():
-    system = await get_status_addon()
+    system = await get_system_prompt()
     generator = await get_generator_prompt()
     await orm.AppSettings.upsert("prompt.generator", generator)
     await orm.AppSettings.upsert("prompt.system", system)
