@@ -43,6 +43,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    return ChatOut(text="here", status=DialogStatus.INIT)
+
     STATUS_ADDON = await get_status_addon()
 
     if not chat.messages and project.first_message:
@@ -101,4 +103,5 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     if add_status_alert:
         response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
+
     return ChatOut(text=response, status=status)
