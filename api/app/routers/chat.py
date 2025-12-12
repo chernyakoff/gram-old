@@ -43,8 +43,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    return ChatOut(text="here", status=DialogStatus.INIT)
-
     STATUS_ADDON = await get_status_addon()
 
     if not chat.messages and project.first_message:
@@ -62,6 +60,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
+
+    return ChatOut(text="here", status=DialogStatus.INIT)
 
     """ messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages]) """
