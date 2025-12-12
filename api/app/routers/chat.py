@@ -40,62 +40,36 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         id=chat.project_id, user_id=user.id
     ).get_or_none()
 
-    print("HERE1")
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     STATUS_ADDON = await get_status_addon()
-    print("HERE2")
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
         return ChatOut(text=first_message, status=chat.status)
     else:
-        print("HERE2.1")
         for msg in reversed(chat.messages):
-            print("HERE2.2")
             if msg.role == MessageRole.user:
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
-                break
-    print("HERE3")
 
-    return ChatOut(text="here", status=chat.status)
+                break
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
-    print("BEFORE RESPNSE")
+
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
-    """ messages = [
-        {
-            "role": m.role.value,
-            "content": m.text,  # <= только строка
-        }
-        for m in chat.messages
-    ]
-    messages.insert(
-        0,
-        {
-            "role": "system",
-            "content": prompt,
-        },
-    ) """
 
-    try:
-        raw_response = await client.responses.create(
-            model=config.openai.model,
-            input=cast(Any, messages),
-        )
-        print(raw_response)
-        response = (
-            raw_response.output_text
-        )  # completion.choices[0].message.content or ""
+    raw_response = await client.responses.create(
+        model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
+        input=cast(Any, messages),
+    )
 
-    except Exception as e:
-        return ChatOut(text=str(e), status=chat.status)
+    response = raw_response.output_text  # completion.choices[0].message.content or ""
 
     add_status_alert = False
     status = get_ooc_status(response)
@@ -108,5 +82,4 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     if add_status_alert:
         response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
-
     return ChatOut(text=response, status=status)
