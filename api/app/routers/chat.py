@@ -71,6 +71,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     status = get_ooc_status(response)
     if not status:
+        print("НЕ ВЕРНУЛ СТАТУС")
         status = chat.status
 
     response = strip_ooc_status(response)
