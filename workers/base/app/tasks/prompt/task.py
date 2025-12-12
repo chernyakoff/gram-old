@@ -12,16 +12,13 @@ from pydantic import BaseModel
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.functions import pick
+from app.common.utils.prompt import get_generator
 from app.config import config
 from app.utils.stream_logger import StreamLogger
 
 
 class GeneratePromptIn(BaseModel):
     project_id: int
-
-
-async def get_generator_prompt() -> str:
-    return await AsyncPath("app/common/utils/prompts/generator.txt").read_text()
 
 
 async def get_brief(project_id: int) -> str:
@@ -58,7 +55,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
 
     brief_json = await get_brief(project.id)
 
-    GENERATOR = await get_generator_prompt()
+    GENERATOR = await get_generator()
 
     message = await client.messages.create(
         max_tokens=16000,

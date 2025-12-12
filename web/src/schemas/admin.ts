@@ -16,6 +16,19 @@ export const impersonateSchema = v.object({
   username: telegram.username(),
 })
 
+const textSchema = v.pipe(
+  v.string('должно быть строкой'),
+  v.nonEmpty('обязательное поле'),
+  v.minLength(32, 'должно содержать хотя бы 32 символа'),
+)
+
+export const appSettingSchema = v.object({
+  path: v.string(),
+  value: textSchema,
+})
+
+export type AppSettingSchema = v.InferOutput<typeof appSettingSchema>
+
 export type LicenseSchema = v.InferOutput<typeof licenseSchema>
 
 export type ImpersonateSchema = v.InferOutput<typeof impersonateSchema>

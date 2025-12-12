@@ -49,6 +49,10 @@ export interface components {
         AccountsCheckIn: {
             accountIds: number[];
         };
+        AppSettingIn: {
+            path: string;
+            value: string;
+        };
         BindProjectIn: {
             projectId: number;
             accountIds: number[];
@@ -305,6 +309,7 @@ export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
 export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
+export type AppSettingIn = components['schemas']['AppSettingIn'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
 export type BriefIn = components['schemas']['BriefIn'];
 export type BriefOut = components['schemas']['BriefOut'];

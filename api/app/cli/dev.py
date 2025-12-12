@@ -1,7 +1,10 @@
+from aiopath import AsyncPath
 from cyclopts import App
 from rich import print
 
+from app.common.models import orm
 from app.common.utils.functions import generate_message, randomize_message
+from app.common.utils.prompt import get_status_addon
 
 app = App(name="dev", help="dev tests etc")
 
@@ -26,3 +29,15 @@ async def _():
     m = generate_message(TEXT)
     m = randomize_message(m)
     print(m)
+
+
+async def get_generator_prompt() -> str:
+    return await AsyncPath("app/common/utils/prompts/generator.txt").read_text()
+
+
+@app.command
+async def update_prompts():
+    system = await get_status_addon()
+    generator = await get_generator_prompt()
+    await orm.AppSettings.upsert("prompt.generator", generator)
+    await orm.AppSettings.upsert("prompt.system", system)

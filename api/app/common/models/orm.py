@@ -380,6 +380,22 @@ class AppSettings(Model):
     name = fields.CharField(max_length=255, null=False)
     value = fields.TextField(null=True)
 
+    @classmethod
+    async def upsert(cls, path: str, value: str) -> Self:
+        section, name = path.split(".")
+        instance, _ = await cls.update_or_create(
+            section=section, name=name, defaults={"value": value}
+        )
+        return instance
+
+    @classmethod
+    async def fetch(cls, path: str) -> str:
+        section, name = path.split(".")
+        instance = await cls.filter(section=section, name=name).first()
+        if instance:
+            return instance.value
+        return ""
+
     class Meta:
         table = "app_settings"
         unique_together = ("section", "name")

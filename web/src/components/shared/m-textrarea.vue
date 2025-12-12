@@ -11,6 +11,9 @@
         :disabled="disabled"
         :autoresize="autoresize"
         v-bind="$attrs"
+        :ui="{
+          base: 'overflow-hidden',
+        }"
       />
       <button
         @click="toggleFullscreen"
@@ -43,7 +46,7 @@
         </div>
 
         <!-- Textarea на весь экран -->
-        <div class="flex-1 p-6">
+        <div class="flex-1 p-6 fullscreen-textarea">
           <UTextarea
             :model-value="modelValue"
             @update:model-value="$emit('update:modelValue', $event)"
@@ -118,3 +121,15 @@ onMounted(() => {
   })
 })
 </script>
+<style scoped>
+.fullscreen-textarea * {
+  border: 1px solid gray;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.fullscreen-textarea textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+</style>

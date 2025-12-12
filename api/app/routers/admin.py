@@ -81,3 +81,30 @@ async def impersonate(
 async def stop_impersonate(response: Response):
     response.delete_cookie("refresh_token", path="/")
     return {"status": "ok"}
+
+
+class AppSettingIn(BaseModel):
+    path: str
+    value: str
+
+
+@router.get(
+    "/app-setting/{path}",
+    dependencies=[Depends(admin_required)],
+)
+async def get_settings(path: str) -> str:
+    if "." not in path:
+        raise HTTPException(status_code=404, detail="Invalid path")
+
+    return await orm.AppSettings.fetch(path)
+
+
+@router.post(
+    "/app-setting",
+    dependencies=[Depends(admin_required)],
+)
+async def upsert_setting(data: AppSettingIn):
+    if "." not in data.path:
+        raise HTTPException(status_code=404, detail="Invalid path")
+
+    await orm.AppSettings.upsert(data.path, data.value)

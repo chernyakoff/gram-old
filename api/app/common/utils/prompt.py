@@ -1,8 +1,7 @@
 import re
 
-from aiopath import AsyncPath
-
 from app.common.models.enums import DialogStatus
+from app.common.models.orm import AppSettings
 
 PROMPT_TITLES = {
     "role": "РОЛЬ",
@@ -28,7 +27,11 @@ def strip_ooc_status(message: str) -> str:
 
 
 async def get_status_addon() -> str:
-    return await AsyncPath("app/common/utils/prompts/status_addon.txt").read_text()
+    return await AppSettings.fetch("prompt.system")
+
+
+async def get_generator() -> str:
+    return await AppSettings.fetch("prompt.generator")
 
 
 async def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):

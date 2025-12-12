@@ -30,7 +30,7 @@ def build_storage_path(input: PresignedIn, user_id: int) -> str:
 @router.post("/presigned", response_model=PresignedOut)
 async def presigned(input: PresignedIn, user=Depends(get_current_user)):
     path = build_storage_path(input, user.id)
-    async with AsyncS3Client(public=True) as s3:
+    async with AsyncS3Client(public=True) as s3:  # type: ignore
         try:
             url = await s3.presigned_put_url(path)
         except Exception as e:

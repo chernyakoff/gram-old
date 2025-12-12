@@ -1,40 +1,38 @@
 <!-- AdminImpersonate.vue -->
 <template>
   <UForm ref="form" :schema="impersonateSchema" :state="state" @submit="onSubmit">
-    <div class="min-w-[800px] max-w-4xl mx-auto">
-      <UFormField label="Username" name="username" class="mb-4">
-        <UInput
-          v-model="state.username"
-          size="md"
-          class="w-full"
-          :disabled="loading"
-          icon="i-lucide-at-sign"
-        />
-      </UFormField>
+    <UFormField label="Username" name="username" class="mb-4">
+      <UInput
+        v-model="state.username"
+        size="md"
+        class="w-full"
+        :disabled="loading"
+        icon="i-lucide-at-sign"
+      />
+    </UFormField>
 
-      <UButton type="submit" :loading="loading" :disabled="loading">Войти как пользователь</UButton>
+    <UButton type="submit" :loading="loading" :disabled="loading">Войти как пользователь</UButton>
 
-      <!-- Успешный результат -->
-      <div v-if="impersonateSuccess" class="mt-6">
-        <UAlert
-          color="success"
-          variant="soft"
-          title="Успешно"
-          description="Вход выполнен. Перенаправление..."
-          icon="i-heroicons-check-circle"
-        />
-      </div>
+    <!-- Успешный результат -->
+    <div v-if="impersonateSuccess" class="mt-6">
+      <UAlert
+        color="success"
+        variant="soft"
+        title="Успешно"
+        description="Вход выполнен. Перенаправление..."
+        icon="i-heroicons-check-circle"
+      />
+    </div>
 
-      <!-- Ошибка -->
-      <div v-if="impersonateError" class="mt-6">
-        <UAlert
-          color="error"
-          variant="solid"
-          title="Ошибка"
-          description="Пользователь не найден"
-          icon="i-heroicons-exclamation-triangle"
-        />
-      </div>
+    <!-- Ошибка -->
+    <div v-if="impersonateError" class="mt-6">
+      <UAlert
+        color="error"
+        variant="solid"
+        title="Ошибка"
+        description="Пользователь не найден"
+        icon="i-heroicons-exclamation-triangle"
+      />
     </div>
   </UForm>
 </template>
