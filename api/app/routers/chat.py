@@ -60,7 +60,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
-
+    print("BEFORE RESPNSE")
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
     """ messages = [
@@ -78,7 +78,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         },
     ) """
 
-    print("BEFORE RESPNSE")
     try:
         raw_response = await client.responses.create(
             model=config.openai.model,
