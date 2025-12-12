@@ -233,8 +233,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         total_activity = new_dialogs_started + dialogs_replied + system_sent
 
-        total_activity = new_dialogs_started + dialogs_replied + system_sent
-
         if total_activity == 0:
             logger.info(
                 "🛑 Нет активности:\n"
