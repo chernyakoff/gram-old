@@ -63,13 +63,17 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
+    try:
+        raw_response = await client.responses.create(
+            model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
+            input=cast(Any, messages),
+        )
 
-    raw_response = await client.responses.create(
-        model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
-        input=cast(Any, messages),
-    )
-
-    response = raw_response.output_text  # completion.choices[0].message.content or ""
+        response = (
+            raw_response.output_text
+        )  # completion.choices[0].message.content or ""
+    except Exception as e:
+        return ChatOut(text=str(e), status=chat.status)
 
     add_status_alert = False
     status = get_ooc_status(response)

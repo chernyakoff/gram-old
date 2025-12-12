@@ -4,7 +4,6 @@ from cyclopts import App
 from openai import AsyncOpenAI
 from rich import print
 
-from app.app import app as api
 from app.config import config
 
 app = App(name="aimodel", help="Generate OpenApi spec")
