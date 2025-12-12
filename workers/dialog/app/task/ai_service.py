@@ -1,6 +1,7 @@
 import asyncio
 import io
 import subprocess
+from typing import Any, cast
 
 from openai import AsyncOpenAI
 
@@ -55,11 +56,18 @@ class AIService:
                 break
 
         try:
-            completion = await self.client.chat.completions.create(
+            """ completion = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,  # type: ignore
             )
-            response = completion.choices[0].message.content
+            response = completion.choices[0].message.content """
+
+            raw_response = await self.client.responses.create(
+                model=self.model,
+                input=cast(Any, messages),
+            )
+
+            response = raw_response.output_text
 
             if not response:
                 return None, None
