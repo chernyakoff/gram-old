@@ -40,11 +40,12 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         id=chat.project_id, user_id=user.id
     ).get_or_none()
 
-    print("HERE")
+    print("HERE1")
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     STATUS_ADDON = await get_status_addon()
+    print("HERE2")
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
@@ -56,8 +57,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
-
                 break
+    print("HERE3")
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
