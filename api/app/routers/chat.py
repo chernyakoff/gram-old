@@ -52,13 +52,17 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         first_message = randomize_message(first_message)
         return ChatOut(text=first_message, status=chat.status)
     else:
+        print("HERE2.1")
         for msg in reversed(chat.messages):
+            print("HERE2.2")
             if msg.role == MessageRole.user:
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
                 break
     print("HERE3")
+
+    return ChatOut(text="here", status=chat.status)
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
