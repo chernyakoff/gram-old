@@ -61,8 +61,22 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
 
-    messages = [{"role": "system", "content": prompt}]
-    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
+    """ messages = [{"role": "system", "content": prompt}]
+    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages]) """
+    messages = [
+        {
+            "role": m.role.value,
+            "content": m.text,  # <= только строка
+        }
+        for m in chat.messages
+    ]
+    messages.insert(
+        0,
+        {
+            "role": "system",
+            "content": prompt,
+        },
+    )
     try:
         raw_response = await client.responses.create(
             model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
