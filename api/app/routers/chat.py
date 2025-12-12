@@ -40,6 +40,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         id=chat.project_id, user_id=user.id
     ).get_or_none()
 
+    print("HERE")
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
