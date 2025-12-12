@@ -72,6 +72,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         response = (
             raw_response.output_text
         )  # completion.choices[0].message.content or ""
+        print(response)
     except Exception as e:
         return ChatOut(text=str(e), status=chat.status)
 
