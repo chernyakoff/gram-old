@@ -61,11 +61,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     orm_prompt = await orm.Prompt.get(project_id=project.id)
     prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
 
-    return ChatOut(text="here", status=DialogStatus.INIT)
-
-    """ messages = [{"role": "system", "content": prompt}]
-    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages]) """
-    messages = [
+    messages = [{"role": "system", "content": prompt}]
+    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
+    """ messages = [
         {
             "role": m.role.value,
             "content": m.text,  # <= только строка
@@ -78,17 +76,19 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             "role": "system",
             "content": prompt,
         },
-    )
+    ) """
+
+    print("BEFORE RESPNSE")
     try:
         raw_response = await client.responses.create(
-            model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
+            model=config.openai.model,
             input=cast(Any, messages),
         )
-
+        print(raw_response)
         response = (
             raw_response.output_text
         )  # completion.choices[0].message.content or ""
-        print(response)
+
     except Exception as e:
         return ChatOut(text=str(e), status=chat.status)
 
