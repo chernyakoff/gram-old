@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.functions import pick
-from app.common.utils.prompt import get_generator
+from app.common.utils.prompt import get_generator, get_status_addon
 from app.config import config
 from app.utils.stream_logger import StreamLogger
 
@@ -54,17 +54,14 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     client = AsyncAnthropic(**params)
 
     brief_json = await get_brief(project.id)
+    generator = await get_generator()
+    status_addon = await get_status_addon()
 
-    GENERATOR = await get_generator()
+    content = f"{generator}\n\n---\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```\n\n---\n\nОбрати внимание, этот раздел мы крепим в каждый промпт, учитывай эти особенности и составляй разделы не повторяясь и не нарушая системных правил\n\n{status_addon}"
 
     message = await client.messages.create(
         max_tokens=16000,
-        messages=[
-            {
-                "role": "user",
-                "content": f"{GENERATOR}\n\n---\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```",
-            }
-        ],
+        messages=[{"role": "user", "content": content}],
         model="claude-sonnet-4-5-20250929",
     )
 
