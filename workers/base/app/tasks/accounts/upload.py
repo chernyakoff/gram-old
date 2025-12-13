@@ -321,7 +321,7 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         await s3.delete(input.s3path)
     await clear_dir(tmp_dir)
 
-    tasks = [
+    """ tasks = [
         duplicate_session(account_id, proxy_pool, logger) for account_id in saved_ids
     ]
-    await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks) """
