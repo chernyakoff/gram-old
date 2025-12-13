@@ -71,9 +71,6 @@ class DialogManager:
         # Счетчик активных диалогов (тех, что ждут ответа)
         self.active_dialogs_count = 0
 
-        # НОВОЕ: Отслеживание диалогов в процессе обработки (генерация AI-ответа)
-        self.processing_replies: set[int] = set()  # dialog_ids в обработке
-
     async def check_and_process_dialogs(self) -> tuple[int, int]:
         """
         Проверяет диалоги в правильном порядке:
@@ -450,20 +447,19 @@ class DialogManager:
         self, dialog: orm.Dialog, recipient: orm.Recipient, events: list
     ):
         """Обрабатывает диалог и отправляет ответ"""
-        # НОВОЕ: Помечаем что этот диалог в обработке
-        self.processing_replies.add(dialog.id)
-
         try:
             # Проверяем лимит сообщений
             messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
 
             if len(messages) >= self.project.dialog_limit:
                 await self._close_dialog(dialog, recipient, "лимит сообщений")
+                await self._check_and_stop_if_needed()
                 return
 
             if await self._check_spam_messages(messages, recipient):
                 await self._close_dialog(dialog, recipient, "спам одинаковых сообщений")
                 self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+                await self._check_and_stop_if_needed()
                 return
 
             # Генерируем ответ от AI
@@ -476,9 +472,6 @@ class DialogManager:
 
         except Exception as e:
             self.logger.error(f"Ошибка в _process_dialog_reply: {e}")
-        finally:
-            # НОВОЕ: Убираем пометку что диалог в обработке
-            self.processing_replies.discard(dialog.id)
 
     async def _wait_for_reply(self, dialog: orm.Dialog, recipient: orm.Recipient):
         """Ждёт ответа в течение WAIT_FOR_REPLY_MINUTES минут"""
@@ -507,6 +500,9 @@ class DialogManager:
                 f"[{recipient.username}] Не получен ответ за {WAIT_FOR_REPLY_MINUTES} минут, останавливаем диалог"
             )
             await self._close_dialog(dialog, recipient, "нет ответа")
+
+            # Проверяем, может пора завершаться
+            await self._check_and_stop_if_needed()
 
         except Exception as e:
             self.logger.error(f"Ошибка в _wait_for_reply: {e}")
@@ -602,6 +598,8 @@ class DialogManager:
         if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
+
+            await self._check_and_stop_if_needed()
             return
 
         # Отправляем read acknowledge
@@ -647,8 +645,12 @@ class DialogManager:
                 f"[{recipient.username}] AI изменил статус: {old_status.value} -> {new_status.value}"
             )
 
+            # Если AI установил COMPLETE - проверяем условия завершения
+            if new_status == enums.DialogStatus.COMPLETE:
+                await self._check_and_stop_if_needed()
+
         elif not new_status:
-            # Эвристика: если 2+ сообщений от пользователя
+            # Эвристика: если 2+ сообщения от пользователя
             recipient_messages = [
                 m for m in messages if m.sender == enums.MessageSender.RECIPIENT
             ]
@@ -690,31 +692,20 @@ class DialogManager:
         # 2. Считаем незавершенные диалоги сессии
         total_session_dialogs = len(self.session_recipients_ids)
 
-        # НОВОЕ: Расширенное логирование состояния
         self.logger.info(
-            f"[Аккаунт {self.account.id}] Состояние: "
+            f"[Аккаунт {self.account.id}] Проверка завершения: "
             f"всего_в_сессии={total_session_dialogs}, "
-            f"ожидают_ответа={self.active_dialogs_count}, "
-            f"в_обработке={len(self.processing_replies)}, "
-            f"waiting_tasks={len(self.waiting_dialogs)}, "
-            f"buffered={len(self.message_buffers)}"
+            f"ожидающих_ответа_в_памяти={self.active_dialogs_count}"
         )
 
-        # 3. КЛЮЧЕВАЯ ПРОВЕРКА: учитываем и active_dialogs_count и processing_replies
-        if (
-            self.active_dialogs_count == 0
-            and len(self.processing_replies) == 0
-            and total_session_dialogs > 0
-        ):
-            self.logger.info(
-                f"🛑 Все диалоги завершены "
-                f"(активных={self.active_dialogs_count}, "
-                f"в_обработке={len(self.processing_replies)})"
-            )
+        # 3. КЛЮЧЕВАЯ ПРОВЕРКА: если нет диалогов ожидающих ответа
+        if self.active_dialogs_count == 0 and total_session_dialogs > 0:
+            self.logger.info(f"🛑 Нет диалогов ожидающих ответа (сессия завершена)")
             self.stop_event.set()
             return
 
         # 4. Проверяем дневной лимит для аккаунта (только для логирования)
+        # НЕ останавливаем сессию, если есть активные диалоги
         counter = await orm.AccountActionCounter.filter(
             account=self.account,
             action=enums.AccountAction.NEW_DIALOG,
@@ -726,8 +717,7 @@ class DialogManager:
         if dialogs_today >= self.account.out_daily_limit:
             self.logger.info(
                 f"ℹ️ Дневной лимит достигнут: {dialogs_today}/{self.account.out_daily_limit}. "
-                f"Активных: {self.active_dialogs_count}, в обработке: {len(self.processing_replies)}. "
-                f"Завершим после их окончания."
+                f"Активных диалогов: {self.active_dialogs_count}. Завершим после их окончания."
             )
 
     async def _check_spam_messages(

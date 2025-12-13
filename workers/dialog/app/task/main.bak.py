@@ -130,7 +130,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
         project = await orm.Project.get(id=account.project_id)  # type: ignore
         prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore
         if not prompt:
-            raise Exception(f"У юзера [{account.user_id}] отсутствует промпт")
+            raise Exception(f"У юзера [{account.user_id}] отсутсвует промпт")
 
         limiter = AccountLimiter(account)
 
@@ -157,6 +157,12 @@ async def dialog_task(input: DialogIn, ctx: Context):
             f"System-сообщений отправлено: {system_sent}, "
             f"Диалогов с ответами: {dialogs_replied}"
         )
+
+        # Проверяем старые диалоги на новые сообщения
+        """ old_dialogs_with_messages = await manager.check_old_dialogs_for_new_messages()
+        logger.info(
+            f"Старых диалогов с новыми сообщениями: {old_dialogs_with_messages}"
+        ) """
 
         # Отправляем первые сообщения новым получателям
         new_dialogs_started = 0
@@ -242,15 +248,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
             f"   - Новых диалогов: {new_dialogs_started}\n"
             f"   - Ответов: {dialogs_replied}\n"
             f"   - System-сообщений: {system_sent}\n"
-            f"   - Активных диалогов ожидающих ответа: {manager.active_dialogs_count}\n"
-            f"   - Диалогов в обработке: {len(manager.processing_replies)}"
+            f"   - Активных диалогов ожидающих ответа: {manager.active_dialogs_count}"
         )
 
         # Основной цикл - держим соединение пока есть активные диалоги
         logger.info(
             f"Account {account.id} вошёл в режим ожидания. "
-            f"Активных диалогов: {manager.active_dialogs_count}, "
-            f"в обработке: {len(manager.processing_replies)}"
+            f"Активных диалогов: {manager.active_dialogs_count}"
         )
 
         # Периодически проверяем состояние
@@ -269,12 +273,11 @@ async def dialog_task(input: DialogIn, ctx: Context):
             if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
                 logger.info(
                     f"Статус: активных_диалогов={manager.active_dialogs_count}, "
-                    f"в_обработке={len(manager.processing_replies)}, "
                     f"ожидающих_обработки={len(manager.waiting_dialogs)}"
                 )
                 last_check = tz.now()
 
-            # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Каждую минуту делаем полную проверку
+            # Каждую минуту делаем полную проверку
             if (tz.now() - last_full_check).total_seconds() >= FULL_CHECK_INTERVAL_SEC:
                 await manager._check_and_stop_if_needed()
                 last_full_check = tz.now()

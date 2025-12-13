@@ -157,21 +157,21 @@ async def reserve_daily_limit(
     # атомарно резервируем
     rows = await conn.execute_query_dict(
         """
-        UPDATE account_action_counters
-        SET count = count + %(reserve)s
-        WHERE account_id = %(account_id)s
-          AND action = %(action)s
-          AND date = %(date)s
-          AND count + %(reserve)s <= %(limit)s
-        RETURNING count;
-        """,
-        {
-            "account_id": account.id,
-            "action": enums.AccountAction.NEW_DIALOG,
-            "date": now.date(),
-            "reserve": reserve,
-            "limit": account.out_daily_limit,
-        },
+    UPDATE account_action_counters
+    SET count = count + $1
+    WHERE account_id = $2
+      AND action = $3
+      AND date = $4
+      AND count + $1 <= $5
+    RETURNING count;
+    """,
+        [
+            reserve,
+            account.id,
+            enums.AccountAction.NEW_DIALOG,
+            now.date(),
+            account.out_daily_limit,
+        ],
     )
 
     return reserve if rows else 0
