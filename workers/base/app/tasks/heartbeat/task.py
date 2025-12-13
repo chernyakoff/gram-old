@@ -320,26 +320,24 @@ async def task(input: EmptyModel, ctx: Context):
                 continue
 
             for acc in free_accounts:
+                # Получаем доступное количество новых диалогов
                 dialogs_left = await check_daily_limit(acc, now, conn)
-                if dialogs_left <= 0:
-                    continue
 
+                # Получаем recipients для новых диалогов (может быть пусто)
                 recipients = await get_recipients_for_mailings(
                     active_mailings, dialogs_left, now, conn
                 )
 
-                if not recipients:
-                    continue
+                # Резервируем лимит новых диалогов атомарно
+                reserved = 0
+                if recipients:
+                    reserved = await reserve_daily_limit(
+                        acc, len(recipients), now, conn
+                    )
+                    if reserved < len(recipients):
+                        recipients = recipients[:reserved]
 
-                reserved = await reserve_daily_limit(acc, len(recipients), now, conn)
-
-                if reserved <= 0:
-                    continue
-
-                # если вдруг зарезервировали меньше (редкий край)
-                if reserved < len(recipients):
-                    recipients = recipients[:reserved]
-
+                # Статус DRAFT → RUNNING, если есть recipients
                 for mailing in active_mailings:
                     if mailing.status == enums.MailingStatus.DRAFT:
                         if any(r.mailing_id == mailing.id for r in recipients):
@@ -352,11 +350,13 @@ async def task(input: EmptyModel, ctx: Context):
                                 )
                             )
 
+                # Лочим аккаунт и recipients
                 if not await lock_account_and_recipients(acc, recipients, now, conn):
                     continue
 
-                recipients_id = [r.id for r in recipients]
+                recipients_id = [r.id for r in recipients]  # может быть пусто
 
+                # Всегда запускаем диалог-таск
                 await dialog_task.aio_run_no_wait(
                     input=DialogIn(
                         account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)
@@ -371,6 +371,7 @@ async def task(input: EmptyModel, ctx: Context):
 
                 planned_tasks += len(recipients_id)
 
+    # Отправка уведомлений о завершении рассылок
     for info in notify_queue:
         asyncio.create_task(
             notify_mailing_end(info["user_id"], info["name"], info["project_name"])

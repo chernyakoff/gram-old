@@ -17,15 +17,23 @@ PROMPT_TITLES = {
 
 def get_ooc_status(message: str) -> DialogStatus | None:
     match = re.search(
-        r"STATUS:\s*(init|engage|offer|closing|negative|operator)", message
+        r"STATUS:\s*(init|engage|offer|closing|negative|operator)",
+        message,
+        re.IGNORECASE,  # игнорируем регистр
     )
     if match:
-        status = match.group(1)
+        status = match.group(1).lower()  # приводим к нижнему регистру
         return DialogStatus(status)
 
 
 def strip_ooc_status(message: str) -> str:
-    return re.sub(r"STATUS:.*", "", message).strip()
+    # удаляем только STATUS: <значение>, оставляя остальной текст
+    return re.sub(
+        r"STATUS:\s*(init|engage|offer|closing|negative|operator)",
+        "",
+        message,
+        flags=re.IGNORECASE,
+    ).strip()
 
 
 async def get_status_addon() -> str:

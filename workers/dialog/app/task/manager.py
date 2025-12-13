@@ -10,7 +10,7 @@ from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
-from app.common.utils.notify import notify_complete_dialog
+from app.common.utils.notify import BotNotify, notify_complete_dialog
 from app.utils.logger import Logger
 
 from .ai_service import AIService
@@ -604,6 +604,15 @@ class DialogManager:
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
             return
 
+        if dialog.status == enums.DialogStatus.NEGATIVE:
+            return
+
+        if dialog.status == enums.DialogStatus.OPERATOR:
+            await BotNotify.warning(
+                self.account.user_id, f"@{recipient.username} требует оператора"
+            )
+            return
+
         # Отправляем read acknowledge
         await asyncio.sleep(random.randint(3, 10))
         await self.client.send_read_acknowledge(event.chat_id)
@@ -639,7 +648,11 @@ class DialogManager:
             dialog.status = new_status
 
             # Только AI может установить статус COMPLETE
-            if new_status == enums.DialogStatus.COMPLETE:
+            if new_status in [
+                enums.DialogStatus.COMPLETE,
+                enums.DialogStatus.NEGATIVE,
+                enums.DialogStatus.OPERATOR,
+            ]:
                 dialog.finished_at = tz.now()
 
             await dialog.save()
