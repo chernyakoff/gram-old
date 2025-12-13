@@ -102,6 +102,7 @@ watch(
   [open, () => id],
   async ([isOpen, id]) => {
     if (isOpen && id) {
+      chat.resetChat()
       await chat.startWithPrompt(id)
       await nextTick()
       const root = promptRef.value?.$el as HTMLElement | undefined
