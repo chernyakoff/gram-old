@@ -132,6 +132,51 @@ async def check_daily_limit(account: orm.Account, now, conn) -> int:
     return max(0, account.out_daily_limit - (counter.count if counter else 0))
 
 
+async def reserve_daily_limit(
+    account: orm.Account,
+    reserve: int,
+    now,
+    conn,
+) -> int:
+    """
+    Пытается атомарно зарезервировать reserve диалогов.
+    Возвращает реально зарезервированное количество (0..reserve).
+    """
+    if reserve <= 0:
+        return 0
+
+    # создаём counter, если его ещё нет
+    await orm.AccountActionCounter.get_or_create(
+        account=account,
+        action=enums.AccountAction.NEW_DIALOG,
+        date=now.date(),
+        defaults={"count": 0},
+        using_db=conn,
+    )
+
+    # атомарно резервируем
+    rows = await conn.execute_query_dict(
+        """
+        UPDATE account_action_counters
+        SET count = count + %(reserve)s
+        WHERE account_id = %(account_id)s
+          AND action = %(action)s
+          AND date = %(date)s
+          AND count + %(reserve)s <= %(limit)s
+        RETURNING count;
+        """,
+        {
+            "account_id": account.id,
+            "action": enums.AccountAction.NEW_DIALOG,
+            "date": now.date(),
+            "reserve": reserve,
+            "limit": account.out_daily_limit,
+        },
+    )
+
+    return reserve if rows else 0
+
+
 async def get_recipients_for_mailings(mailings, max_count, now, conn):
     recipients = []
 
@@ -276,10 +321,24 @@ async def task(input: EmptyModel, ctx: Context):
 
             for acc in free_accounts:
                 dialogs_left = await check_daily_limit(acc, now, conn)
+                if dialogs_left <= 0:
+                    continue
 
                 recipients = await get_recipients_for_mailings(
                     active_mailings, dialogs_left, now, conn
                 )
+
+                if not recipients:
+                    continue
+
+                reserved = await reserve_daily_limit(acc, len(recipients), now, conn)
+
+                if reserved <= 0:
+                    continue
+
+                # если вдруг зарезервировали меньше (редкий край)
+                if reserved < len(recipients):
+                    recipients = recipients[:reserved]
 
                 for mailing in active_mailings:
                     if mailing.status == enums.MailingStatus.DRAFT:
