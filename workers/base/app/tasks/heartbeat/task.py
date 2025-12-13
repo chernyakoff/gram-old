@@ -157,7 +157,7 @@ async def reserve_daily_limit(
     # атомарно резервируем
     rows = await conn.execute_query_dict(
         """
-    UPDATE account_action_counters
+    UPDATE account_action_counter
     SET count = count + $1
     WHERE account_id = $2
       AND action = $3
