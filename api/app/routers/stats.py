@@ -23,6 +23,7 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
     complete = [0] * days_count
     negative = [0] * days_count
     operator = [0] * days_count
+    manual = [0] * days_count
 
     status_map = {
         DialogStatus.INIT.value: init,
@@ -32,6 +33,7 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
         DialogStatus.COMPLETE.value: complete,
         DialogStatus.NEGATIVE.value: negative,
         DialogStatus.OPERATOR.value: operator,
+        DialogStatus.MANUAL.value: manual,
     }
 
     for r in rows:
@@ -51,4 +53,5 @@ async def get_stats(payload: StatsIn, user=Depends(get_current_user)):
         complete=complete,
         negative=negative,
         operator=operator,
+        manual=manual,
     )

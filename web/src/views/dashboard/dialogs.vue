@@ -78,5 +78,6 @@ const statuses = [
   { label: 'заявка', value: 'complete' },
   { label: 'негатив', value: 'negative' },
   { label: 'оператор', value: 'operator' },
+  { label: 'ручной', value: 'manual' },
 ]
 </script>

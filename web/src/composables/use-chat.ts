@@ -95,11 +95,11 @@ export function useChat() {
     }
   }
 
-  function resetChat() {
+  function reset() {
     messages.value = []
     status.value = 'ready'
     error.value = null
   }
 
-  return { messages, status, error, dialogStatus, sendMessage, startWithPrompt, resetChat }
+  return { messages, status, error, dialogStatus, sendMessage, startWithPrompt, reset }
 }

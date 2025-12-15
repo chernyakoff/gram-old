@@ -98,6 +98,7 @@ export interface components {
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
             text: string;
+            ack: boolean;
             createdAt: string;
         };
         DialogOut: {
@@ -106,7 +107,7 @@ export interface components {
             recipient: string;
             startedAt: string;
         };
-        DialogStatus: "init" | "engage" | "offer" | "closing" | "complete" | "negative" | "operator";
+        DialogStatus: "init" | "engage" | "offer" | "closing" | "complete" | "negative" | "operator" | "manual";
         DialogSystemMessageIn: {
             dialogId: number;
             message: string;
@@ -258,6 +259,7 @@ export interface components {
             complete: number[];
             negative: number[];
             operator: number[];
+            manual: number[];
         };
         SynonimizeIn: {
             text: string;

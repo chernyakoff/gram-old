@@ -14,7 +14,8 @@
               <UIcon name="i-lucide-info" class="size-4" />
               <p class="text-sm whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
             </div>
-            <small class="text-gray-400 text-xs block text-center mt-1">
+            <small class="absolute bottom-1 right-2 flex items-center gap-1 text-gray-500 text-xs">
+              <!-- Время -->
               {{
                 (message as UIMessageWithTime).createdAt
                   ? new Date((message as UIMessageWithTime).createdAt!).toLocaleTimeString([], {
@@ -23,6 +24,21 @@
                     })
                   : ''
               }}
+
+              <!-- Галочки: только для account / system -->
+              <template
+                v-if="
+                  (message as UIMessageWithTime).sender !== 'recipient' &&
+                  (message as UIMessageWithTime).ack !== undefined
+                "
+              >
+                <UIcon
+                  v-if="(message as UIMessageWithTime).ack"
+                  name="i-lucide-check-check"
+                  class="size-4 text-blue-500"
+                />
+                <UIcon v-else name="i-lucide-check" class="size-4 text-gray-400" />
+              </template>
             </small>
           </div>
         </div>
@@ -69,6 +85,8 @@ import { useDialogs } from '@/composables/use-dialogs'
 
 interface UIMessageWithTime extends UIMessage {
   createdAt?: string
+  ack?: boolean
+  sender?: 'system' | 'recipient' | 'account'
 }
 
 const props = defineProps<{
@@ -86,7 +104,6 @@ const input = ref('')
 function toUIMessage(msg: DialogMessageOut): UIMessageWithTime {
   const part: TextUIPart = { type: 'text', text: msg.text, state: 'done' }
 
-  // Маппинг ролей
   let role: 'user' | 'assistant' | 'system'
   switch (msg.sender) {
     case 'account':
@@ -100,11 +117,14 @@ function toUIMessage(msg: DialogMessageOut): UIMessageWithTime {
       role = 'system'
       break
   }
+
   return {
     id: crypto.randomUUID(),
     role,
     parts: [part],
     createdAt: msg.createdAt,
+    ack: msg.ack,
+    sender: msg.sender,
   }
 }
 

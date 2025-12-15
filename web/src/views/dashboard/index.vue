@@ -145,6 +145,7 @@ const statsData = ref<StatsOut>({
   complete: [],
   negative: [],
   operator: [],
+  manual: [],
 })
 
 const range = shallowRef({

@@ -23,10 +23,11 @@ async def get_dialogs(user=Depends(get_current_user)):
 async def get_dialiog(id: int, user=Depends(get_current_user)):
     messages = await orm.Message.filter(dialog_id=id).order_by("id").all()
     return [
-        DialogMessageOut(sender=m.sender, text=m.text, created_at=m.created_at)
+        DialogMessageOut(
+            sender=m.sender, text=m.text, created_at=m.created_at, ack=m.ack
+        )
         for m in messages
     ]
-
 
 
 @router.post("/add", response_model=list[DialogMessageOut])
@@ -37,10 +38,12 @@ async def system(data: DialogSystemMessageIn, user=Depends(get_current_user)):
     await orm.Message.create(
         dialog_id=data.dialog_id, sender=enums.MessageSender.SYSTEM, text=data.message
     )
-    
+
     # Исправлено: было `id`, должно быть `data.dialog_id`
     messages = await orm.Message.filter(dialog_id=data.dialog_id).order_by("id").all()
     return [
-        DialogMessageOut(sender=m.sender, text=m.text, created_at=m.created_at)
+        DialogMessageOut(
+            sender=m.sender, text=m.text, created_at=m.created_at, ack=m.ack
+        )
         for m in messages
     ]

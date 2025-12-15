@@ -71,6 +71,7 @@ const statusColorMap = {
   complete: '#ff5733', // красно-оранжевый — завершено, финальный статус
   negative: '#d32f2f', // ярко-красный — юзер недоволен общением
   operator: '#6a1b9a', // фиолетовый — юзер хочет живого человека, вмешательство оператора
+  manual: '#455a64', // графитово-синий — диалог ведёт менеджер вручную
 } as const
 
 const open = ref(false)
@@ -102,7 +103,7 @@ watch(
   [open, () => id],
   async ([isOpen, id]) => {
     if (isOpen && id) {
-      chat.resetChat()
+      chat.reset()
       await chat.startWithPrompt(id)
       await nextTick()
       const root = promptRef.value?.$el as HTMLElement | undefined

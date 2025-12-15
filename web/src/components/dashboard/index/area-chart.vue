@@ -28,6 +28,7 @@ const labelsMap = {
   complete: 'заявка',
   negative: 'негатив',
   operator: 'оператор',
+  manual: 'ручной',
 } as const
 
 // --- series для area chart ---
@@ -45,7 +46,16 @@ const series = computed(() => {
   }))
 })
 
-const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37', '#ff5733']
+const colors = [
+  '#006a6c',
+  '#8e90ff',
+  '#ffab00',
+  '#71dd37',
+  '#ff5733',
+  '#d32f2f',
+  '#6a1b9a',
+  '#455a64',
+]
 
 const options = computed<ApexOptions>(() => ({
   chart: {

@@ -52,6 +52,7 @@ class DialogStatus(StrEnum):
     COMPLETE = "complete"  # попрощались
     NEGATIVE = "negative"  # послали нахер
     OPERATOR = "operator"  # робот раскрыт -- требуется кожаный мешок
+    MANUAL = "manual"  # диалог перезваче менеджером
 
 
 class MessageSender(StrEnum):

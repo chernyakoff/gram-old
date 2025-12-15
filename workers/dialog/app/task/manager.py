@@ -6,6 +6,8 @@ from functools import partial
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.events import NewMessage
+from telethon.tl.functions.messages import GetPeerDialogsRequest
+from telethon.tl.types import InputDialogPeer
 from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 
@@ -73,6 +75,7 @@ class DialogManager:
 
         # НОВОЕ: Отслеживание диалогов в процессе обработки (генерация AI-ответа)
         self.processing_replies: set[int] = set()  # dialog_ids в обработке
+        self.monitor_task: asyncio.Task | None = None
 
     async def check_and_process_dialogs(self) -> tuple[int, int]:
         """
@@ -163,6 +166,15 @@ class DialogManager:
         if not system_messages:
             return False
 
+        # НОВОЕ: Если есть system-сообщения, переводим диалог в статус MANUAL
+        if dialog.status != enums.DialogStatus.MANUAL:
+            self.logger.info(
+                f"[{dialog.recipient.username}] Обнаружены SYSTEM сообщения, "
+                f"переключение в режим MANUAL (было: {dialog.status.value})"
+            )
+            dialog.status = enums.DialogStatus.MANUAL
+            await dialog.save(update_fields=["status"])
+
         # Отправляем все накопленные system-сообщения
         for sys_msg in system_messages:
             try:
@@ -175,7 +187,7 @@ class DialogManager:
                     await sys_msg.save(update_fields=["tg_message_id"])
 
                     self.logger.info(
-                        f"[{dialog.recipient.username}] Отправлено system: {sys_msg.text[:50]}"
+                        f"[{dialog.recipient.username}] Отправлено MANUAL system: {sys_msg.text[:50]}"
                     )
 
                     await asyncio.sleep(random.randint(2, 5))
@@ -252,6 +264,102 @@ class DialogManager:
             partial(self._on_new_message),
             NewMessage(),
         )
+        self.monitor_task = asyncio.create_task(self._monitor_read_receipts())
+
+    async def _monitor_read_receipts(self):
+        """Периодически проверяет статус прочитанных сообщений"""
+        try:
+            while not self.stop_event.is_set():
+                await asyncio.sleep(30)  # Проверяем каждые 30 секунд
+
+                try:
+                    # Получаем все активные диалоги
+                    dialogs = await orm.Dialog.filter(
+                        account_id=self.account.id, finished_at__isnull=True
+                    ).prefetch_related("recipient")
+
+                    for dialog in dialogs:
+                        try:
+                            await self._check_read_status_for_dialog(dialog)
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Ошибка при проверке read status для диалога {dialog.id}: {e}"
+                            )
+                except Exception as e:
+                    self.logger.error(f"Ошибка в цикле мониторинга: {e}")
+
+        except asyncio.CancelledError:
+            self.logger.info("Мониторинг read receipts остановлен")
+        except Exception as e:
+            self.logger.error(f"Критическая ошибка в _monitor_read_receipts: {e}")
+
+    async def _check_read_status_for_dialog(self, dialog: orm.Dialog):
+        """Проверяет и обновляет статус прочтения сообщений в диалоге"""
+
+        # Получаем peer для диалога
+        peer = self.telegram_service._get_peer_from_dialog(dialog)
+        if not peer:
+            return
+
+        # Получаем непрочитанные сообщения от аккаунта (наши сообщения)
+        unread_messages = await orm.Message.filter(
+            dialog=dialog,
+            sender=enums.MessageSender.ACCOUNT,
+            ack=False,
+            tg_message_id__isnull=False,
+        ).order_by("created_at")
+
+        if not unread_messages:
+            return
+
+        try:
+            # Получаем информацию о диалоге из Telegram
+            result = await self.client(
+                GetPeerDialogsRequest(peers=[InputDialogPeer(peer=peer)])
+            )
+
+            if not result.dialogs:  # type: ignore
+                return
+
+            dialog_info = result.dialogs[0]  # type: ignore
+            read_inbox_max_id = dialog_info.read_inbox_max_id
+
+            # Обновляем статус прочитанных сообщений
+            updated_count = 0
+            for msg in unread_messages:
+                if msg.tg_message_id and msg.tg_message_id <= read_inbox_max_id:
+                    msg.ack = True
+                    await msg.save(update_fields=["ack"])
+                    updated_count += 1
+
+            if updated_count > 0:
+                self.logger.info(
+                    f"[{dialog.recipient.username}] Помечено как прочитанных: {updated_count} сообщений"
+                )
+
+        except Exception as e:
+            # Fallback: используем альтернативный метод
+            try:
+                # Получаем последнее входящее сообщение и проверяем его ID
+                async for msg in self.client.iter_messages(peer, limit=10):
+                    if not msg.out:  # Входящее сообщение
+                        # Все наши сообщения с ID <= ID последнего входящего считаем прочитанными
+                        updated_count = 0
+                        for our_msg in unread_messages:
+                            if our_msg.tg_message_id and our_msg.tg_message_id < msg.id:
+                                our_msg.ack = True
+                                await our_msg.save(update_fields=["ack"])
+                                updated_count += 1
+
+                        if updated_count > 0:
+                            self.logger.warning(
+                                f"[{dialog.recipient.username}] Обновлено через fallback: {updated_count}"
+                            )
+                        break
+            except Exception as fallback_error:
+                self.logger.warning(
+                    f"Не удалось проверить read status для {dialog.id}: {e}, fallback: {fallback_error}"
+                )
 
     async def check_old_dialogs_for_new_messages(self) -> int:
         """
@@ -466,13 +574,28 @@ class DialogManager:
                 self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
                 return
 
-            # Генерируем ответ от AI
-            await self._generate_and_send_response(
+            # НОВОЕ: Если диалог в статусе MANUAL - не генерируем AI ответ
+            if dialog.status == enums.DialogStatus.MANUAL:
+                self.logger.info(
+                    f"[{recipient.username}] Диалог в режиме MANUAL, "
+                    f"ожидаем SYSTEM сообщения от оператора"
+                )
+                # Запускаем ожидание следующего ответа
+                await self._wait_for_reply(dialog, recipient)
+                return
+
+            # ИЗМЕНЕНО: Получаем булевый результат - продолжать ли диалог
+            should_continue = await self._generate_and_send_response(
                 events[0], dialog, recipient, messages
             )
 
-            # Запускаем ожидание ответа (5 минут)
-            await self._wait_for_reply(dialog, recipient)
+            # НОВОЕ: Только если диалог не завершён - запускаем ожидание
+            if should_continue:
+                await self._wait_for_reply(dialog, recipient)
+            else:
+                self.logger.info(
+                    f"[{recipient.username}] Диалог завершён, пропускаем ожидание ответа"
+                )
 
         except Exception as e:
             self.logger.error(f"Ошибка в _process_dialog_reply: {e}")
@@ -517,8 +640,14 @@ class DialogManager:
         dialog: orm.Dialog,
         recipient: orm.Recipient,
         messages: list[orm.Message],
-    ):
-        """Генерирует ответ от AI и отправляет его"""
+    ) -> bool:
+        """
+        Генерирует ответ от AI и отправляет его.
+
+        Returns:
+            bool: True если нужно продолжить ожидание ответа,
+                False если диалог завершён
+        """
 
         fresh_messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
 
@@ -533,8 +662,17 @@ class DialogManager:
         # Если есть - отправляем ДО генерации AI-ответа
         if unsent_system:
             self.logger.info(
-                f"[{recipient.username}] Обнаружены новые system-сообщения, отправляем их перед AI-ответом"
+                f"[{recipient.username}] Обнаружены новые system-сообщения, переход в MANUAL режим"
             )
+
+            # НОВОЕ: Переводим в MANUAL режим
+            if dialog.status != enums.DialogStatus.MANUAL:
+                self.logger.info(
+                    f"[{recipient.username}] Переключение в режим MANUAL из-за system-сообщений"
+                )
+                dialog.status = enums.DialogStatus.MANUAL
+                await dialog.save(update_fields=["status"])
+
             for sys_msg in unsent_system:
                 msg = await self.telegram_service.send_message(
                     recipient, sys_msg.text, dialog
@@ -544,9 +682,22 @@ class DialogManager:
                     await sys_msg.save(update_fields=["tg_message_id"])
                     await asyncio.sleep(random.randint(2, 5))
 
-            # Перезагружаем messages чтобы AI видел актуальный порядок
-            messages = fresh_messages
+            # НОВОЕ: Если режим MANUAL - не генерируем AI ответ, возвращаемся
+            self.logger.info(
+                f"[{recipient.username}] Режим MANUAL активен, пропускаем AI генерацию"
+            )
+            # ВАЖНО: Возвращаем True, т.к. диалог продолжается в MANUAL режиме
+            return True
 
+        # НОВОЕ: Дополнительная проверка статуса перед генерацией
+        if dialog.status == enums.DialogStatus.MANUAL:
+            self.logger.info(
+                f"[{recipient.username}] Диалог в MANUAL режиме, AI ответ не генерируется"
+            )
+            # ВАЖНО: Возвращаем True, т.к. диалог продолжается в MANUAL режиме
+            return True
+
+        # Далее идет существующий код генерации AI ответа
         MAX_RETRIES = 3
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -565,11 +716,12 @@ class DialogManager:
                     if attempt == MAX_RETRIES:
                         # Останавливаем диалог при критической ошибке AI
                         await self._close_dialog(dialog, recipient, "AI error")
-                        # Уменьшаем счётчик
+                        # ВАЖНО: Уменьшаем счётчик
                         self.active_dialogs_count = max(
                             0, self.active_dialogs_count - 1
                         )
-                        return
+                        # ВАЖНО: Возвращаем False = диалог завершён
+                        return False
                     else:
                         await asyncio.sleep(2)
                         continue
@@ -583,14 +735,16 @@ class DialogManager:
                 if attempt == MAX_RETRIES:
                     # Останавливаем диалог при критической ошибке AI
                     await self._close_dialog(dialog, recipient, "AI timeout")
-                    # Уменьшаем счётчик
+                    # ВАЖНО: Уменьшаем счётчик
                     self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
-                    return
+                    # ВАЖНО: Возвращаем False = диалог завершён
+                    return False
                 else:
                     await asyncio.sleep(2)
 
         if not ai_response:
-            return
+            # ВАЖНО: Возвращаем False = диалог завершён
+            return False
 
         if new_status == enums.DialogStatus.CLOSING:
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
@@ -602,16 +756,35 @@ class DialogManager:
         if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
-            return
+            # ВАЖНО: Уменьшаем счётчик активных диалогов
+            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+            # ВАЖНО: Возвращаем False = НЕ продолжаем ожидание
+            return False
 
+        # НОВОЕ: Проверяем терминальный статус NEGATIVE
         if dialog.status == enums.DialogStatus.NEGATIVE:
-            return
-
-        if dialog.status == enums.DialogStatus.OPERATOR:
-            await BotNotify.warning(
-                self.account.user_id, f"@{recipient.username} требует оператора"
+            self.logger.info(
+                f"[{recipient.username}] AI установил статус NEGATIVE - диалог завершён"
             )
-            return
+            # ВАЖНО: Уменьшаем счётчик активных диалогов
+            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+            # ВАЖНО: Возвращаем False = НЕ продолжаем ожидание
+            return False
+
+        # НОВОЕ: Проверяем терминальный статус OPERATOR
+        if dialog.status == enums.DialogStatus.OPERATOR:
+            self.logger.info(
+                f"[{recipient.username}] AI установил статус OPERATOR - требуется оператор"
+            )
+            asyncio.create_task(
+                BotNotify.warning(
+                    self.account.user_id, f"@{recipient.username} требует оператора"
+                )
+            )
+            # ВАЖНО: Уменьшаем счётчик активных диалогов
+            self.active_dialogs_count = max(0, self.active_dialogs_count - 1)
+            # ВАЖНО: Возвращаем False = НЕ продолжаем ожидание
+            return False
 
         # Отправляем read acknowledge
         await asyncio.sleep(random.randint(3, 10))
@@ -630,6 +803,9 @@ class DialogManager:
                 text=ai_response,
             )
             self.logger.info(f"[{recipient.username}] Отправлен ответ")
+
+        # ВАЖНО: Возвращаем True = продолжаем ожидание ответа
+        return True
 
     async def _update_dialog_status(
         self,

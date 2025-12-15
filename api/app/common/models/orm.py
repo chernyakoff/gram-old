@@ -369,6 +369,7 @@ class Message(Model):
     tg_message_id = fields.BigIntField(null=True)  # ID сообщения в Telegram
     text = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
+    ack = fields.BooleanField(default=False)
 
     class Meta:
         table = "messages"

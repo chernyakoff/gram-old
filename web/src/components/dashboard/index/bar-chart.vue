@@ -23,11 +23,29 @@ const { statsData } = defineProps({
   },
 })
 
-const categories = ['начат', 'интерес', 'диалог', 'закрытие', 'заявка', 'негатив', 'оператор']
+const categories = [
+  'начат',
+  'интерес',
+  'диалог',
+  'закрытие',
+  'заявка',
+  'негатив',
+  'оператор',
+  'ручной',
+]
 
-const colors = ['#006a6c', '#8e90ff', '#ffab00', '#71dd37', '#ff5733', '#d32f2f', '#6a1b9a']
+const colors = [
+  '#006a6c',
+  '#8e90ff',
+  '#ffab00',
+  '#71dd37',
+  '#ff5733',
+  '#d32f2f',
+  '#6a1b9a',
+  '#455a64',
+]
 
-const shortLabels = ['7', '6', '5', '4', '3', '2', '1']
+const shortLabels = ['8', '7', '6', '5', '4', '3', '2', '1']
 
 // Суммируем каждую категорию
 const summedData = computed(() => {
@@ -40,6 +58,7 @@ const summedData = computed(() => {
     statsData.complete.reduce((sum, val) => sum + val, 0),
     statsData.negative.reduce((sum, val) => sum + val, 0),
     statsData.operator.reduce((sum, val) => sum + val, 0),
+    statsData.manual.reduce((sum, val) => sum + val, 0),
   ]
 })
 

@@ -318,6 +318,16 @@ async def dialog_task(input: DialogIn, ctx: Context):
         raise
 
     finally:
+        if manager and manager.monitor_task:
+            logger.info("Остановка задачи мониторинга read receipts")
+            manager.monitor_task.cancel()
+            try:
+                await manager.monitor_task
+            except asyncio.CancelledError:
+                logger.info("Задача мониторинга read receipts успешно остановлена")
+            except Exception as e:
+                logger.error(f"Ошибка при остановке monitor_task: {e}")
+
         # КРИТИЧЕСКИ ВАЖНО: всегда отключаем клиента
         if client is not None:
             disconnect_attempts = 0

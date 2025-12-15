@@ -99,9 +99,9 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    await orm.Account.filter(id__in=data.account_ids, user_id=user.id).update(
-        project_id=data.project_id
-    )
+    await orm.Account.filter(
+        id__in=data.account_ids, user_id=user.id, premium=True
+    ).update(project_id=data.project_id)
 
 
 @router.post("/{id}/premium", response_model=models.BuyPremiumOut)
