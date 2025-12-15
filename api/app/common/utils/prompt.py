@@ -14,22 +14,19 @@ PROMPT_TITLES = {
     "rules": "ГЛОБАЛЬНЫЕ ПРАВИЛА",
 }
 
-
 def get_ooc_status(message: str) -> DialogStatus | None:
     match = re.search(
-        r"STATUS:\s*(init|engage|offer|closing|negative|operator)",
+        r"STATUS:\s*\[?(init|engage|offer|closing|negative|operator)\]?",
         message,
-        re.IGNORECASE,  # игнорируем регистр
+        re.IGNORECASE,
     )
     if match:
-        status = match.group(1).lower()  # приводим к нижнему регистру
-        return DialogStatus(status)
+        return DialogStatus(match.group(1).lower())
 
 
 def strip_ooc_status(message: str) -> str:
-    # удаляем только STATUS: <значение>, оставляя остальной текст
     return re.sub(
-        r"STATUS:\s*(init|engage|offer|closing|negative|operator)",
+        r"STATUS:\s*\[?(init|engage|offer|closing|negative|operator)\]?",
         "",
         message,
         flags=re.IGNORECASE,
