@@ -15,6 +15,7 @@
 import type { StatsOut } from '@/types/openapi'
 import type { ApexOptions } from 'apexcharts'
 import { defineProps, computed, type PropType } from 'vue'
+import { categories, colors, shortLabels } from '@/utils/status'
 
 const { statsData } = defineProps({
   statsData: {
@@ -22,30 +23,6 @@ const { statsData } = defineProps({
     required: true,
   },
 })
-
-const categories = [
-  'начат',
-  'интерес',
-  'диалог',
-  'закрытие',
-  'заявка',
-  'негатив',
-  'оператор',
-  'ручной',
-]
-
-const colors = [
-  '#006a6c',
-  '#8e90ff',
-  '#ffab00',
-  '#71dd37',
-  '#ff5733',
-  '#d32f2f',
-  '#6a1b9a',
-  '#455a64',
-]
-
-const shortLabels = ['8', '7', '6', '5', '4', '3', '2', '1']
 
 // Суммируем каждую категорию
 const summedData = computed(() => {

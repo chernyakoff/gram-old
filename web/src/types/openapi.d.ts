@@ -105,6 +105,8 @@ export interface components {
             id: number;
             status: components["schemas"]["DialogStatus"];
             recipient: string;
+            account: string;
+            project: string;
             startedAt: string;
         };
         DialogStatus: "init" | "engage" | "offer" | "closing" | "complete" | "negative" | "operator" | "manual";

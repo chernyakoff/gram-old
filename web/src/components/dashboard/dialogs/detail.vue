@@ -7,31 +7,20 @@
       :assistant="{ side: 'left', variant: 'soft', icon: 'i-lucide-bot' }"
     >
       <template #content="{ message }">
-        <!-- Системное сообщение - центрированное -->
+        <!-- SYSTEM -->
         <div v-if="message.role === 'system'" class="flex justify-center w-full">
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 max-w-md">
+          <div class="relative bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 max-w-md">
             <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <UIcon name="i-lucide-info" class="size-4" />
-              <p class="text-sm whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
+              <p class="text-sm whitespace-pre-line">
+                {{ getTextFromMessage(message) }}
+              </p>
             </div>
-            <small class="absolute bottom-1 right-2 flex items-center gap-1 text-gray-500 text-xs">
-              <!-- Время -->
-              {{
-                (message as UIMessageWithTime).createdAt
-                  ? new Date((message as UIMessageWithTime).createdAt!).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  : ''
-              }}
 
-              <!-- Галочки: только для account / system -->
-              <template
-                v-if="
-                  (message as UIMessageWithTime).sender !== 'recipient' &&
-                  (message as UIMessageWithTime).ack !== undefined
-                "
-              >
+            <small class="absolute bottom-1 right-2 flex items-center gap-1 text-gray-500 text-xs">
+              {{ formatTime(message) }}
+
+              <template v-if="shouldShowChecks(message)">
                 <UIcon
                   v-if="(message as UIMessageWithTime).ack"
                   name="i-lucide-check-check"
@@ -43,23 +32,30 @@
           </div>
         </div>
 
-        <!-- Обычные сообщения пользователя и ассистента -->
-        <div v-else class="min-w-20 p-2">
-          <p class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
+        <!-- USER + ASSISTANT -->
+        <div v-else class="relative min-w-20 p-2">
+          <p class="mb-4 whitespace-pre-line">
+            {{ getTextFromMessage(message) }}
+          </p>
 
-          <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
-            {{
-              (message as UIMessageWithTime).createdAt
-                ? new Date((message as UIMessageWithTime).createdAt!).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : ''
-            }}
+          <small
+            class="absolute bottom-1 right-2 flex items-center gap-1 text-gray-500 text-xs text-nowrap"
+          >
+            {{ formatTime(message) }}
+
+            <template v-if="shouldShowChecks(message)">
+              <UIcon
+                v-if="(message as UIMessageWithTime).ack"
+                name="i-lucide-check-check"
+                class="size-4 text-blue-500"
+              />
+              <UIcon v-else name="i-lucide-check" class="size-4 text-gray-400" />
+            </template>
           </small>
         </div>
       </template>
     </UChatMessages>
+
     <template #prompt>
       <UChatPrompt
         class="min-w-[600px] max-w-4xl mx-auto"
@@ -86,7 +82,6 @@ import { useDialogs } from '@/composables/use-dialogs'
 interface UIMessageWithTime extends UIMessage {
   createdAt?: string
   ack?: boolean
-  sender?: 'system' | 'recipient' | 'account'
 }
 
 const props = defineProps<{
@@ -124,28 +119,46 @@ function toUIMessage(msg: DialogMessageOut): UIMessageWithTime {
     parts: [part],
     createdAt: msg.createdAt,
     ack: msg.ack,
-    sender: msg.sender,
   }
 }
 
+/**
+ * Показываем галочки только для system и assistant,
+ * и только если ack вообще есть
+ */
+function shouldShowChecks(message: UIMessage): boolean {
+  const msg = message as UIMessageWithTime
+  return (message.role === 'system' || message.role === 'assistant') && msg.ack !== undefined
+}
+
+function formatTime(message: UIMessage): string {
+  const msg = message as UIMessageWithTime
+  if (!msg.createdAt) return ''
+
+  return new Date(msg.createdAt).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 async function handleSubmit() {
   if (!input.value.trim() || loading.value) return
 
-  const message = input.value.trim()
+  const messageText = input.value.trim()
   input.value = ''
 
   try {
     const updatedMessages = await add({
       dialogId: props.dialogId,
-      message: message,
+      message: messageText,
     })
 
-    // Обновляем список сообщений через emit
     emit('messages-updated', updatedMessages)
   } catch (error) {
     console.error('Ошибка отправки сообщения:', error)
-    // Восстанавливаем текст в случае ошибки
-    input.value = message
+    input.value = messageText
   }
 }
 

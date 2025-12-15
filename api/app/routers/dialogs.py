@@ -1,5 +1,9 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
-from tortoise.functions import Max
+from tortoise import timezone as tz
+from tortoise.expressions import Q
+from tortoise.functions import Count, Max
 
 from app.common.models import enums, orm
 from app.dto.dialog import DialogMessageOut, DialogOut, DialogSystemMessageIn
@@ -10,12 +14,27 @@ router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 
 @router.get("/", response_model=list[DialogOut])
 async def get_dialogs(user=Depends(get_current_user)):
+    three_days_ago = tz.now() - timedelta(days=3)
+
     qs = (
         orm.Dialog.filter(recipient__mailing__user_id=user.id)
-        .annotate(last_msg_at=Max("messages__created_at"))
-        .prefetch_related("recipient", "recipient__mailing")
+        .annotate(
+            last_msg_at=Max("messages__created_at"),
+            msg_count=Count("messages"),
+        )
+        .exclude(
+            Q(
+                finished_at__lt=three_days_ago,  # старее 3 дней
+                status=enums.DialogStatus.INIT,  # status = init
+                msg_count__lt=4,  # сообщений < 3
+            )
+        )
+        .prefetch_related(
+            "recipient", "recipient__mailing", "recipient__mailing__project", "account"
+        )
         .order_by("-last_msg_at", "-started_at")
     )
+
     return await DialogOut.from_queryset(qs)
 
 

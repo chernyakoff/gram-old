@@ -19,27 +19,35 @@
         />
       </template>
     </UDashboardNavbar>
-    <Menu v-model="selectedDialog" :dialogs="filteredDialogs" :statuses="statuses" />
+    <DialogMenu v-model="selectedDialog" :dialogs="filteredDialogs" :statuses="statuses" />
   </UDashboardPanel>
 
-  <Detail
-    v-if="selectedDialog"
-    :messages="messages"
-    :dialog-id="selectedDialog.id"
-    @messages-updated="handleMessagesUpdated"
-  />
+  <div v-if="selectedDialog" class="flex flex-col lg:flex-row gap-4 w-full">
+    <div class="flex flex-col w-full">
+      <!-- Важная обертка -->
+      <DialogInfo :dialog="selectedDialog" />
+      <DialogDetail
+        :messages="messages"
+        :dialogId="selectedDialog.id"
+        @messages-updated="handleMessagesUpdated"
+        class="flex-1 w-full"
+      />
+    </div>
+  </div>
+
   <div v-else class="hidden lg:flex flex-1 items-center justify-center">
     <UIcon name="i-lucide-logs" class="size-32 text-dimmed" />
   </div>
 </template>
 <script setup lang="ts">
-import Menu from '@/components/dashboard/dialogs/menu.vue'
-import Detail from '@/components/dashboard/dialogs/detail.vue'
-
+import DialogMenu from '@/components/dashboard/dialogs/menu.vue'
+import DialogDetail from '@/components/dashboard/dialogs/detail.vue'
+import DialogInfo from '@/components/dashboard/dialogs/info.vue'
 import { useTitle } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDialogs } from '@/composables/use-dialogs'
 import type { DialogMessageOut, DialogOut } from '@/types/openapi'
+import { statuses } from '@/utils/status'
 
 const title = 'Диалоги'
 useTitle(title)
@@ -49,6 +57,7 @@ const { dialogs, get } = useDialogs()
 onMounted(() => get())
 
 const statusFilter = ref('all')
+
 const selectedDialog = ref<DialogOut | null>()
 const messages = ref<DialogMessageOut[]>([])
 
@@ -68,16 +77,4 @@ const filteredDialogs = computed(() => {
   if (statusFilter.value === 'all') return dialogs.value
   return dialogs.value.filter((d) => d.status === statusFilter.value)
 })
-
-const statuses = [
-  { label: 'все', value: 'all' },
-  { label: 'начат.', value: 'init' },
-  { label: 'интерес', value: 'engage' },
-  { label: 'диалог', value: 'offer' },
-  { label: 'закрытие', value: 'closing' },
-  { label: 'заявка', value: 'complete' },
-  { label: 'негатив', value: 'negative' },
-  { label: 'оператор', value: 'operator' },
-  { label: 'ручной', value: 'manual' },
-]
 </script>

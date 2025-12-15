@@ -6,7 +6,7 @@
 import type { StatsOut } from '@/types/openapi'
 import type { ApexOptions } from 'apexcharts'
 import { defineProps, computed, type PropType } from 'vue'
-
+import { labelsMap, colors } from '@/utils/status'
 const props = defineProps({
   statsData: {
     type: Object as PropType<StatsOut>,
@@ -19,17 +19,6 @@ const props = defineProps({
 })
 
 const isDark = computed(() => document.documentElement.classList.contains('dark'))
-
-const labelsMap = {
-  init: 'начат',
-  engage: 'интерес',
-  offer: 'диалог',
-  closing: 'закрытие',
-  complete: 'заявка',
-  negative: 'негатив',
-  operator: 'оператор',
-  manual: 'ручной',
-} as const
 
 // --- series для area chart ---
 const series = computed(() => {
@@ -45,17 +34,6 @@ const series = computed(() => {
     }),
   }))
 })
-
-const colors = [
-  '#006a6c',
-  '#8e90ff',
-  '#ffab00',
-  '#71dd37',
-  '#ff5733',
-  '#d32f2f',
-  '#6a1b9a',
-  '#455a64',
-]
 
 const options = computed<ApexOptions>(() => ({
   chart: {

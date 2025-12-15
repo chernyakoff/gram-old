@@ -23,7 +23,7 @@
               <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
                 <UBadge
                   :style="{
-                    backgroundColor: statusColorMap[(message as UIMessageWithStatus).status],
+                    backgroundColor: statusColor[(message as UIMessageWithStatus).status],
                   }"
                 >
                   {{ (message as UIMessageWithStatus).status }}
@@ -59,20 +59,9 @@ import type { ComponentPublicInstance } from 'vue'
 import { getTextFromMessage } from '@nuxt/ui/utils/ai'
 import { useChat, type UIMessageWithStatus } from '@/composables/use-chat'
 import { useAuth } from '@/composables/use-auth'
-
+import { statusColor } from '@/utils/status'
 const input = ref('')
 const promptRef = ref<ComponentPublicInstance | null>(null)
-
-const statusColorMap = {
-  init: '#006a6c', // темно-бирюзовый — начальный статус, нейтральный
-  engage: '#8e90ff', // светло-синий — общение с юзером активно
-  offer: '#ffab00', // оранжевый — предложение/коммерческий интерес
-  closing: '#71dd37', // зеленый — этап заключения сделки
-  complete: '#ff5733', // красно-оранжевый — завершено, финальный статус
-  negative: '#d32f2f', // ярко-красный — юзер недоволен общением
-  operator: '#6a1b9a', // фиолетовый — юзер хочет живого человека, вмешательство оператора
-  manual: '#455a64', // графитово-синий — диалог ведёт менеджер вручную
-} as const
 
 const open = ref(false)
 const { id } = defineProps<{

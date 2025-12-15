@@ -42,21 +42,11 @@ import { ref } from 'vue'
 
 import { useDateFormat } from '@vueuse/core'
 import type { DialogOut } from '@/types/openapi'
+import { statusColor } from '@/utils/status'
 
 defineProps<{
   dialogs: DialogOut[]
 }>()
-
-const statusColor = {
-  init: '#006a6c', // темно-бирюзовый — начальный статус, нейтральный
-  engage: '#8e90ff', // светло-синий — общение с юзером активно
-  offer: '#ffab00', // оранжевый — предложение/коммерческий интерес
-  closing: '#71dd37', // зеленый — этап заключения сделки
-  complete: '#ff5733', // красно-оранжевый — завершено, финальный статус
-  negative: '#d32f2f', // ярко-красный — юзер недоволен общением
-  operator: '#6a1b9a', // фиолетовый — юзер хочет живого человека, вмешательство оператора
-  manual: '#455a64', // графитово-синий — диалог ведёт менеджер вручную
-} as const
 
 const dialogRefs = ref<Record<string, Element>>({})
 
