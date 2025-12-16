@@ -36,7 +36,7 @@ WHERE ml.user_id = $1
 GROUP BY d.id, d.status, d.started_at, r.username, a.username, p.name
 HAVING NOT (
     d.status = 'init' AND
-    MAX(m.created_at) < NOW() - INTERVAL '3 days' AND
+    MAX(m.created_at) < NOW() - INTERVAL '7 days' AND
     COUNT(m.id) < 3
 )
 ORDER BY last_msg_at DESC NULLS LAST, d.started_at DESC
