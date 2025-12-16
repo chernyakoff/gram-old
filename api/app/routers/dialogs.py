@@ -16,26 +16,6 @@ router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 async def get_dialogs(user=Depends(get_current_user)):
     three_days_ago = tz.now() - timedelta(days=3)
     qs = (
-        (
-            orm.Dialog.filter(recipient__mailing__user_id=user.id)
-            .annotate(
-                last_msg_at=Max("messages__created_at"),
-                msg_count=Count("messages"),
-            )
-            .filter(
-                Q(finished_at__isnull=True)
-                | Q(finished_at__gte=three_days_ago)
-                | Q(status__ne=enums.DialogStatus.INIT)
-                | Q(msg_count__gte=4)
-            )
-        )
-        .prefetch_related(
-            "recipient", "recipient__mailing", "recipient__mailing__project", "account"
-        )
-        .order_by("-last_msg_at", "-started_at")
-    )
-
-    """ qs = (
         orm.Dialog.filter(recipient__mailing__user_id=user.id)
         .annotate(
             last_msg_at=Max("messages__created_at"),
@@ -43,17 +23,19 @@ async def get_dialogs(user=Depends(get_current_user)):
         )
         .exclude(
             Q(
-                finished_at__isnull=False,
-                finished_at__lt=three_days_ago,  # старее 3 дней
-                status=enums.DialogStatus.INIT,  # status = init
-                msg_count__lt=4,  # сообщений < 3
+                status=enums.DialogStatus.INIT,  # INIT
+                last_msg_at__lt=three_days_ago,  # старое
+                msg_count__lt=3,  # мало сообщений
             )
         )
         .prefetch_related(
-            "recipient", "recipient__mailing", "recipient__mailing__project", "account"
+            "recipient",
+            "recipient__mailing",
+            "recipient__mailing__project",
+            "account",
         )
         .order_by("-last_msg_at", "-started_at")
-    ) """
+    )
 
     return await DialogOut.from_queryset(qs)
 
