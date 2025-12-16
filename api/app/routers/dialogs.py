@@ -24,6 +24,7 @@ async def get_dialogs(user=Depends(get_current_user)):
         )
         .exclude(
             Q(
+                finished_at__isnull=False,
                 finished_at__lt=three_days_ago,  # старее 3 дней
                 status=enums.DialogStatus.INIT,  # status = init
                 msg_count__lt=4,  # сообщений < 3
