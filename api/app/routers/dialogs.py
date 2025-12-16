@@ -22,7 +22,7 @@ SELECT
     d.status AS status,
     d.started_at AS started_at,
     r.username AS recipient_username,
-    a.username AS account_username,
+    COALESCE(a.username, 'N/A') AS account_username,
     p.name AS project_name,
     COUNT(m.id) AS msg_count,
     MAX(m.created_at) AS last_msg_at
