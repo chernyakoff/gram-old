@@ -28,6 +28,7 @@ async def get_dialogs(user=Depends(get_current_user)):
                 msg_count__lt=3,  # мало сообщений
             )
         )
+        .select_related("account")
         .prefetch_related(
             "recipient",
             "recipient__mailing",
