@@ -13,6 +13,7 @@ from tortoise import timezone as tz
 
 from app.common.models import enums, orm
 from app.common.utils.notify import BotNotify, notify_complete_dialog
+from app.common.utils.prompt import get_name_addon
 from app.utils.logger import Logger
 
 from .ai_service import AIService
@@ -700,11 +701,17 @@ class DialogManager:
         # Далее идет существующий код генерации AI ответа
         MAX_RETRIES = 3
 
+        name_addon = get_name_addon(self.account, recipient)
+
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 ai_response, new_status = await asyncio.wait_for(
                     self.ai_service.get_response_with_status(
-                        self.prompt, dialog.status, messages, self.logger
+                        self.prompt,
+                        dialog.status,
+                        messages,
+                        name_addon,
+                        self.logger,
                     ),
                     timeout=60,
                 )

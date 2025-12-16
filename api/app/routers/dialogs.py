@@ -22,7 +22,7 @@ SELECT
     d.status AS status,
     d.started_at AS started_at,
     r.username AS recipient_username,
-    COALESCE(a.username, 'N/A') AS account_username,
+    COALESCE(a.username, a.phone) AS account_username,
     p.name AS project_name,
     COUNT(m.id) AS msg_count,
     MAX(m.created_at) AS last_msg_at
@@ -33,7 +33,7 @@ LEFT JOIN projects p ON p.id = ml.project_id
 LEFT JOIN accounts a ON a.id = d.account_id
 LEFT JOIN messages m ON m.dialog_id = d.id
 WHERE ml.user_id = $1
-GROUP BY d.id, d.status, d.started_at, r.username, a.username, p.name
+GROUP BY d.id, d.status, d.started_at, r.username, a.username, p.name, a.phone
 HAVING NOT (
     d.status = 'init' AND
     MAX(m.created_at) < NOW() - INTERVAL '7 days' AND

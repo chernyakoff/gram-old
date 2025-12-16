@@ -1,7 +1,7 @@
 import re
 
 from app.common.models.enums import DialogStatus
-from app.common.models.orm import AppSettings
+from app.common.models.orm import Account, AppSettings, Recipient
 
 PROMPT_TITLES = {
     "role": "РОЛЬ",
@@ -13,6 +13,7 @@ PROMPT_TITLES = {
     "closing": "STAGE 4: CLOSING",
     "rules": "ГЛОБАЛЬНЫЕ ПРАВИЛА",
 }
+
 
 def get_ooc_status(message: str) -> DialogStatus | None:
     match = re.search(
@@ -35,6 +36,19 @@ def strip_ooc_status(message: str) -> str:
 
 async def get_status_addon() -> str:
     return await AppSettings.fetch("prompt.system")
+
+
+def get_name_addon(account: Account, recipient: Recipient) -> str:
+    addon = []
+    account_names = [n for n in (account.first_name, account.last_name) if n]
+    if any(account_names):
+        addon.append(f"Тебя зовут {' '.join(account_names)}")
+
+    recipient_names = [n for n in (recipient.first_name, recipient.last_name) if n]
+    if any(recipient_names):
+        addon.append(f"Твоего собеседника зовут {' '.join(recipient_names)}")
+
+    return "\n".join(addon)
 
 
 async def get_generator() -> str:

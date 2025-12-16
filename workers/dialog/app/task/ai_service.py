@@ -9,6 +9,7 @@ from app.common.models import enums, orm
 from app.common.utils.functions import normalize_dashes
 from app.common.utils.prompt import (
     build_prompt,
+    get_name_addon,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
@@ -36,6 +37,7 @@ class AIService:
         project_prompt: dict,
         status: enums.DialogStatus,
         dialog_messages: list[orm.Message],
+        name_addon: str,
         logger: Logger,
     ) -> tuple[str | None, enums.DialogStatus | None]:
         """Получает ответ от AI и определяет статус диалога"""
@@ -43,11 +45,13 @@ class AIService:
         history = self._build_history(dialog_messages)
         system_prompt = await self._build_system_prompt(project_prompt, status)
         messages = [{"role": "system", "content": system_prompt}] + history
-        STATUS_ADDON = await get_status_addon()
+        status_addon = await get_status_addon()
 
         for msg in reversed(messages):
             if msg["role"] == "user":
-                msg["content"] += f"\n{STATUS_ADDON}"
+                msg["content"] += f"\n{name_addon}"
+                msg["content"] += f"\n{status_addon}"
+
                 if status == enums.DialogStatus.CLOSING:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
@@ -56,12 +60,6 @@ class AIService:
                 break
 
         try:
-            """ completion = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,  # type: ignore
-            )
-            response = completion.choices[0].message.content """
-
             raw_response = await self.client.responses.create(
                 model=self.model,
                 input=cast(Any, messages),

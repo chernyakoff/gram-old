@@ -310,7 +310,14 @@ class Recipient(Model):
         on_delete=fields.CASCADE,
     )
 
-    username = fields.CharField(max_length=320)  # ограничение email по стандарту
+    username = fields.CharField(max_length=320)
+    first_name = fields.CharField(max_length=64, null=True)
+    last_name = fields.CharField(max_length=64, null=True)
+    phone = fields.CharField(max_length=32, null=True)
+    about = fields.CharField(max_length=150, null=True)
+    channel = fields.CharField(max_length=34, null=True)
+    premium = fields.BooleanField(default=False)
+
     metadata = fields.JSONField(null=True)
     status = fields.CharEnumField(RecipientStatus, default=RecipientStatus.PENDING)
 
