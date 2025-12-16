@@ -15,7 +15,7 @@ router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 @router.get("/", response_model=list[DialogOut])
 async def get_dialogs(user=Depends(get_current_user)):
     three_days_ago = tz.now() - timedelta(days=3)
-    """ qs = (
+    qs = (
         orm.Dialog.filter(recipient__mailing__user_id=user.id)
         .annotate(
             last_msg_at=Max("messages__created_at"),
@@ -36,8 +36,8 @@ async def get_dialogs(user=Depends(get_current_user)):
             "account",
         )
         .order_by("-last_msg_at", "-started_at")
-    ) """
-    qs = (
+    )
+    """ qs = (
         orm.Dialog.filter(recipient__mailing__user_id=user.id)
         .annotate(
             last_msg_at=Max("messages__created_at"),
@@ -57,7 +57,7 @@ async def get_dialogs(user=Depends(get_current_user)):
             "account",
         )
         .order_by("-last_msg_at", "-started_at")
-    )
+    ) """
 
     return await DialogOut.from_queryset(qs)
 
