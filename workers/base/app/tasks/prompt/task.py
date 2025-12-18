@@ -47,7 +47,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
 
     params = {
         "api_key": config.openai.api_key,
-        "timeout": config.openai.timeout,
+        "timeout": 600,
         "base_url": "https://api.proxyapi.ru/anthropic",
     }
 
