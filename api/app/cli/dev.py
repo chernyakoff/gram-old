@@ -45,3 +45,24 @@ async def update_prompts():
     generator = await get_generator_prompt()
     await orm.AppSettings.upsert("prompt.generator", generator)
     await orm.AppSettings.upsert("prompt.system", system)
+
+
+""" 
+
+на проде - все останавливаем
+запускаем api
+применяем миграцию 
+запускаем update_recipients
+
+ """
+
+
+@app.command
+async def update_recipients():
+    dialogs = await orm.Dialog.filter(recipient_access_hash__isnull=False).all()
+    for dialog in dialogs:
+        recipient = await orm.Recipient.get_or_none(id=dialog.recipient_id)  # type: ignore
+        if recipient:
+            recipient.peer_id = dialog.recipient_peer_id
+            recipient.access_hash = dialog.recipient_access_hash
+            await recipient.save(update_fields=["peer_id", "access_hash"])

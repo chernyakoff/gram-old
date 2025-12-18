@@ -1,5 +1,6 @@
 import asyncio
 import re
+from ctypes import cast
 from datetime import datetime
 
 from telethon import TelegramClient
@@ -14,7 +15,8 @@ from telethon.errors import (
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
-from telethon.tl.types import InputPeerUser
+from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.types import InputPeerUser, User
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
@@ -47,9 +49,19 @@ class TelegramService:
             entity = await self.client.get_entity(recipient.username)
             recipient.status = enums.RecipientStatus.PROCESSING
             recipient.last_error = None  # type: ignore
-            await recipient.save(
-                update_fields=["attempts", "last_attempt_at", "status", "last_error"]
-            )
+            if isinstance(entity, User):
+                if isinstance(entity.first_name, str):
+                    recipient.first_name = entity.first_name
+                if isinstance(entity.last_name, str):
+                    recipient.last_name = entity.last_name
+                if isinstance(entity.premium, bool):
+                    recipient.premium = entity.premium
+                info = await self.get_recipient_info()
+                if info:
+                    recipient.about = info["about"]
+                    recipient.channel = info["channel"]
+
+            await recipient.save()
             return entity
 
         except FloodWaitError as e:
@@ -81,10 +93,9 @@ class TelegramService:
         try:
             # Пытаемся использовать InputPeerUser если есть dialog с данными
             target = recipient.username
-            if dialog:
-                peer = self._get_peer_from_dialog(dialog)
-                if peer:
-                    target = peer
+            peer = self._get_peer(recipient)
+            if peer:
+                target = peer
 
             msg = await self.client.send_message(target, text)
             recipient.status = enums.RecipientStatus.SENT
@@ -202,12 +213,12 @@ class TelegramService:
             f"[{recipient.username}] Неизвестная ошибка при send_message: {error}"
         )
 
-    def _get_peer_from_dialog(self, dialog: orm.Dialog):
+    def _get_peer(self, recipient: orm.Recipient):
         """Создаёт InputPeerUser из данных диалога если они есть"""
-        if dialog.recipient_peer_id and dialog.recipient_access_hash:
+        if recipient.peer_id and recipient.access_hash:
             return InputPeerUser(
-                user_id=dialog.recipient_peer_id,
-                access_hash=dialog.recipient_access_hash,
+                user_id=recipient.peer_id,
+                access_hash=recipient.access_hash,
             )
 
         return None
@@ -247,3 +258,15 @@ class TelegramService:
                 return forever
         else:
             return forever
+
+    async def get_recipient_info(self) -> dict | None:
+        params = {}
+        try:
+            response = await self.client(GetFullUserRequest("me"))  # type: ignore
+            params["about"] = response.full_user.about  # type: ignore
+            params["channel"] = (
+                response.chats[0].username if response.chats else None  # type: ignore
+            )
+            return params
+        except:
+            pass

@@ -1,14 +1,10 @@
 import asyncio
 import random
 from datetime import timedelta
-from typing import cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 from pydantic import BaseModel
 from telethon import TelegramClient
-from telethon.tl.functions.users import GetFullUserRequest
-from telethon.tl.types.users import UserFull
-from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
@@ -54,26 +50,6 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
         account.premium_stopped = False
         keys.append("premium_stopped")
     await account.save(update_fields=keys)
-
-
-async def save_recipient_info(
-    app: TelegramClient, entity: TelethonUser, recipient: orm.Recipient
-):
-    params = pick(
-        ["id", "username", "first_name", "last_name", "premium"],
-        entity.to_dict(),
-    )
-    try:
-        response = await app(GetFullUserRequest("me"))  # type: ignore
-        response = cast(UserFull, response)
-        params["about"] = response.full_user.about
-        params["channel"] = (
-            response.chats[0].username if response.chats else None  # type: ignore
-        )
-    except:
-        pass
-    recipient.update_from_dict(params)
-    await recipient.save()
 
 
 @hatchet.task(
@@ -214,16 +190,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 status=enums.DialogStatus.INIT,
                 account_id=account.id,
             )
-
-            if isinstance(entity, TelethonUser):
-                dialog.update_from_dict(
-                    {
-                        "recipient_peer_id": entity.id,
-                        "recipient_access_hash": entity.access_hash,
-                    }
-                )
-                await dialog.save()
-                await save_recipient_info(client, entity, recipient)
 
             # Сохраняем сообщение
             await orm.Message.create(

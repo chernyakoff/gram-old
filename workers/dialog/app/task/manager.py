@@ -204,19 +204,7 @@ class DialogManager:
         Получает новые сообщения от юзера из Telegram.
         Возвращает список новых сообщений (отсортированных по времени).
         """
-        peer = self.telegram_service._get_peer_from_dialog(dialog)
-
-        if not peer:
-            entity = await self.telegram_service.get_entity(dialog.recipient)
-            if isinstance(entity, TelethonUser):
-                dialog.update_from_dict(
-                    {
-                        "recipient_peer_id": entity.id,
-                        "recipient_access_hash": entity.access_hash,
-                    }
-                )
-                await dialog.save()
-                peer = self.telegram_service._get_peer_from_dialog(dialog)
+        peer = self.telegram_service._get_peer(dialog.recipient)
 
         if not peer:
             return []
@@ -298,7 +286,7 @@ class DialogManager:
         """Проверяет и обновляет статус прочтения сообщений в диалоге"""
 
         # Получаем peer для диалога
-        peer = self.telegram_service._get_peer_from_dialog(dialog)
+        peer = self.telegram_service._get_peer(dialog.recipient)
         if not peer:
             return
 
@@ -381,20 +369,7 @@ class DialogManager:
 
             for dialog in dialogs:
                 try:
-                    peer = self.telegram_service._get_peer_from_dialog(dialog)
-                    if not peer:
-                        entity = await self.telegram_service.get_entity(
-                            dialog.recipient
-                        )
-                        if isinstance(entity, TelethonUser):
-                            dialog.update_from_dict(
-                                {
-                                    "recipient_peer_id": entity.id,
-                                    "recipient_access_hash": entity.access_hash,
-                                }
-                            )
-                            await dialog.save()
-                            peer = self.telegram_service._get_peer_from_dialog(dialog)
+                    peer = self.telegram_service._get_peer(dialog.recipient)
 
                     if not peer:
                         continue

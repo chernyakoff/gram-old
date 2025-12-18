@@ -329,7 +329,8 @@ class Recipient(Model):
         related_name="recipients",
         on_delete=fields.CASCADE,
     )
-
+    access_hash = fields.BigIntField(null=True)
+    peer_id = fields.BigIntField(null=True)
     username = fields.CharField(max_length=320)
     first_name = fields.CharField(max_length=64, null=True)
     last_name = fields.CharField(max_length=64, null=True)
