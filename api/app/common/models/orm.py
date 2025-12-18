@@ -1,4 +1,5 @@
 import math
+from collections import defaultdict
 from datetime import timedelta
 from typing import Self
 
@@ -109,6 +110,25 @@ class Settings(Model):
             obj.value = value
             await obj.save(update_fields=["value"])
         return obj
+
+    @classmethod
+    async def fetch_all(cls, user_id: int) -> dict[str, dict[str, str | None]]:
+        rows = await Settings.filter(user_id=user_id).values("section", "name", "value")
+
+        result: dict[str, dict[str, str | None]] = defaultdict(dict)
+
+        for row in rows:
+            result[row["section"]][row["name"]] = row["value"]
+
+        return dict(result)
+
+    @classmethod
+    async def fetch(cls, user_id: int, path: str) -> str:
+        section, name = path.split(".")
+        instance = await cls.filter(user_id=user_id, section=section, name=name).first()
+        if instance:
+            return instance.value
+        return ""
 
     class Meta:
         table = "settings"
@@ -251,12 +271,12 @@ class Project(Model, TimestampMixin):
     )
 
     send_time_start = fields.IntField(
-        description="Начало времени рассылки", null=False, default=0
+        description="Начало времени рассылки", null=False, default=10
     )
     send_time_end = fields.IntField(
         description="Конец времени рассылки",
         null=False,
-        default=23,
+        default=21,
     )
     first_message = fields.TextField(null=False)
 

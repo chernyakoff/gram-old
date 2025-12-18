@@ -87,22 +87,22 @@ async def release_recipients():
 
 
 async def get_active_projects() -> list[orm.Project]:
-    now = tz.now()
-    return await (
-        orm.Project.filter(status=True)
-        .filter(
-            (
-                Q(send_time_start__lte=F("send_time_end"))
-                & Q(send_time_start__lte=now.hour)
-                & Q(send_time_end__gte=now.hour)
-            )
-            | (
-                Q(send_time_start__gt=F("send_time_end"))
-                & (Q(send_time_start__lte=now.hour) | Q(send_time_end__gte=now.hour))
-            )
-        )
-        .prefetch_related("mailings")
-    )
+    """Получить все активные проекты (для продолжения диалогов)"""
+    return await orm.Project.filter(status=True).prefetch_related("mailings")
+
+
+def is_project_in_send_window(project: orm.Project, now) -> bool:
+    """Проверить, находится ли проект в окне отправки (для новых recipients)"""
+    current_hour = now.hour
+    start = project.send_time_start
+    end = project.send_time_end
+
+    if start <= end:
+        # Обычный случай: например, 9-18
+        return start <= current_hour <= end
+    else:
+        # Переход через полночь: например, 22-6
+        return current_hour >= start or current_hour <= end
 
 
 async def get_available_accounts(project: orm.Project, now, conn):
@@ -289,6 +289,9 @@ async def task(input: EmptyModel, ctx: Context):
     projects = await get_active_projects()
 
     for project in projects:
+        # Проверяем, находится ли проект в окне отправки
+        in_send_window = is_project_in_send_window(project, now)
+
         active_mailings = [
             m
             for m in project.mailings
@@ -323,10 +326,12 @@ async def task(input: EmptyModel, ctx: Context):
                 # Получаем доступное количество новых диалогов
                 dialogs_left = await check_daily_limit(acc, now, conn)
 
-                # Получаем recipients для новых диалогов (может быть пусто)
-                recipients = await get_recipients_for_mailings(
-                    active_mailings, dialogs_left, now, conn
-                )
+                # Получаем recipients для новых диалогов ТОЛЬКО если в окне отправки
+                recipients = []
+                if in_send_window:
+                    recipients = await get_recipients_for_mailings(
+                        active_mailings, dialogs_left, now, conn
+                    )
 
                 # Резервируем лимит новых диалогов атомарно
                 reserved = 0
@@ -337,18 +342,19 @@ async def task(input: EmptyModel, ctx: Context):
                     if reserved < len(recipients):
                         recipients = recipients[:reserved]
 
-                # Статус DRAFT → RUNNING, если есть recipients
-                for mailing in active_mailings:
-                    if mailing.status == enums.MailingStatus.DRAFT:
-                        if any(r.mailing_id == mailing.id for r in recipients):
-                            await (
-                                orm.Mailing.filter(id=mailing.id)
-                                .using_db(conn)
-                                .update(
-                                    status=enums.MailingStatus.RUNNING,
-                                    started_at=now,
+                # Статус DRAFT → RUNNING, если есть recipients (только в окне отправки)
+                if in_send_window:
+                    for mailing in active_mailings:
+                        if mailing.status == enums.MailingStatus.DRAFT:
+                            if any(r.mailing_id == mailing.id for r in recipients):
+                                await (
+                                    orm.Mailing.filter(id=mailing.id)
+                                    .using_db(conn)
+                                    .update(
+                                        status=enums.MailingStatus.RUNNING,
+                                        started_at=now,
+                                    )
                                 )
-                            )
 
                 # Лочим аккаунт и recipients
                 if not await lock_account_and_recipients(acc, recipients, now, conn):
@@ -356,7 +362,7 @@ async def task(input: EmptyModel, ctx: Context):
 
                 recipients_id = [r.id for r in recipients]  # может быть пусто
 
-                # Всегда запускаем диалог-таск
+                # Всегда запускаем диалог-таск (даже без новых recipients - для продолжения старых диалогов)
                 await dialog_task.aio_run_no_wait(
                     input=DialogIn(
                         account_id=acc.id, recipients_id=recipients_id, key=str(acc.id)

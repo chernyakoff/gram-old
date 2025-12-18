@@ -230,6 +230,14 @@ export interface components {
             country: string;
             ids: number[];
         };
+        ProxyApiSettingsIn: {
+            apiKey: string;
+        };
+        ProxyApiSettingsOut: {
+            apiKey?: string | null;
+            balance?: number | null;
+            error?: string | null;
+        };
         ProxyOut: {
             id: number;
             host: string;
@@ -245,6 +253,12 @@ export interface components {
         SetLimitIn: {
             outDailyLimit: number;
             accountIds: number[];
+        };
+        SettingsIn: {
+            proxyApi: components["schemas"]["ProxyApiSettingsIn"];
+        };
+        SettingsOut: {
+            proxyApi?: components["schemas"]["ProxyApiSettingsOut"];
         };
         StatsIn: {
             dateFrom: string;
@@ -351,8 +365,12 @@ export type PromptIn = components['schemas']['PromptIn'];
 export type PromptOut = components['schemas']['PromptOut'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
+export type ProxyApiSettingsIn = components['schemas']['ProxyApiSettingsIn'];
+export type ProxyApiSettingsOut = components['schemas']['ProxyApiSettingsOut'];
 export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
+export type SettingsIn = components['schemas']['SettingsIn'];
+export type SettingsOut = components['schemas']['SettingsOut'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];

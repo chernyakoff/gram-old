@@ -112,7 +112,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
     try:
         client = account_util.create_client(proxy)
-
+        manager = None
         try:
             # Подключение с таймаутом
             await asyncio.wait_for(client.connect(), timeout=30)

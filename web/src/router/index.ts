@@ -23,6 +23,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'jobs', component: () => import('@/views/dashboard/jobs.vue') },
       { path: 'admin', component: () => import('@/views/dashboard/admin.vue') },
       { path: 'projects', component: () => import('@/views/dashboard/projects.vue') },
+      { path: 'settings', component: () => import('@/views/dashboard/settings.vue') },
       {
         path: 'project/:id?',
         name: 'project-create',

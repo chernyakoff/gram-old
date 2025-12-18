@@ -51,7 +51,6 @@ class AIService:
             if msg["role"] == "user":
                 msg["content"] += f"\n{name_addon}"
                 msg["content"] += f"\n{status_addon}"
-
                 if status == enums.DialogStatus.CLOSING:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"

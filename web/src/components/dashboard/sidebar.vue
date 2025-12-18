@@ -80,6 +80,12 @@ const links = [
     onSelect: () => (open.value = false),
   },
   {
+    label: 'Настройки',
+    to: '/app/settings',
+    icon: 'bx:cog',
+    onSelect: () => (open.value = false),
+  },
+  {
     label: 'Админка',
     to: '/app/admin',
     icon: 'bx:bxl-gitlab',
