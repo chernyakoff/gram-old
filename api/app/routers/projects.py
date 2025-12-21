@@ -33,6 +33,7 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         send_time_end=data.send_time_end,
         first_message=data.first_message,
         user_id=user.id,
+        skip_options=data.skip_options.model_dump(),
     )
     await project.save()
     if data.advanced_mode:
@@ -112,6 +113,7 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     project.send_time_start = data.send_time_start
     project.send_time_end = data.send_time_end
     project.first_message = data.first_message
+    project.skip_options = data.skip_options.model_dump()
     await project.save()
 
     # режим prompt

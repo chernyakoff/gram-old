@@ -76,7 +76,7 @@ class OpenRouterResponseError(AiError):
 
 
 async def create_response(
-    user: User, input: Any, max_tokens: int = 350, timeout_min: int = 5
+    user: User, input: Any, max_tokens: int = 3000, timeout_min: int = 5
 ) -> str:
     # атомарно добавляем ключ/модель
     user = await add_openrouter_to_user(user)

@@ -210,6 +210,25 @@
                     class="w-full"
                   />
                 </UFormField>
+                <UFormField name="skipOptions" class="w-full mb-4" label="Пропуск этапов">
+                  <div class="flex gap-6 mt-4">
+                    <UCheckbox
+                      v-model="state.skipOptions.engage"
+                      name="skipOptions.engage"
+                      label="Engage"
+                    />
+                    <UCheckbox
+                      v-model="state.skipOptions.offer"
+                      name="skipOptions.offer"
+                      label="Offer"
+                    />
+                    <UCheckbox
+                      v-model="state.skipOptions.closing"
+                      name="skipOptions.closing"
+                      label="Closing"
+                    />
+                  </div>
+                </UFormField>
               </template>
               <template #json>
                 <div class="space-y-4 mb-4">
@@ -324,6 +343,11 @@ const state = reactive<ProjectInSchema>({
   sendTimeEnd: 24,
   firstMessage: '',
   advancedMode: false,
+  skipOptions: {
+    engage: false,
+    offer: false,
+    closing: false,
+  },
   brief: {
     description: '',
     offer: '',

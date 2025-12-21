@@ -2,7 +2,15 @@
 
 
 from pydantic import BaseModel
-from tortoise_serializer import Serializer
+from tortoise_serializer import ContextType, Serializer
+
+from app.common.models import orm
+
+
+class ProjectSkipOptions(BaseModel):
+    engage: bool
+    offer: bool
+    closing: bool
 
 
 class BriefIn(BaseModel):
@@ -65,6 +73,7 @@ class ProjectIn(BaseModel):
     brief: BriefIn
     prompt: PromptIn
     advanced_mode: bool
+    skip_options: ProjectSkipOptions
 
 
 class ProjectShortOut(ProjectBase):
@@ -81,6 +90,15 @@ class ProjectOut(Serializer):
     status: bool
     brief: BriefOut
     prompt: PromptOut
+    skip_options: ProjectSkipOptions
+
+    @classmethod
+    async def resolve_skip_options(
+        cls, instance: orm.Project, context: ContextType
+    ) -> ProjectSkipOptions:
+        if not instance.skip_options:
+            return ProjectSkipOptions(engage=False, offer=False, closing=False)
+        return ProjectSkipOptions(**instance.skip_options)
 
 
 def create_default_project() -> ProjectIn:
@@ -91,6 +109,7 @@ def create_default_project() -> ProjectIn:
         send_time_end=23,
         first_message="",
         advanced_mode=False,
+        skip_options=ProjectSkipOptions(engage=False, offer=False, closing=False),
         prompt=PromptIn(
             role="",
             context="",

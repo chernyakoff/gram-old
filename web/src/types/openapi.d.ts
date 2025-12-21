@@ -201,6 +201,7 @@ export interface components {
             brief: components["schemas"]["BriefIn"];
             prompt: components["schemas"]["PromptIn"];
             advancedMode: boolean;
+            skipOptions: components["schemas"]["ProjectSkipOptions"];
         };
         ProjectOut: {
             id: number;
@@ -212,11 +213,17 @@ export interface components {
             status: boolean;
             brief: components["schemas"]["BriefOut"];
             prompt: components["schemas"]["PromptOut"];
+            skipOptions: components["schemas"]["ProjectSkipOptions"];
         };
         ProjectShortOut: {
             id: number;
             name: string;
             status: boolean;
+        };
+        ProjectSkipOptions: {
+            engage: boolean;
+            offer: boolean;
+            closing: boolean;
         };
         ProjectStatusIn: {
             status: boolean;
@@ -370,6 +377,7 @@ export type ProjectBase = components['schemas']['ProjectBase'];
 export type ProjectIn = components['schemas']['ProjectIn'];
 export type ProjectOut = components['schemas']['ProjectOut'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
+export type ProjectSkipOptions = components['schemas']['ProjectSkipOptions'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
 export type PromptIn = components['schemas']['PromptIn'];
 export type PromptOut = components['schemas']['PromptOut'];

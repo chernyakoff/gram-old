@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Self
 
+from pydantic import BaseModel
 from tortoise import fields
 from tortoise import timezone as tz
 from tortoise.models import Model
@@ -275,6 +276,7 @@ class Project(Model, TimestampMixin):
     name = fields.CharField(max_length=64, null=False)
     status = fields.BooleanField(default=False)
     accounts = fields.ReverseRelation[Account]
+    skip_options = fields.JSONField(null=True)
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="projects", null=False
     )

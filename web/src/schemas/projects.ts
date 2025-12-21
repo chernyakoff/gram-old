@@ -40,6 +40,12 @@ export const promptInSchema = v.object({
   rules: optionalTextSchema,
 })
 
+const skipOptionsSchema = v.object({
+  engage: v.boolean(),
+  offer: v.boolean(),
+  closing: v.boolean(),
+})
+
 export type PromptInSchema = v.InferOutput<typeof promptInSchema>
 
 // Базовая схема
@@ -56,6 +62,7 @@ const baseProjectSchema = v.object({
   advancedMode: v.boolean(),
   brief: briefInSchema,
   prompt: promptInSchema,
+  skipOptions: skipOptionsSchema,
 })
 
 type BaseProjectSchemaType = v.InferOutput<typeof baseProjectSchema>
