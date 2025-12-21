@@ -50,6 +50,9 @@ class TelegramService:
             recipient.status = enums.RecipientStatus.PROCESSING
             recipient.last_error = None  # type: ignore
             if isinstance(entity, User):
+                recipient.peer_id = entity.id
+                if isinstance(entity.access_hash, int):
+                    recipient.access_hash = entity.access_hash
                 if isinstance(entity.first_name, str):
                     recipient.first_name = entity.first_name
                 if isinstance(entity.last_name, str):

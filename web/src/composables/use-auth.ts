@@ -9,8 +9,27 @@ export function useAuth() {
 
   const { user, isAuthenticated, accessToken, isImpersonated } = toRefs(auth)
 
-  // Автоматический редирект при изменении user
   watch(
+    () => user.value?.id, // смотрим только идентификатор
+    (id, oldId) => {
+      // редирект только при смене пользователя
+      if (!id) {
+        if (router.currentRoute.value.name !== 'main') {
+          router.push({ name: 'main' })
+        }
+      } else if (!oldId) {
+        // новый логин
+        if (user.value?.hasLicense) {
+          router.push({ name: 'app' })
+        } else {
+          router.push({ name: 'license' })
+        }
+      }
+    },
+    { immediate: false },
+  )
+  // Автоматический редирект при изменении user
+  /* watch(
     user,
     (newUser) => {
       if (newUser) {
@@ -30,7 +49,33 @@ export function useAuth() {
       }
     },
     { immediate: false }, // не срабатывает при первой инициализации
-  )
+  ) */
+  /*
+  watch(
+    () => ({
+      id: user.value?.id,
+      hasLicense: user.value?.hasLicense,
+    }),
+    ({ id, hasLicense }) => {
+      if (!id) {
+        if (router.currentRoute.value.name !== 'main') {
+          router.push({ name: 'main' })
+        }
+        return
+      }
+
+      if (hasLicense) {
+        if (router.currentRoute.value.name !== 'app') {
+          router.push({ name: 'app' })
+        }
+      } else {
+        if (router.currentRoute.value.name !== 'license') {
+          router.push({ name: 'license' })
+        }
+      }
+    },
+    { immediate: true },
+  ) */
 
   return {
     user,

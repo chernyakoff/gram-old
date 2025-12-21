@@ -26,6 +26,7 @@ class UserOut(Serializer):
     last_name: str | None
     photo_url: str | None
     role: str
+    balance: int
     has_license: bool
 
     @classmethod

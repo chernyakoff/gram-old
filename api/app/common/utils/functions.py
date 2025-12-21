@@ -2,6 +2,7 @@ import math
 import random
 from typing import Iterable, Sequence
 
+import httpx
 from aiopath import AsyncPath
 
 

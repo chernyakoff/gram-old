@@ -66,10 +66,9 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // проверка лицензии для защищённых страниц
-  if (auth.isAuthenticated && !auth.user?.hasLicense && to.name === 'app') {
+  if (auth.isAuthenticated && !auth.user?.hasLicense && to.path.startsWith('/app')) {
     return next({ name: 'license' })
   }
-
   next()
 })
 export default router

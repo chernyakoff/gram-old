@@ -12,6 +12,11 @@ export const licenseSchema = v.object({
   days: daysSchema,
 })
 
+export const balanceSchema = v.object({
+  username: telegram.username(),
+  amount: daysSchema,
+})
+
 export const impersonateSchema = v.object({
   username: telegram.username(),
 })
@@ -30,5 +35,7 @@ export const appSettingSchema = v.object({
 export type AppSettingSchema = v.InferOutput<typeof appSettingSchema>
 
 export type LicenseSchema = v.InferOutput<typeof licenseSchema>
+
+export type BalanceSchema = v.InferOutput<typeof balanceSchema>
 
 export type ImpersonateSchema = v.InferOutput<typeof impersonateSchema>

@@ -1,6 +1,7 @@
 import math
 from collections import defaultdict
 from datetime import timedelta
+from decimal import Decimal
 from typing import Self
 
 from tortoise import fields
@@ -44,6 +45,10 @@ class User(Model, TimestampMixin):
     settings: fields.ReverseRelation["Settings"]
     mailings = fields.ReverseRelation["Mailing"]
     projects = fields.ReverseRelation["Project"]
+    balance = fields.BigIntField(default=0)
+    or_api_key = fields.CharField(max_length=256, null=True)
+    or_api_hash = fields.CharField(max_length=256, null=True)
+    or_model = fields.CharField(max_length=256, null=True)
 
     async def extend_license(self, days: int) -> None:
         """Продлевает лицензию на указанное число дней."""
@@ -54,6 +59,13 @@ class User(Model, TimestampMixin):
         else:
             self.license_end_date += timedelta(days=days)
 
+        await self.save()
+
+    async def add_balance(self, rubles: int) -> None:
+        if rubles <= 0:
+            return  # или raise ValueError
+
+        self.balance += rubles * 100
         await self.save()
 
     @property
@@ -400,7 +412,7 @@ class Message(Model):
         table = "messages"
 
 
-class AppSettings(Model):
+class AppSettings(Model, TimestampMixin):
     id = fields.IntField(pk=True)
     section = fields.CharField(max_length=255, null=False)
     name = fields.CharField(max_length=255, null=False)
@@ -509,3 +521,19 @@ class AccountBackup(Model, TimestampMixin):
 
     class Meta:
         table = "account_backups"
+
+
+class AiModel(Model, TimestampMixin):
+    id = fields.CharField(pk=True, max_length=256)
+    name = fields.CharField(max_length=256, null=False)
+
+    description = fields.TextField(null=False)
+    prompt_price = fields.DecimalField(
+        max_digits=20, decimal_places=12, default=Decimal("0")
+    )
+    completion_price = fields.DecimalField(
+        max_digits=20, decimal_places=12, default=Decimal("0")
+    )
+
+    class Meta:
+        table = "ai_models"

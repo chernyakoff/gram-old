@@ -49,9 +49,27 @@ export interface components {
         AccountsCheckIn: {
             accountIds: number[];
         };
+        AiModelIn: {
+            id: string;
+        };
+        AiModelOut: {
+            id: string;
+            name: string;
+            description: string;
+            promptPrice: string;
+            completionPrice: string;
+        };
         AppSettingIn: {
             path: string;
             value: string;
+        };
+        BalanceIn: {
+            username: string;
+            amount: number;
+        };
+        BalanceOut: {
+            status: "success" | "error";
+            message: string;
         };
         BindProjectIn: {
             projectId: number;
@@ -230,14 +248,6 @@ export interface components {
             country: string;
             ids: number[];
         };
-        ProxyApiSettingsIn: {
-            apiKey: string;
-        };
-        ProxyApiSettingsOut: {
-            apiKey?: string | null;
-            balance?: number | null;
-            error?: string | null;
-        };
         ProxyOut: {
             id: number;
             host: string;
@@ -253,12 +263,6 @@ export interface components {
         SetLimitIn: {
             outDailyLimit: number;
             accountIds: number[];
-        };
-        SettingsIn: {
-            proxyApi: components["schemas"]["ProxyApiSettingsIn"];
-        };
-        SettingsOut: {
-            proxyApi?: components["schemas"]["ProxyApiSettingsOut"];
         };
         StatsIn: {
             dateFrom: string;
@@ -282,6 +286,7 @@ export interface components {
         };
         SynonimizeOut: {
             text: string;
+            error?: string | null;
         };
         UserLoginIn: {
             id: number;
@@ -302,6 +307,7 @@ export interface components {
             lastName: string | null;
             photoUrl: string | null;
             role: string;
+            balance: number;
             hasLicense: boolean;
             impersonated?: boolean | null;
             realUserId?: number | null;
@@ -329,7 +335,11 @@ export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
 export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
+export type AiModelIn = components['schemas']['AiModelIn'];
+export type AiModelOut = components['schemas']['AiModelOut'];
 export type AppSettingIn = components['schemas']['AppSettingIn'];
+export type BalanceIn = components['schemas']['BalanceIn'];
+export type BalanceOut = components['schemas']['BalanceOut'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
 export type BriefIn = components['schemas']['BriefIn'];
 export type BriefOut = components['schemas']['BriefOut'];
@@ -365,12 +375,8 @@ export type PromptIn = components['schemas']['PromptIn'];
 export type PromptOut = components['schemas']['PromptOut'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
-export type ProxyApiSettingsIn = components['schemas']['ProxyApiSettingsIn'];
-export type ProxyApiSettingsOut = components['schemas']['ProxyApiSettingsOut'];
 export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
-export type SettingsIn = components['schemas']['SettingsIn'];
-export type SettingsOut = components['schemas']['SettingsOut'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];

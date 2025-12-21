@@ -28,7 +28,6 @@ api:
 web:
   url: "http://localhost:5173"
 
-openai:
-  api_key: "sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE"
-  model: "gpt-4o-mini"
-  base_url: "https://api.proxyapi.ru/openai/v1"
+openrouter:
+  manager_api_key: "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"
+  proxy: ""

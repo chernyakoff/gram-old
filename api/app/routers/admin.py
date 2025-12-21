@@ -108,3 +108,29 @@ async def upsert_setting(data: AppSettingIn):
         raise HTTPException(status_code=404, detail="Invalid path")
 
     await orm.AppSettings.upsert(data.path, data.value)
+
+
+class BalanceIn(BaseModel):
+    username: str
+    amount: int
+
+
+class BalanceOut(BaseModel):
+    status: Literal["success", "error"]
+    message: str
+
+
+@router.post(
+    "/balance", response_model=BalanceOut, dependencies=[Depends(admin_required)]
+)
+async def add_balance(data: BalanceIn):
+    username = data.username.removeprefix("https://t.me/").removeprefix("@")
+    user = await orm.User.get_or_none(username=username)
+    if not user:
+        return BalanceOut(status="error", message="Пользователь не найден")
+
+    await user.add_balance(data.amount)
+
+    return BalanceOut(
+        status="success", message=f"Баланс пополнен на {data.amount} руб"
+    )

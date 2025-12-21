@@ -1,11 +1,12 @@
 from datetime import timedelta
+from typing import Optional
 
 from hatchet_sdk import Context
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from app.client import hatchet
-from app.config import config
+from app.common.models.orm import User
+from app.common.utils import openrouter
 
 PROMPT = """
 Преобразуй следующее сообщение в вариант с синонимами и альтернативными формулировками, используя конструкцию {вариант1|вариант2|...} для всех возможных замен слов и фраз. 
@@ -18,28 +19,13 @@ COOБЩЕНИЕ:
 
 
 class SynonimizeIn(BaseModel):
+    user_id: int
     text: str
 
 
 class SynonimizeOut(BaseModel):
     text: str
-
-
-def get_openai() -> AsyncOpenAI:
-    params = {
-        "api_key": config.openai.api_key,
-        "timeout": config.openai.timeout,
-    }
-    if config.openai.base_url:
-        params["base_url"] = config.openai.base_url
-    return AsyncOpenAI(**params)
-
-
-async def get_completion(text: str) -> str:
-    completion = await get_openai().responses.create(
-        model="gpt-4.1-mini", input=f"{PROMPT}\n\n{text}"
-    )
-    return completion.output_text
+    error: Optional[str] = None
 
 
 @hatchet.task(
@@ -50,9 +36,10 @@ async def get_completion(text: str) -> str:
 )
 async def synonimize(data: SynonimizeIn, ctx: Context) -> SynonimizeOut:
     ctx.log("Запущена рандомизация")
+    user = await User.get(id=data.user_id)
     try:
-        text = await get_completion(data.text)
+        text = await openrouter.create_response(user, f"{PROMPT}\n\n{data.text}")
         return SynonimizeOut(text=text)
     except Exception as e:
         ctx.log(str(e))
-        return SynonimizeOut(text="")
+        return SynonimizeOut(text="", error=str(e))

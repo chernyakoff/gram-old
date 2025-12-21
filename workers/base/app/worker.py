@@ -10,6 +10,7 @@ from app.tasks.accounts.premium import buy_premium
 from app.tasks.accounts.stop_premium import stop_premium
 from app.tasks.accounts.update import accounts_update
 from app.tasks.accounts.upload import accounts_upload
+from app.tasks.daily.task import daily
 from app.tasks.heartbeat.task import heartbeat
 from app.tasks.prompt.task import generate_prompt
 from app.tasks.proxies.upload import proxies_upload
@@ -46,6 +47,7 @@ worker = hatchet.worker(
         synonimize,
         stop_premium,
         heartbeat,
+        daily,
     ],
     lifespan=lifespan,
 )

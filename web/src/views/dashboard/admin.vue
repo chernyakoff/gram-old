@@ -12,6 +12,7 @@
         <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
           <template #license><AdminLicenseForm /></template>
           <template #impersonate><AdminImpersonateForm /></template>
+          <template #balance><AdminBalanceForm /></template>
           <template #prompts>
             <UTabs :items="promptTabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
               <template #system>
@@ -32,6 +33,7 @@
 import type { TabsItem } from '@nuxt/ui'
 import { useTitle } from '@vueuse/core'
 import AdminLicenseForm from '@/components/dashboard/admin/license-form.vue'
+import AdminBalanceForm from '@/components/dashboard/admin/balance-form.vue'
 import AdminImpersonateForm from '@/components/dashboard/admin/impersonate-form.vue'
 import AdminPromptForm from '@/components/dashboard/admin/prompt-form.vue'
 
@@ -39,6 +41,7 @@ const title = 'Админка'
 
 const tabs = [
   { label: 'Лицензии', icon: 'bx:badge-check', slot: 'license' as const },
+  { label: 'Баланс', icon: 'bx:user', slot: 'balance' as const },
   { label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const },
   { label: 'Промпты', icon: 'bx:brain', slot: 'prompts' as const },
 ] satisfies TabsItem[]

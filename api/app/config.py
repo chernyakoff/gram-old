@@ -51,11 +51,9 @@ class S3Config(BaseModel):
     public_endpoint_url: str
 
 
-class Openai(BaseModel):
-    api_key: str
-    model: str
-    base_url: str | None
-    timeout: int | None = 180
+class OpenRouter(BaseModel):
+    manager_api_key: str
+    proxy: str
 
 
 class Postgres(BaseModel):
@@ -72,7 +70,7 @@ class Settings(BaseModel):
     web: Web
     postgres: Postgres
     hatchet: Hatchet
-    openai: Openai
+    openrouter: OpenRouter
 
     @classmethod
     def create(cls, path="config.yml", worker=False) -> Self:

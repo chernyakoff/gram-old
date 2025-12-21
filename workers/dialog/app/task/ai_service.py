@@ -1,36 +1,27 @@
 import asyncio
 import io
 import subprocess
-from typing import Any, cast
 
 from openai import AsyncOpenAI
 
 from app.common.models import enums, orm
+from app.common.utils import openrouter
 from app.common.utils.functions import normalize_dashes
+from app.common.utils.notify import BotNotify
 from app.common.utils.prompt import (
     build_prompt,
-    get_name_addon,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
 )
-from app.config import config
 from app.utils.logger import Logger
 
 
 class AIService:
     """Сервис для работы с AI"""
 
-    def __init__(self):
-        params = {
-            "api_key": config.openai.api_key,
-            "timeout": config.openai.timeout,
-        }
-        if config.openai.base_url:
-            params["base_url"] = config.openai.base_url
-
-        self.client = AsyncOpenAI(**params)  # type: ignore
-        self.model = config.openai.model
+    def __init__(self, user: orm.User):
+        self.user = user
 
     async def get_response_with_status(
         self,
@@ -59,12 +50,7 @@ class AIService:
                 break
 
         try:
-            raw_response = await self.client.responses.create(
-                model=self.model,
-                input=cast(Any, messages),
-            )
-
-            response = raw_response.output_text
+            response = await openrouter.create_response(self.user, messages)
 
             if not response:
                 return None, None
@@ -76,6 +62,7 @@ class AIService:
             return normalize_dashes(text), new_status
 
         except Exception as e:
+            await BotNotify.error(self.user.id, str(e))
             logger.error(f"Ошибка AI запроса: {e}")
             return None, None
 
@@ -159,9 +146,15 @@ class AIService:
         # создаём BytesIO, чтобы OpenAI SDK точно понял формат
         mp3_io = io.BytesIO(mp3_bytes)
 
-        transcription = await self.client.audio.transcriptions.create(
+        client = AsyncOpenAI(
+            api_key="sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE",
+            base_url="https://api.proxyapi.ru/openai/v1",
+            timeout=600,
+        )
+
+        transcription = await client.audio.transcriptions.create(
             model="gpt-4o-transcribe",
-            file=("voice.mp3", mp3_io),  # tuple из 2 элементов: имя файла + bytes/IO
+            file=("voice.mp3", mp3_io),
         )
 
         return transcription.text

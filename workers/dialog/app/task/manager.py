@@ -58,7 +58,7 @@ class DialogManager:
         self.logger = logger
         self.stop_event = stop_event
 
-        self.ai_service = AIService()
+        self.ai_service = AIService(self.account.user)
         self.telegram_service = TelegramService(client, logger)
 
         # Отслеживаем диалоги текущей сессии
@@ -205,9 +205,11 @@ class DialogManager:
         Возвращает список новых сообщений (отсортированных по времени).
         """
         peer = self.telegram_service._get_peer(dialog.recipient)
-
         if not peer:
-            return []
+            await self.telegram_service.get_entity(dialog.recipient)
+            peer = self.telegram_service._get_peer(dialog.recipient)
+            if not peer:
+                return []
 
         # Получаем последнее сообщение из БД
         last_db_message = (
@@ -288,7 +290,10 @@ class DialogManager:
         # Получаем peer для диалога
         peer = self.telegram_service._get_peer(dialog.recipient)
         if not peer:
-            return
+            await self.telegram_service.get_entity(dialog.recipient)
+            peer = self.telegram_service._get_peer(dialog.recipient)
+            if not peer:
+                return
 
         # Получаем непрочитанные сообщения от аккаунта (наши сообщения)
         unread_messages = await orm.Message.filter(
@@ -370,9 +375,11 @@ class DialogManager:
             for dialog in dialogs:
                 try:
                     peer = self.telegram_service._get_peer(dialog.recipient)
-
                     if not peer:
-                        continue
+                        await self.telegram_service.get_entity(dialog.recipient)
+                        peer = self.telegram_service._get_peer(dialog.recipient)
+                        if not peer:
+                            continue
 
                     # Получаем последнее сообщение из БД
                     last_db_message = (

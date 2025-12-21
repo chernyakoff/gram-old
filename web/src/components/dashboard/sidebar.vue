@@ -11,6 +11,15 @@
       <Logo :collapsed="collapsed" />
     </template>
     <template #default="{ collapsed }">
+      <div
+        class="py-3 mb-2 text-sm flex items-center"
+        :class="collapsed ? 'justify-center' : 'justify-between'"
+      >
+        <span v-if="!collapsed" class="text-muted">Баланс</span>
+        <span class="font-semibold tabular-nums">
+          {{ balanceRub }}
+        </span>
+      </div>
       <UNavigationMenu
         :collapsed="collapsed"
         :items="filteredLinks"
@@ -92,6 +101,15 @@ const links = [
     onSelect: () => (open.value = false),
   },
 ] satisfies NavigationMenuItem[]
+
+const balanceRub = computed(() => {
+  const balance = user.value?.balance ?? 0
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 2,
+  }).format(balance / 100)
+})
 
 const filteredLinks = computed(() => {
   return links.filter((link) => {

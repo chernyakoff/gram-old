@@ -41,11 +41,9 @@ class IpInfo(BaseModel):
     token: str
 
 
-class Openai(BaseModel):
-    api_key: str
-    model: str
-    base_url: str | None
-    timeout: int | None = 180
+class OpenRouter(BaseModel):
+    manager_api_key: str
+    proxy: str
 
 
 class Bot(BaseModel):
@@ -65,7 +63,7 @@ class Settings(BaseModel):
     postgres: Postgres
     ipinfo: IpInfo
     s3: S3
-    openai: Openai
+    openrouter: OpenRouter
     api: Api
 
     @classmethod

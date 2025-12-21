@@ -3,17 +3,14 @@ import json
 import re
 from datetime import timedelta
 
-from aiopath import AsyncPath
-from anthropic import AsyncAnthropic
-from anthropic.types import Message
 from hatchet_sdk import Context
 from pydantic import BaseModel
 
 from app.client import hatchet
 from app.common.models import orm
+from app.common.utils import openrouter
 from app.common.utils.functions import pick
 from app.common.utils.prompt import get_generator, get_status_addon
-from app.config import config
 from app.utils.stream_logger import StreamLogger
 
 
@@ -45,13 +42,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
 
     project = await orm.Project.get(id=input.project_id)
 
-    params = {
-        "api_key": config.openai.api_key,
-        "timeout": 600,
-        "base_url": "https://api.proxyapi.ru/anthropic",
-    }
-
-    client = AsyncAnthropic(**params)
+    user = await orm.User.get(id=project.user_id)
 
     brief_json = await get_brief(project.id)
     generator = await get_generator()
@@ -59,24 +50,16 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
 
     content = f"{generator}\n\n---\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```\n\n---\n\nОбрати внимание, этот раздел мы крепим в каждый промпт, учитывай эти особенности и составляй разделы не повторяясь и не нарушая системных правил\n\n{status_addon}"
 
-    message = await client.messages.create(
-        max_tokens=16000,
-        messages=[{"role": "user", "content": content}],
-        model="claude-sonnet-4-5-20250929",
-    )
-
-    if message.stop_reason == "max_tokens":
-        await logger.warning("⚠️ Ответ обрезан! Увеличьте max_tokens")
+    try:
+        response = await openrouter.generate_prompt(user, content)
+    except Exception as e:
+        await logger.error(e)
         return
 
-    else:
-        await logger.success(
-            f"✅ Генерация завершена. Использовано токенов: {message.usage.output_tokens}"
-        )
+    await logger.success("✅ Генерация завершена.")
 
     try:
-        response_text = extract_text_from_response(message)
-        result = extract_json(response_text)
+        result = extract_json(response)
         validate_config(result)
         await orm.Prompt.upsert(project.id, result)
 
@@ -85,23 +68,6 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
         return
 
     await logger.success("Промпт успешно сгенерирован")
-
-
-def extract_text_from_response(message: Message) -> str:
-    """Извлекает текст из ответа Claude, игнорируя thinking blocks и tool use."""
-    text_parts = []
-
-    for block in message.content:
-        # Проверяем тип блока через атрибут type или isinstance
-        if hasattr(block, "type") and block.type == "text":
-            text_parts.append(block.text)
-        elif hasattr(block, "text"):  # Fallback для TextBlock
-            text_parts.append(block.text)  # type: ignore
-
-    if not text_parts:
-        raise ValueError("❌ В ответе нет текстовых блоков")
-
-    return "\n".join(text_parts)
 
 
 def extract_json(text: str) -> dict:

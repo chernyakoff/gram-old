@@ -23,12 +23,14 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = data.accessToken
     localStorage.setItem('accessToken', data.accessToken)
     await fetchUser()
+    startBalancePolling()
   }
 
   async function logout() {
     user.value = null
     accessToken.value = null
     localStorage.removeItem('accessToken')
+    stopBalancePolling()
     try {
       await api('auth/logout', { method: 'POST' })
     } catch {
@@ -70,6 +72,29 @@ export const useAuthStore = defineStore('auth', () => {
     // После остановки имперсонации нужно обновить токены
     await refreshTokens()
     await fetchUser()
+  }
+
+  let balanceInterval: number | null = null
+
+  function startBalancePolling() {
+    if (balanceInterval) return
+
+    balanceInterval = window.setInterval(() => {
+      if (accessToken.value && document.visibilityState === 'visible') {
+        fetchUser()
+      }
+    }, 30_000)
+  }
+
+  function stopBalancePolling() {
+    if (balanceInterval) {
+      clearInterval(balanceInterval)
+      balanceInterval = null
+    }
+  }
+
+  if (accessToken.value) {
+    startBalancePolling()
   }
 
   return {

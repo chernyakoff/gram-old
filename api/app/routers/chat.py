@@ -1,10 +1,10 @@
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
-from openai import AsyncOpenAI
 
 from app.common.models import orm
 from app.common.models.enums import DialogStatus
+from app.common.utils import openrouter
 from app.common.utils.functions import (
     generate_message,
     normalize_dashes,
@@ -21,17 +21,6 @@ from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-params = {
-    "api_key": config.openai.api_key,
-    "timeout": config.openai.timeout,
-}
-if config.openai.base_url:
-    params["base_url"] = config.openai.base_url
-
-
-client = AsyncOpenAI(**params)
 
 
 @router.post("/", response_model=ChatOut)
@@ -64,12 +53,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
-    raw_response = await client.responses.create(
-        model=config.openai.model,  # например "gpt-4.1" или "gpt-3.5-turbo"
-        input=cast(Any, messages),
-    )
+    try:
+        response = await openrouter.create_response(user, messages)
+    except Exception as e:
+        return ChatOut(text=str(e), status=chat.status)
 
-    response = raw_response.output_text  # completion.choices[0].message.content or ""
+    if not response:
+        return ChatOut(text="AI не вернул ответ", status=chat.status)
 
     add_status_alert = False
     status = get_ooc_status(response)

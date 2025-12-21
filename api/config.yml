@@ -1,15 +1,15 @@
 postgres:
-  dsn: "postgres://postgres:postgres@127.0.0.1:5432/neurogram"
+  dsn: "postgres://postgres:postgres@postgres:5432/neurogram"
 
 hatchet:
-  host_port: "localhost:7070"
+  host_port: "hatchet-engine:7070"
   token: "eyJhbGciOiJFUzI1NiIsICJraWQiOiJWbm84eHcifQ.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCAiZXhwIjo0OTExMjczMTYyLCAiZ3JwY19icm9hZGNhc3RfYWRkcmVzcyI6ImxvY2FsaG9zdDo3MDc3IiwgImlhdCI6MTc1NzY3MzE2MiwgImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCIsICJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwgInN1YiI6IjcwN2QwODU1LTgwYWItNGUxZi1hMTU2LWYxYzQ1NDZjYmY1MiIsICJ0b2tlbl9pZCI6ImRjYzkxYWVkLTdiNjctNGJmMC1iYTdjLWIyNjY5YjUzYzY5YyJ9.ZZuUgYN9BrQq6rJxi6sCqBAABgdLkr-bEB5kj88xq5USLVZt3fVHB3Ghu1iBfvx9o4X33Fveuill8WRwijHy7Q"
 
 s3:
   access_key: "IhDRQQH1TfL0wQtUDpKV"
   secret_key: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
-  endpoint_url: "http://127.0.0.1:9000"
   public_endpoint_url: "http://127.0.0.1:9000"
+  endpoint_url: "http://neuro-minio:9000"
 
 ipinfo:
   token: "585e8f96698098"
@@ -17,22 +17,19 @@ ipinfo:
 api:
   port: 8833
   host: "0.0.0.0"
+  url: "http://localhost:8833"
   jwt:
     secret: "arG6u&AIQ3n6ZRq*"
     algorithm: "HS256"
     expire_seconds: 3600
     refresh_expire_days: 30
   bot:
-    token: "8207129398:AAGRe9ytQZJVuCtZ2NCSp0Fs5GhyVt_rD8s"
+    token: "7653458234:AAFLESK0Zoo4SbMI-Z8ZrF8HMQOLSsOOR_c"
+    name: "MockBot"
 
 web:
   url: "http://localhost:5173"
 
-worker:
-  name: "neuro"
-  slots: 10
-
-openai:
-  api_key: "sk-zU2bFj5xpbIArlgNMlqpG36qFDw9flXE"
-  model: "gpt-4o-mini"
-  base_url: "https://api.proxyapi.ru/openai/v1"
+openrouter:
+  manager_api_key: "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"
+  proxy: ""
