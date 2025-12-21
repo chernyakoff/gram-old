@@ -86,9 +86,12 @@ async def release_recipients():
     )
 
 
-async def get_active_projects() -> list[orm.Project]:
-    """Получить все активные проекты (для продолжения диалогов)"""
-    return await orm.Project.filter(status=True).prefetch_related("mailings")
+async def get_active_projects(min_balance: int = 1000) -> list[orm.Project]:
+    """Получить активные проекты, где у пользователя хватает баланса"""
+    return await orm.Project.filter(
+        status=True,
+        user__balance__gt=min_balance,
+    ).prefetch_related("mailings", "user")
 
 
 def is_project_in_send_window(project: orm.Project, now) -> bool:
