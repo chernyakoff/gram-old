@@ -1,8 +1,19 @@
 import re
 
+from pydantic import BaseModel
+
 from app.common.models.enums import DialogStatus
 from app.common.models.orm import Account, AppSettings, Recipient
-from app.dto.project import DEFAULT_SKIP_OPTIONS, ProjectSkipOptions
+
+
+class ProjectSkipOptions(BaseModel):
+    engage: bool
+    offer: bool
+    closing: bool
+
+
+DEFAULT_SKIP_OPTIONS = ProjectSkipOptions(engage=False, offer=False, closing=False)
+
 
 PROMPT_TITLES = {
     "role": "РОЛЬ",

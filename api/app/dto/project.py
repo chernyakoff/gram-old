@@ -5,12 +5,7 @@ from pydantic import BaseModel
 from tortoise_serializer import ContextType, Serializer
 
 from app.common.models import orm
-
-
-class ProjectSkipOptions(BaseModel):
-    engage: bool
-    offer: bool
-    closing: bool
+from app.common.utils.prompt import DEFAULT_SKIP_OPTIONS, ProjectSkipOptions
 
 
 class BriefIn(BaseModel):
@@ -78,9 +73,6 @@ class ProjectIn(BaseModel):
 
 class ProjectShortOut(ProjectBase):
     status: bool
-
-
-DEFAULT_SKIP_OPTIONS = ProjectSkipOptions(engage=False, offer=False, closing=False)
 
 
 class ProjectOut(Serializer):
