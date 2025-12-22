@@ -30,9 +30,7 @@ openai/gpt-5.1-chat
 anthropic/claude-haiku-4.5
 anthropic/claude-sonnet-4.5
 google/gemini-2.5-flash-preview-09-2025
-openai/gpt-5-chat
 openai/gpt-5-mini
-openai/gpt-oss-120b:free
 x-ai/grok-4-fast
 google/gemini-2.5-flash-lite-preview-09-2025
 x-ai/grok-4
@@ -41,13 +39,12 @@ anthropic/claude-sonnet-4
 openai/gpt-4.1
 openai/gpt-4.1-mini
 google/gemini-2.0-flash-lite-001
-anthropic/claude-3.7-sonnet
 google/gemini-2.0-flash-001
-anthropic/claude-3.5-haiku
 anthropic/claude-3.5-sonnet
 openai/chatgpt-4o-latest
 openai/gpt-4o-mini
-deepseek/deepseek-r1-0528:free
+xiaomi/mimo-v2-flash:free
+nex-agi/deepseek-v3.1-nex-n1:free
 """.strip().splitlines()
 
 
@@ -257,7 +254,7 @@ async def upsert_models():
                 id=model.id,
                 defaults={
                     "name": model.name,
-                    "description": model.description,
+                    # "description": model.description,
                     "prompt_price": Decimal(model.pricing.prompt),
                     "completion_price": Decimal(model.pricing.completion),
                 },
