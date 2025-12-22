@@ -47,9 +47,10 @@
                         <h4 class="font-semibold text-lg">{{ selectedModel.name }}</h4>
                         <UBadge color="primary" variant="subtle" size="xs">Выбрано</UBadge>
                       </div>
-                      <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                        {{ selectedModel.description }}
-                      </p>
+                      <p
+                        class="text-sm text-gray-600 dark:text-gray-300 mb-3"
+                        v-html="selectedModel.description"
+                      ></p>
                       <div class="flex flex-wrap gap-4 text-sm">
                         <div class="flex items-center gap-2">
                           <UIcon
@@ -131,7 +132,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2 mb-1">
-                            <h5 class="font-medium truncate">{{ model.name }}</h5>
+                            <h5 class="font-medium">{{ model.name }}</h5>
                           </div>
                           <p
                             class="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2"
