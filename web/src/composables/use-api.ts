@@ -10,11 +10,10 @@ export function getErrorValue(e: unknown): string {
 }
 
 // ---------- Ky instance с Authorization + snake/camel + refresh ----------
-
 function createKy() {
   const authStore = useAuthStore()
 
-  return ky.create({
+  const instance = ky.create({
     prefixUrl: import.meta.env.API_URL,
     credentials: 'include',
     timeout: 5 * 60 * 1000,
@@ -38,7 +37,8 @@ function createKy() {
               const success = await authStore.refreshTokens()
               if (success) {
                 headers.set('Authorization', `Bearer ${authStore.accessToken}`)
-                return ky(request, { ...options, headers })
+                // Используем instance вместо глобального ky
+                return instance(request, { ...options, headers })
               }
             }
           }
@@ -48,6 +48,8 @@ function createKy() {
       ],
     },
   })
+
+  return instance
 }
 /* function normalizeEndpoint(endpoint: string): string {
   return endpoint.replace(/\/?(?=\?|$)/, '/')
