@@ -103,7 +103,6 @@ services:
       - "traefik.http.routers.neuro-api.entrypoints=websecure"
       - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.neuro-api.loadbalancer.server.port=8833"
-      - "traefik.http.services.neuro-api.loadbalancer.serverstransport=long-wait@file"
       - "traefik.http.routers.neuro-api.middlewares=secure-headers@file" 
     networks:
       - hatchet
