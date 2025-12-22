@@ -133,9 +133,10 @@
                           <div class="flex items-center gap-2 mb-1">
                             <h5 class="font-medium truncate">{{ model.name }}</h5>
                           </div>
-                          <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
-                            {{ model.description }}
-                          </p>
+                          <p
+                            class="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2"
+                            v-html="model.description"
+                          ></p>
                           <div
                             class="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400"
                           >
