@@ -12,12 +12,14 @@ from app.common.utils.functions import (
 )
 from app.common.utils.prompt import (
     build_prompt,
+    build_prompt_v2,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
 )
 from app.config import config
 from app.dto.chat import ChatIn, ChatOut, MessageRole
+from app.dto.project import ProjectSkipOptions
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -31,6 +33,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    skip_options = ProjectSkipOptions(**project.skip_options)
 
     STATUS_ADDON = await get_status_addon()
 
@@ -48,7 +52,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 break
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
-    prompt = build_prompt(orm_prompt.to_dict(), chat.status)
+
+    # prompt = build_prompt(orm_prompt.to_dict(), chat.status)
+    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status, skip_options)
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])

@@ -2,6 +2,7 @@ import re
 
 from app.common.models.enums import DialogStatus
 from app.common.models.orm import Account, AppSettings, Recipient
+from app.dto.project import DEFAULT_SKIP_OPTIONS, ProjectSkipOptions
 
 PROMPT_TITLES = {
     "role": "РОЛЬ",
@@ -68,4 +69,34 @@ def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
 
     markdown = "\n\n".join(text)
     markdown = markdown.replace("{current_status}", status.value)
+    return markdown
+
+
+def build_prompt_v2(
+    prompt: dict[str, str],
+    status: str = DialogStatus.INIT,
+    skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
+):
+    text = []
+    statuses = {"init", "engage", "offer", "closing"}
+    dynamic_order = ["engage", "offer", "closing"]
+
+    for key, title in PROMPT_TITLES.items():
+        if key not in statuses:
+            # обычная секция
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+
+    # обработка динамической секции
+    if status in dynamic_order:
+        # ищем первую "не пропущенную" секцию начиная с текущего статуса
+        start_index = dynamic_order.index(status)
+        for next_status in dynamic_order[start_index:]:
+            if not getattr(skip_options, next_status):
+                block = f"# {PROMPT_TITLES[next_status]}\n{prompt[next_status]}"
+                text.append(block)
+                break  # добавили первую допустимую и выходим
+
+    markdown = "\n\n".join(text)
+    markdown = markdown.replace("{current_status}", status)
     return markdown

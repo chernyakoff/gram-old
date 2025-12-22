@@ -80,6 +80,9 @@ class ProjectShortOut(ProjectBase):
     status: bool
 
 
+DEFAULT_SKIP_OPTIONS = ProjectSkipOptions(engage=False, offer=False, closing=False)
+
+
 class ProjectOut(Serializer):
     id: int
     name: str
@@ -97,7 +100,7 @@ class ProjectOut(Serializer):
         cls, instance: orm.Project, context: ContextType
     ) -> ProjectSkipOptions:
         if not instance.skip_options:
-            return ProjectSkipOptions(engage=False, offer=False, closing=False)
+            return DEFAULT_SKIP_OPTIONS
         return ProjectSkipOptions(**instance.skip_options)
 
 
@@ -109,7 +112,7 @@ def create_default_project() -> ProjectIn:
         send_time_end=23,
         first_message="",
         advanced_mode=False,
-        skip_options=ProjectSkipOptions(engage=False, offer=False, closing=False),
+        skip_options=DEFAULT_SKIP_OPTIONS,
         prompt=PromptIn(
             role="",
             context="",
