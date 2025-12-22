@@ -88,7 +88,7 @@ class AIService:
         self, project_prompt: dict, status: enums.DialogStatus
     ) -> str:
         """Формирует системный промпт с инструкциями по статусам"""
-        return await build_prompt(project_prompt, status)
+        return build_prompt(project_prompt, status)
 
     def _parse_response(
         self, response: str, logger: Logger

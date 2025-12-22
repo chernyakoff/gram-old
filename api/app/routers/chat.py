@@ -48,7 +48,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 break
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
-    prompt = await build_prompt(orm_prompt.to_dict(), chat.status)
+    prompt = build_prompt(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])

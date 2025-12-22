@@ -62,7 +62,7 @@ async def get_generator() -> str:
     return await AppSettings.fetch("prompt.generator")
 
 
-async def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
+def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
     text = []
     statuses = {s.value for s in DialogStatus}
     for key, title in PROMPT_TITLES.items():

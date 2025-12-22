@@ -1,8 +1,8 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-
 
 from app.common.utils import vars
 from app.config import config, init_db, shutdown_db
@@ -16,7 +16,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
 
 
 app.add_middleware(
@@ -34,3 +33,9 @@ for router in vars.load("app.routers:router", APIRouter):
 @app.get("/", status_code=status.HTTP_200_OK)
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/slow")
+async def ping():
+    await asyncio.sleep(15)  # имитируем долгую обработку
+    return {"ok": True}

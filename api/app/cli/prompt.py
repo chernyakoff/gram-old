@@ -27,7 +27,7 @@ async def _(id: str):
 
     prompts = await orm.Prompt.filter(project__user_id=user.id).all()
     for prompt in prompts:
-        result.append(await build_prompt(prompt.to_dict()))
+        result.append(build_prompt(prompt.to_dict()))
 
     buf = StringIO()
     buf.write("\n\n\n".join(result))
