@@ -33,7 +33,6 @@ google/gemini-2.5-flash-preview-09-2025
 openai/gpt-5-mini
 x-ai/grok-4-fast
 google/gemini-2.5-flash-lite-preview-09-2025
-x-ai/grok-4
 google/gemini-2.5-pro
 anthropic/claude-sonnet-4
 openai/gpt-4.1
