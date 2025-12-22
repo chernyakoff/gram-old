@@ -47,7 +47,6 @@ class TelegramService:
 
         try:
             entity = await self.client.get_entity(recipient.username)
-            recipient.status = enums.RecipientStatus.PROCESSING
             recipient.last_error = None  # type: ignore
             if isinstance(entity, User):
                 recipient.peer_id = entity.id
@@ -59,7 +58,7 @@ class TelegramService:
                     recipient.last_name = entity.last_name
                 if isinstance(entity.premium, bool):
                     recipient.premium = entity.premium
-                info = await self.get_recipient_info()
+                info = await self.get_recipient_info(entity)
                 if info:
                     recipient.about = info["about"]
                     recipient.channel = info["channel"]
@@ -87,9 +86,7 @@ class TelegramService:
             await self._handle_unexpected_error(recipient, e)
             return None
 
-    async def send_message(
-        self, recipient: orm.Recipient, text: str, dialog: orm.Dialog | None = None
-    ):
+    async def send_message(self, recipient: orm.Recipient, text: str):
         """Отправляет сообщение получателю"""
         recipient.attempts += 1
         recipient.last_attempt_at = tz.now()
@@ -97,8 +94,12 @@ class TelegramService:
             # Пытаемся использовать InputPeerUser если есть dialog с данными
             target = recipient.username
             peer = self._get_peer(recipient)
-            if peer:
-                target = peer
+
+            if not peer:
+                await self.get_entity(recipient)
+                peer = self._get_peer(recipient)
+                if peer:
+                    target = peer
 
             msg = await self.client.send_message(target, text)
             recipient.status = enums.RecipientStatus.SENT
@@ -262,14 +263,15 @@ class TelegramService:
         else:
             return forever
 
-    async def get_recipient_info(self) -> dict | None:
+    async def get_recipient_info(self, entity) -> dict | None:
+        """Получает about и channel для конкретного entity"""
         params = {}
         try:
-            response = await self.client(GetFullUserRequest("me"))  # type: ignore
+            response = await self.client(GetFullUserRequest(entity))
             params["about"] = response.full_user.about  # type: ignore
             params["channel"] = (
                 response.chats[0].username if response.chats else None  # type: ignore
             )
             return params
         except:
-            pass
+            return None

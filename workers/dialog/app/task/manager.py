@@ -180,7 +180,7 @@ class DialogManager:
         for sys_msg in system_messages:
             try:
                 msg = await self.telegram_service.send_message(
-                    dialog.recipient, sys_msg.text, dialog
+                    dialog.recipient, sys_msg.text
                 )
 
                 if msg:
@@ -657,9 +657,7 @@ class DialogManager:
                 await dialog.save(update_fields=["status"])
 
             for sys_msg in unsent_system:
-                msg = await self.telegram_service.send_message(
-                    recipient, sys_msg.text, dialog
-                )
+                msg = await self.telegram_service.send_message(recipient, sys_msg.text)
                 if msg:
                     sys_msg.tg_message_id = msg.id
                     await sys_msg.save(update_fields=["tg_message_id"])
