@@ -59,7 +59,7 @@ async def analyze_dialog_status(
         re.IGNORECASE,
     )
     if match:
-        return DialogStatus(response.strip())
+        return DialogStatus(response.strip().lower())
 
 
 @router.post("/", response_model=ChatOut)
