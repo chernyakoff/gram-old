@@ -20,7 +20,7 @@ DEFAULT_MODEL = "openai/gpt-5.2-chat"
 GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.5"
 
 
-MODEL_IDS = """
+_MODEL_IDS = """
 google/gemini-3-flash-preview
 openai/gpt-5.2-chat
 deepseek/deepseek-v3.2
@@ -244,10 +244,11 @@ async def get_key(hash: str) -> GetKeyResponse:
 
 
 async def upsert_models():
+    model_ids = await AiModel.all().values_list("id", flat=True)
     async with OpenRouter(api_key=config.openrouter.manager_api_key) as app:
         response = await app.models.list_async()
         for model in response.data:
-            if model.id not in MODEL_IDS:
+            if model.id not in model_ids:
                 continue
             await AiModel.update_or_create(
                 id=model.id,

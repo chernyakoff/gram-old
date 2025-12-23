@@ -92,16 +92,14 @@ class TelegramService:
         recipient.last_attempt_at = tz.now()
         try:
             # Пытаемся использовать InputPeerUser если есть dialog с данными
-            target = recipient.username
             peer = self._get_peer(recipient)
-
             if not peer:
                 await self.get_entity(recipient)
                 peer = self._get_peer(recipient)
-                if peer:
-                    target = peer
+                if not peer:
+                    raise Exception("PeerId and AccessHash not found")
 
-            msg = await self.client.send_message(target, text)
+            msg = await self.client.send_message(peer, text)
             recipient.status = enums.RecipientStatus.SENT
             recipient.last_error = None  # type: ignore
             await recipient.save(

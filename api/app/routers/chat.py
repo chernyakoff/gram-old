@@ -11,6 +11,7 @@ from app.common.utils.functions import (
     randomize_message,
 )
 from app.common.utils.prompt import (
+    DEFAULT_SKIP_OPTIONS,
     build_prompt,
     build_prompt_v2,
     get_ooc_status,
@@ -34,7 +35,11 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    skip_options = ProjectSkipOptions(**project.skip_options)
+    skip_options = (
+        ProjectSkipOptions(**project.skip_options)
+        if project.skip_options
+        else DEFAULT_SKIP_OPTIONS
+    )
 
     STATUS_ADDON = await get_status_addon()
 

@@ -8,7 +8,6 @@ from telethon.errors import FloodWaitError
 from telethon.events import NewMessage
 from telethon.tl.functions.messages import GetPeerDialogsRequest
 from telethon.tl.types import InputDialogPeer
-from telethon.types import User as TelethonUser
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
