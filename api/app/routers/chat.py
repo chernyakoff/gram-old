@@ -1,3 +1,4 @@
+import re
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,11 +20,46 @@ from app.common.utils.prompt import (
     get_status_info,
     strip_ooc_status,
 )
-from app.dto.chat import ChatIn, ChatOut, MessageRole
+from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
 from app.dto.project import ProjectSkipOptions
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+ANALYZE_PROMPT = """
+определи статус диалога и верни только статус
+
+Универсальные статусы определяются по смыслу сообщения пользователя и активному модулю промпта.
+
+INIT - установка базового контакта.
+
+ENGAGE - понять ситуацию/задачи/цели/боли пользователя.
+
+OFFER - предложить решение/продукта услуги.
+
+CLOSING - согласовать следующий шаг и необходимые детали.
+
+COMPLETE - корректно завершить диалог.
+
+**NEGATIVE - если видишь, что человек резок к нам, строгий подтвержденный отказ, то извиниться за контакт, а после вернуть этот статус перед следующим ответом.
+
+**OPERATOR - если видишь раздражение от ИИ или в запросе человека он говорит что ему не нравится общаться с ИИ, а также когда прямо заявляют что ИИ бесит, уведомить, что сделаешь перевод на человека или выполни цель (ссылка на группу, передача оператору), верни этот статус после этого перед следующим ответом.
+"""
+
+
+async def analyze_dialog_status(
+    user: orm.User, messages: list[Message]
+) -> DialogStatus | None:
+    history = [{"role": m.role.value, "content": m.text} for m in messages]
+    history.append({"role": "user", "content": ANALYZE_PROMPT})
+    response = await openrouter.create_response(user, messages)
+    match = re.search(
+        r"(init|engage|offer|closing|complete|negative|operator)",
+        response.strip(),
+        re.IGNORECASE,
+    )
+    if match:
+        return DialogStatus(response.strip())
 
 
 @router.post("/", response_model=ChatOut)
@@ -42,8 +78,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     )
 
     STATUS_ADDON = await get_status_addon()
-
-    chat.status = get_active_status(chat.status, skip_options)
+    if skip_options == DEFAULT_SKIP_OPTIONS and chat.messages:
+        new_status = await analyze_dialog_status(user, chat.messages)
+        if not new_status:
+            raise HTTPException(
+                status_code=404, detail="Не могу опредеить статус диалога"
+            )
+        chat.status = get_active_status(new_status, skip_options)
 
     STATUS_INFO = ""  # get_status_info(chat.status, skip_options)
 
@@ -84,8 +125,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     response = strip_ooc_status(response)
     response = normalize_dashes(response)
-
-    status = get_active_status(status, skip_options)
 
     if add_status_alert:
         response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
