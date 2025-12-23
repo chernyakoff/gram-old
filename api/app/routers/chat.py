@@ -85,6 +85,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     response = strip_ooc_status(response)
     response = normalize_dashes(response)
 
+    status = get_active_status(status, skip_options)
+
     if add_status_alert:
         response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
     return ChatOut(text=response, status=status)
