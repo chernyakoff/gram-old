@@ -16,6 +16,7 @@ from app.common.utils.prompt import (
     get_active_status,
     get_ooc_status,
     get_status_addon,
+    get_status_info,
     strip_ooc_status,
 )
 from app.dto.chat import ChatIn, ChatOut, MessageRole
@@ -44,6 +45,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     chat.status = get_active_status(chat.status, skip_options)
 
+    STATUS_INFO = get_status_info(chat.status, skip_options)
+
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
@@ -51,7 +54,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
-                msg.text = f"{msg.text}\n{STATUS_ADDON}"
+                msg.text = f"{msg.text}\n{STATUS_ADDON}\n{STATUS_INFO}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 

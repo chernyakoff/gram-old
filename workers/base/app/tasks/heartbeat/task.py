@@ -62,7 +62,7 @@ FROM (
 WHERE d.id = m.dialog_id
   AND d.status <> 'complete'
   AND d.finished_at IS NULL
-  AND m.last_msg_time < NOW() - INTERVAL '2 days';
+  AND m.last_msg_time < NOW() - INTERVAL '7 days';
 """)
 
 
