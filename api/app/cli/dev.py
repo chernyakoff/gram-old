@@ -58,3 +58,27 @@ async def _():
             print(status_info)
 
             print("-" * 10)
+
+
+@app.command
+async def ppp():
+    orm_prompt = await orm.Prompt.get(id=17)
+    prompt_dict = orm_prompt.to_dict()
+    status = DialogStatus.OFFER
+    skip_options = ProjectSkipOptions(
+        engage=True,
+        offer=True,
+        closing=False,
+    )
+    active_status = get_active_status(status, skip_options)
+    prompt = build_prompt_v2(
+        prompt_dict,
+        active_status,
+    )
+    print(prompt)
+
+    status_info = get_status_info(active_status, skip_options)
+
+    print(status_info)
+
+    print("-" * 10)

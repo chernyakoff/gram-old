@@ -29,7 +29,7 @@ PROMPT_TITLES = {
 
 def get_ooc_status(message: str) -> DialogStatus | None:
     match = re.search(
-        r"STATUS:\s*\[?(init|engage|offer|closing|negative|operator)\]?",
+        r"STATUS:\s*\[?(init|engage|offer|closing|complete|negative|operator)\]?",
         message,
         re.IGNORECASE,
     )
@@ -39,7 +39,7 @@ def get_ooc_status(message: str) -> DialogStatus | None:
 
 def strip_ooc_status(message: str) -> str:
     return re.sub(
-        r"STATUS:\s*\[?(init|engage|offer|closing|negative|operator)\]?",
+        r"STATUS:\s*\[?(init|engage|offer|closing|complete|negative|operator)\]?",
         "",
         message,
         flags=re.IGNORECASE,
@@ -106,8 +106,8 @@ def get_active_status(
 
     # если ничего не нашли — значит, диалог логически завершён
     if active_status is None:
-        return DialogStatus.COMPLETE
-
+        active_status = DialogStatus.COMPLETE.value
+    print(f"Status: {status_value}, Active: {active_status}")
     return DialogStatus(active_status)
 
 
