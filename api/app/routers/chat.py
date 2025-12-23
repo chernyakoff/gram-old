@@ -52,7 +52,7 @@ async def analyze_dialog_status(
 ) -> DialogStatus | None:
     history = [{"role": m.role.value, "content": m.text} for m in messages]
     history.append({"role": "user", "content": ANALYZE_PROMPT})
-    response = await openrouter.create_response(user, messages)
+    response = await openrouter.create_response(user, history)
     match = re.search(
         r"(init|engage|offer|closing|complete|negative|operator)",
         response.strip(),
