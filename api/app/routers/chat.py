@@ -45,7 +45,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     chat.status = get_active_status(chat.status, skip_options)
 
-    STATUS_INFO = get_status_info(chat.status, skip_options)
+    STATUS_INFO = ""  # get_status_info(chat.status, skip_options)
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
