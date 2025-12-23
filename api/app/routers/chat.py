@@ -77,9 +77,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         else DEFAULT_SKIP_OPTIONS
     )
 
-    STATUS_ADDON = await get_status_addon()
     if skip_options == DEFAULT_SKIP_OPTIONS and chat.messages:
         new_status = await analyze_dialog_status(user, chat.messages)
+        print("found status", new_status)
         if not new_status:
             raise HTTPException(
                 status_code=404, detail="Не могу опредеить статус диалога"
@@ -93,6 +93,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         first_message = randomize_message(first_message)
         return ChatOut(text=first_message, status=chat.status)
     else:
+        STATUS_ADDON = await get_status_addon()
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
                 msg.text = f"{msg.text}\n{STATUS_ADDON}\n{STATUS_INFO}"
