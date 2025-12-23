@@ -99,6 +99,7 @@ export function useChat() {
     messages.value = []
     status.value = 'ready'
     error.value = null
+    dialogStatus.value = 'init'
   }
 
   return { messages, status, error, dialogStatus, sendMessage, startWithPrompt, reset }
