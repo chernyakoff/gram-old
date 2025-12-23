@@ -12,14 +12,11 @@ from app.common.utils.functions import (
 )
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
-    build_prompt,
     build_prompt_v2,
-    build_prompt_v3,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
 )
-from app.config import config
 from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.dto.project import ProjectSkipOptions
 from app.routers.auth import get_current_user
@@ -60,7 +57,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     orm_prompt = await orm.Prompt.get(project_id=project.id)
 
     # prompt = build_prompt(orm_prompt.to_dict(), chat.status)
-    prompt = build_prompt_v3(orm_prompt.to_dict(), chat.status, skip_options)
+    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status, skip_options)
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])

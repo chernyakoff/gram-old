@@ -122,41 +122,6 @@ def build_prompt_v2(
             block = f"# {title}\n{prompt[key]}"
             text.append(block)
 
-    content = "\n\n".join(text)
-    content = content.replace("{current_status}", status)
-    return content
-
-
-def build_prompt_v3(
-    prompt: dict[str, str],
-    status: str = DialogStatus.INIT,
-    skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
-):
-    text = []
-
-    for key, title in PROMPT_TITLES.items():
-        block = f"# {title}\n{prompt[key]}"
-        text.append(block)
-
-    dynamic_order = ["engage", "offer", "closing"]
-
-    # ищем первую доступную динамическую секцию
-    active_status: str | None = None
-    status_value = status.value if isinstance(status, DialogStatus) else status
-
-    # INIT всегда включается, независимо от skip_options
-    if status_value == "init":
-        active_status = "init"
-    elif status_value in dynamic_order:
-        # Начинаем поиск с текущего статуса
-        start_index = dynamic_order.index(status_value)
-        for s in dynamic_order[start_index:]:
-            # Проверяем, не пропущена ли эта секция
-            is_skipped = getattr(skip_options, s, False)
-            if not is_skipped:
-                active_status = s
-                break
-
     available_sections = []
     disabled_sections = []
     for section in dynamic_order:
