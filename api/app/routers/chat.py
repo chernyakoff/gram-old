@@ -26,32 +26,13 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-ANALYZE_PROMPT = """
-определи статус диалога и верни только статус
-
-Универсальные статусы определяются по смыслу сообщения пользователя и активному модулю промпта.
-
-INIT - установка базового контакта.
-
-ENGAGE - понять ситуацию/задачи/цели/боли пользователя.
-
-OFFER - предложить решение/продукта услуги.
-
-CLOSING - согласовать следующий шаг и необходимые детали.
-
-COMPLETE - корректно завершить диалог.
-
-**NEGATIVE - если видишь, что человек резок к нам, строгий подтвержденный отказ, то извиниться за контакт, а после вернуть этот статус перед следующим ответом.
-
-**OPERATOR - если видишь раздражение от ИИ или в запросе человека он говорит что ему не нравится общаться с ИИ, а также когда прямо заявляют что ИИ бесит, уведомить, что сделаешь перевод на человека или выполни цель (ссылка на группу, передача оператору), верни этот статус после этого перед следующим ответом.
-"""
-
 
 async def analyze_dialog_status(
     user: orm.User, messages: list[Message]
 ) -> DialogStatus | None:
+    prompt = await orm.AppSettings.fetch("prompt.findStatus")
     history = [{"role": m.role.value, "content": m.text} for m in messages]
-    history.append({"role": "user", "content": ANALYZE_PROMPT})
+    history.append({"role": "user", "content": prompt})
     response = await openrouter.create_response(user, history)
     match = re.search(
         r"(init|engage|offer|closing|complete|negative|operator)",
