@@ -77,12 +77,12 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         else DEFAULT_SKIP_OPTIONS
     )
 
-    if skip_options == DEFAULT_SKIP_OPTIONS and chat.messages:
+    if skip_options != DEFAULT_SKIP_OPTIONS and chat.messages:
         new_status = await analyze_dialog_status(user, chat.messages)
         print("found status", new_status)
         if not new_status:
             raise HTTPException(
-                status_code=404, detail="Не могу опредеить статус диалога"
+                status_code=404, detail="Не могу определить статус диалога"
             )
         chat.status = get_active_status(new_status, skip_options)
 
