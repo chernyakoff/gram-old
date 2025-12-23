@@ -38,7 +38,8 @@ async def synonimize(data: SynonimizeIn, ctx: Context) -> SynonimizeOut:
     ctx.log("Запущена рандомизация")
     user = await User.get(id=data.user_id)
     try:
-        text = await openrouter.create_response(user, f"{PROMPT}\n\n{data.text}")
+        messages = [{"role": "user", "content": f"{PROMPT}\n\n{data.text}"}]
+        text = await openrouter.create_response(user, messages)
         return SynonimizeOut(text=text)
     except Exception as e:
         ctx.log(str(e))
