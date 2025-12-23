@@ -83,48 +83,41 @@ def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
     return markdown
 
 
-def build_prompt_v2(
-    prompt: dict[str, str],
-    status: str = DialogStatus.INIT,
+DYNAMIC_ORDER = ["engage", "offer", "closing"]
+
+
+def get_active_status(
+    status: str | DialogStatus = DialogStatus.INIT,
     skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
-):
-    # статусные ключи как строки
-    statuses = {s.value for s in DialogStatus}  # {"init", "engage", "offer", "closing"}
-    dynamic_order = ["engage", "offer", "closing"]
-
-    # ищем первую доступную динамическую секцию
-    active_status: str | None = None
+) -> DialogStatus:
     status_value = status.value if isinstance(status, DialogStatus) else status
+    active_status: str | None = None
 
-    # INIT всегда включается, независимо от skip_options
-    if status_value == "init":
-        active_status = "init"
-    elif status_value in dynamic_order:
-        # Начинаем поиск с текущего статуса
-        start_index = dynamic_order.index(status_value)
-        for s in dynamic_order[start_index:]:
-            # Проверяем, не пропущена ли эта секция
-            is_skipped = getattr(skip_options, s, False)
-            if not is_skipped:
+    # INIT всегда включается
+    if status_value == DialogStatus.INIT.value:
+        active_status = DialogStatus.INIT.value
+
+    elif status_value in DYNAMIC_ORDER:
+        start_index = DYNAMIC_ORDER.index(status_value)
+        for s in DYNAMIC_ORDER[start_index:]:
+            if not getattr(skip_options, s, False):
                 active_status = s
                 break
 
-    print(f"Status: {status_value}, Active: {active_status}")
+    # если ничего не нашли — значит, диалог логически завершён
+    if active_status is None:
+        return DialogStatus.COMPLETE
 
-    text = []
-    for key, title in PROMPT_TITLES.items():
-        if key not in statuses:
-            # обычная секция
-            block = f"# {title}\n{prompt[key]}"
-            text.append(block)
-        elif key == active_status:
-            # динамическая секция, которая не пропущена
-            block = f"# {title}\n{prompt[key]}"
-            text.append(block)
+    return DialogStatus(active_status)
 
+
+def get_status_info(
+    status: DialogStatus | None,
+    skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
+):
     available_sections = []
     disabled_sections = []
-    for section in dynamic_order:
+    for section in DYNAMIC_ORDER:
         if section == "init":
             # init всегда доступен
             available_sections.append(section)
@@ -135,13 +128,31 @@ def build_prompt_v2(
             else:
                 available_sections.append(section)
 
+    status_string = status.value if status else "None"
+
     # Добавляем информацию о статусе и секциях
-    status_info = f"""
-Текущий статус диалога: {active_status}
+    return f"""
+Текущий статус диалога: {status_string}
 ДОСТУПНЫЕ секции скрипта (галочка НЕ стоит):
 {", ".join(available_sections) if available_sections else "нет"}
 ОТКЛЮЧЕННЫЕ секции (галочка стоит - ПРОПУСТИТЬ):
 {", ".join(disabled_sections) if disabled_sections else "нет"}
 """
-    text.append(status_info.strip())
+
+
+def build_prompt_v2(
+    prompt: dict[str, str],
+    status: DialogStatus | None,
+):
+    statuses = {s.value for s in DialogStatus}  # {"init", "engage", "offer", "closing"}
+    text = []
+    for key, title in PROMPT_TITLES.items():
+        if key not in statuses:
+            # обычная секция
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+        elif status and key == status.value:
+            # динамическая секция, которая не пропущена
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
     return "\n\n".join(text)

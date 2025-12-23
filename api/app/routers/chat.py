@@ -13,6 +13,7 @@ from app.common.utils.functions import (
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
     build_prompt_v2,
+    get_active_status,
     get_ooc_status,
     get_status_addon,
     strip_ooc_status,
@@ -41,6 +42,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     STATUS_ADDON = await get_status_addon()
 
+    chat.status = get_active_status(chat.status, skip_options)
+
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
@@ -57,7 +60,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     orm_prompt = await orm.Prompt.get(project_id=project.id)
 
     # prompt = build_prompt(orm_prompt.to_dict(), chat.status)
-    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status, skip_options)
+    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
