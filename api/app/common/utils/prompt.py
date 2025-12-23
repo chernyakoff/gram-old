@@ -14,6 +14,13 @@ class ProjectSkipOptions(BaseModel):
 
 DEFAULT_SKIP_OPTIONS = ProjectSkipOptions(engage=False, offer=False, closing=False)
 
+TERMINAL_STATUSES = {
+    DialogStatus.COMPLETE.value,
+    DialogStatus.NEGATIVE.value,
+    DialogStatus.OPERATOR.value,
+    DialogStatus.MANUAL.value,
+}
+
 
 PROMPT_TITLES = {
     "role": "РОЛЬ",
@@ -91,6 +98,10 @@ def get_active_status(
     skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
 ) -> DialogStatus:
     status_value = status.value if isinstance(status, DialogStatus) else status
+
+    if status_value in TERMINAL_STATUSES:
+        return DialogStatus(status_value)
+
     active_status: str | None = None
 
     # INIT всегда включается
