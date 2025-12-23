@@ -21,6 +21,9 @@
               <template #generator>
                 <AdminPromptForm label="Генератор" path="prompt.generator" />
               </template>
+              <template #findStatus>
+                <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
+              </template>
             </UTabs>
           </template>
         </UTabs>
@@ -49,6 +52,7 @@ const tabs = [
 const promptTabs = [
   { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
   { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
+  { label: 'Поиск статуса', icon: 'bx:bxs-edit-alt', slot: 'findStatus' as const },
 ] satisfies TabsItem[]
 
 useTitle(title)
