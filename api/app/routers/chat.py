@@ -42,8 +42,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     STATUS_ADDON = await get_status_addon()
 
-    chat.status = get_active_status(chat.status, skip_options)
-
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
@@ -78,6 +76,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not status:
         add_status_alert = True
         status = chat.status
+
+    status = get_active_status(status, skip_options)
 
     response = strip_ooc_status(response)
     response = normalize_dashes(response)
