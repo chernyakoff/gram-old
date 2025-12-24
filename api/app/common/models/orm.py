@@ -182,6 +182,7 @@ class Proxy(Model, TimestampMixin):
 
 
 class Account(Model, TimestampMixin):
+    PROGREV = [1, 2, 3, 4, 5, 6, 6, 7]
     id = fields.BigIntField(pk=True, generated=False)
     username = fields.CharField(max_length=34, null=True)
     first_name = fields.CharField(max_length=64, null=True)
@@ -231,12 +232,35 @@ class Account(Model, TimestampMixin):
     last_attempt_at = fields.DatetimeField(null=True)
 
     out_daily_limit = fields.IntField(
-        description="Исходящих сообщений с одного аккаунта в сутки",
+        description="Исходящих сообщений с одного аккаунта в сутки( deprecated)",
         null=False,
         default=1,
     )
 
+    first_dialog_date = fields.DateField(
+        description="Дата первого диалога аккаунта", null=True
+    )
+
+    # Новое поле - счетчик активных дней
+    active_days_count = fields.IntField(
+        description="Количество дней, когда аккаунт отправлял диалоги", default=0
+    )
+
+    last_dialog_date = fields.DateField(
+        description="Дата последнего диалога (для атомарной проверки 'первый диалог дня')",
+        null=True,
+    )
+
     user_id: int
+
+    def get_dynamic_daily_limit(self) -> int:
+        """
+        Лимит основан на количестве АКТИВНЫХ дней, а не календарных
+        """
+        if self.active_days_count >= len(self.PROGREV):
+            return self.PROGREV[-1]
+
+        return self.PROGREV[self.active_days_count]
 
     @property
     def display_username(self) -> str:

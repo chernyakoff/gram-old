@@ -123,6 +123,13 @@ async def get_available_accounts(project: orm.Project, now, conn):
 
 
 async def check_daily_limit(account: orm.Account, now, conn) -> int:
+    """
+    Проверяет доступное количество диалогов
+    """
+
+    # Получаем лимит на основе ТЕКУЩЕГО количества активных дней
+    daily_limit = account.get_dynamic_daily_limit()
+
     counter = (
         await orm.AccountActionCounter.filter(
             account=account,
@@ -132,7 +139,8 @@ async def check_daily_limit(account: orm.Account, now, conn) -> int:
         .using_db(conn)
         .first()
     )
-    return max(0, account.out_daily_limit - (counter.count if counter else 0))
+
+    return max(0, daily_limit - (counter.count if counter else 0))
 
 
 async def reserve_daily_limit(
@@ -142,13 +150,14 @@ async def reserve_daily_limit(
     conn,
 ) -> int:
     """
-    Пытается атомарно зарезервировать reserve диалогов.
-    Возвращает реально зарезервированное количество (0..reserve).
+    Резервирует диалоги, НО НЕ увеличивает active_days_count
     """
     if reserve <= 0:
         return 0
 
-    # создаём counter, если его ещё нет
+    # Получаем лимит на основе текущего active_days_count
+    daily_limit = account.get_dynamic_daily_limit()
+
     await orm.AccountActionCounter.get_or_create(
         account=account,
         action=enums.AccountAction.NEW_DIALOG,
@@ -157,26 +166,27 @@ async def reserve_daily_limit(
         using_db=conn,
     )
 
-    # атомарно резервируем
+    # Атомарно резервируем
     rows = await conn.execute_query_dict(
         """
-    UPDATE account_action_counter
-    SET count = count + $1
-    WHERE account_id = $2
-      AND action = $3
-      AND date = $4
-      AND count + $1 <= $5
-    RETURNING count;
-    """,
+        UPDATE account_action_counter
+        SET count = count + $1
+        WHERE account_id = $2
+          AND action = $3
+          AND date = $4
+          AND count + $1 <= $5
+        RETURNING count;
+        """,
         [
             reserve,
             account.id,
             enums.AccountAction.NEW_DIALOG,
             now.date(),
-            account.out_daily_limit,
+            daily_limit,
         ],
     )
 
+    # НЕ увеличиваем active_days_count здесь!
     return reserve if rows else 0
 
 

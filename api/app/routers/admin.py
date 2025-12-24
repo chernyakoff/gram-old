@@ -4,7 +4,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from tortoise import Tortoise
-from tortoise.functions import Sum
 
 from app.common.models import orm
 from app.common.utils import openrouter
