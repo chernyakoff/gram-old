@@ -1,9 +1,13 @@
+from decimal import ROUND_DOWN, Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from tortoise import Tortoise
+from tortoise.functions import Sum
 
 from app.common.models import orm
+from app.common.utils import openrouter
 from app.config import config
 from app.routers.auth import (
     admin_required,
@@ -131,6 +135,27 @@ async def add_balance(data: BalanceIn):
 
     await user.add_balance(data.amount)
 
-    return BalanceOut(
-        status="success", message=f"Баланс пополнен на {data.amount} руб"
+    return BalanceOut(status="success", message=f"Баланс пополнен на {data.amount} руб")
+
+
+class GetBalanceOut(BaseModel):
+    openrouter: float
+    users: float
+
+
+async def get_users_balance():
+    rows = await Tortoise.get_connection("default").execute_query_dict(
+        "SELECT SUM(balance) as total FROM users"
     )
+    return (Decimal(rows[0]["total"]) / Decimal(100)).quantize(
+        Decimal("0.00"), rounding=ROUND_DOWN
+    )
+
+
+@router.get(
+    "/balance", response_model=GetBalanceOut, dependencies=[Depends(admin_required)]
+)
+async def get_balance():
+    or_balance = await openrouter.get_balance()
+    users_balance = await get_users_balance()
+    return GetBalanceOut(openrouter=float(or_balance), users=float(users_balance))

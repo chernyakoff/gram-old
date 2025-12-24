@@ -5,6 +5,18 @@
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
+        <template #right>
+          <div class="flex items-center gap-4 text-sm">
+            <div>
+              OpenRouter:
+              <span class="font-semibold">{{ balance.openrouter }} ₽</span>
+            </div>
+            <div>
+              Пользователи:
+              <span class="font-semibold">{{ balance.users }} ₽</span>
+            </div>
+          </div>
+        </template>
       </UDashboardNavbar>
     </template>
     <template #body>
@@ -39,6 +51,9 @@ import AdminLicenseForm from '@/components/dashboard/admin/license-form.vue'
 import AdminBalanceForm from '@/components/dashboard/admin/balance-form.vue'
 import AdminImpersonateForm from '@/components/dashboard/admin/impersonate-form.vue'
 import AdminPromptForm from '@/components/dashboard/admin/prompt-form.vue'
+import { onMounted, reactive } from 'vue'
+import type { GetBalanceOut } from '@/types/openapi'
+import { useAdmin } from '@/composables/use-admin'
 
 const title = 'Админка'
 
@@ -56,4 +71,16 @@ const promptTabs = [
 ] satisfies TabsItem[]
 
 useTitle(title)
+
+const { getBalance } = useAdmin()
+
+const balance = reactive<GetBalanceOut>({
+  openrouter: 0,
+  users: 0,
+})
+
+onMounted(async () => {
+  const response = await getBalance()
+  Object.assign(balance, response)
+})
 </script>

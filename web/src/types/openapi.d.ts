@@ -137,6 +137,10 @@ export interface components {
             phone: string;
             username: string | null;
         };
+        GetBalanceOut: {
+            openrouter: number;
+            users: number;
+        };
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
         };
@@ -359,6 +363,7 @@ export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
+export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type ImpersonateIn = components['schemas']['ImpersonateIn'];
 export type ImpersonateOut = components['schemas']['ImpersonateOut'];

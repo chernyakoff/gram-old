@@ -1,5 +1,5 @@
 import os
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any
 
 from openrouter import OpenRouter
@@ -259,3 +259,18 @@ async def upsert_models():
                     "completion_price": Decimal(model.pricing.completion),
                 },
             )
+
+
+async def get_balance() -> Decimal:
+    usd_rate = await get_usd_rate()
+    async with OpenRouter(api_key=config.openrouter.manager_api_key) as open_router:
+        response = await open_router.credits.get_credits_async()
+
+        balance_usd = Decimal(str(response.data.total_credits)) - Decimal(
+            str(response.data.total_usage)
+        )
+        balance_rub = balance_usd * usd_rate
+        return balance_rub.quantize(
+            Decimal("0.00"),
+            rounding=ROUND_DOWN,
+        )
