@@ -34,7 +34,8 @@ LEFT JOIN messages m ON m.dialog_id = d.id
 WHERE ml.user_id = $1
 GROUP BY d.id, d.status, d.started_at, r.username, a.username, p.name, a.phone
 ORDER BY last_msg_at DESC NULLS LAST, d.started_at DESC;
-    """[user_id],
+    """,
+        [user_id],
     )
 
 
@@ -64,7 +65,8 @@ HAVING NOT (
     COUNT(m.id) < 3
 )
 ORDER BY last_msg_at DESC NULLS LAST, d.started_at DESC
-    """[user_id],
+    """,
+        [user_id],
     )
 
 
