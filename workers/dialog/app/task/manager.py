@@ -86,6 +86,13 @@ class DialogManager:
 
         Возвращает: (dialogs_with_system, dialogs_with_replies)
         """
+        try:
+            recovered = await self._recover_stuck_dialogs(min_age_minutes=10)
+            if recovered > 0:
+                self.logger.info(f"🔄 Восстановлено {recovered} зависших диалогов")
+        except Exception as e:
+            self.logger.error(f"Ошибка при восстановлении диалогов: {e}")
+
         dialogs = await orm.Dialog.filter(
             account_id=self.account.id, finished_at__isnull=True
         ).prefetch_related("recipient", "messages")
@@ -772,13 +779,17 @@ class DialogManager:
             # ВАЖНО: Возвращаем False = НЕ продолжаем ожидание
             return False
 
-        # Отправляем read acknowledge
-        await asyncio.sleep(random.randint(3, 10))
-        await self.client.send_read_acknowledge(event.chat_id)
+        if event:
+            # Обычный режим - с эффектами
+            await asyncio.sleep(random.randint(3, 10))
+            await self.client.send_read_acknowledge(event.chat_id)
 
-        # Показываем "печатает..."
-        async with self.client.action(event.chat_id, "typing"):  # type: ignore
-            await asyncio.sleep(random.randint(10, 20))
+            # Показываем "печатает..."
+            async with self.client.action(event.chat_id, "typing"):  # type: ignore
+                await asyncio.sleep(random.randint(10, 20))
+                msg = await self.telegram_service.send_message(recipient, ai_response)
+        else:
+            # Режим восстановления - без эффектов
             msg = await self.telegram_service.send_message(recipient, ai_response)
 
         if msg:
@@ -943,3 +954,104 @@ class DialogManager:
             return True
 
         return False
+
+    async def _find_stuck_dialogs(self, min_age_minutes: int = 10) -> list[orm.Dialog]:
+        """
+        Находит зависшие диалоги по критериям:
+        - Статус в (INIT, ENGAGE, OFFER, CLOSING)
+        - finished_at IS NULL
+        - Последнее сообщение от RECIPIENT
+        - Это сообщение старше min_age_minutes
+        """
+        active_statuses = [
+            enums.DialogStatus.INIT,
+            enums.DialogStatus.ENGAGE,
+            enums.DialogStatus.OFFER,
+            enums.DialogStatus.CLOSING,
+        ]
+
+        dialogs = await orm.Dialog.filter(
+            account_id=self.account.id,
+            status__in=active_statuses,
+            finished_at__isnull=True,
+        ).prefetch_related("recipient")
+
+        stuck_dialogs = []
+        cutoff_time = tz.now() - timedelta(minutes=min_age_minutes)
+
+        for dialog in dialogs:
+            last_message = (
+                await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+            )
+
+            if not last_message:
+                continue
+
+            if (
+                last_message.sender == enums.MessageSender.RECIPIENT
+                and last_message.created_at < cutoff_time
+            ):
+                stuck_dialogs.append(dialog)
+
+        return stuck_dialogs
+
+    async def _recover_stuck_dialogs(self, min_age_minutes: int = 10) -> int:
+        """
+        Восстанавливает зависшие диалоги
+
+        Returns:
+            Количество восстановленных диалогов
+        """
+        stuck_dialogs = await self._find_stuck_dialogs(min_age_minutes)
+
+        if not stuck_dialogs:
+            return 0
+
+        self.logger.warning(
+            f"🔄 Обнаружено {len(stuck_dialogs)} зависших диалогов "
+            f"(без ответа > {min_age_minutes} мин)"
+        )
+
+        recovered = 0
+
+        for dialog in stuck_dialogs:
+            try:
+                recipient = dialog.recipient
+
+                self.logger.info(
+                    f"🔧 Восстановление диалога {dialog.id} с @{recipient.username} "
+                    f"(статус: {dialog.status.value})"
+                )
+
+                messages = await orm.Message.filter(dialog=dialog).order_by(
+                    "created_at"
+                )
+
+                if not messages:
+                    continue
+
+                should_continue = await self._generate_and_send_response(
+                    event=None, dialog=dialog, recipient=recipient, messages=messages
+                )
+
+                if should_continue:
+                    asyncio.create_task(
+                        self.start_waiting_for_first_reply(dialog, recipient)
+                    )
+
+                recovered += 1
+                await asyncio.sleep(random.randint(3, 7))
+
+            except Exception as e:
+                self.logger.error(f"Ошибка при восстановлении диалога {dialog.id}: {e}")
+                import traceback
+
+                self.logger.error(traceback.format_exc())
+                continue
+
+        if recovered > 0:
+            self.logger.info(
+                f"✅ Успешно восстановлено {recovered} из {len(stuck_dialogs)} диалогов"
+            )
+
+        return recovered
