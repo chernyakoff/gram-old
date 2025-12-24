@@ -13,11 +13,35 @@ from app.routers.auth import get_current_user
 router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 
 
-@router.get("/", response_model=list[DialogOut])
-async def get_dialogs(user=Depends(get_current_user)):
-    rows = await Tortoise.get_connection("default").execute_query_dict(
+async def _get_dialogs(user_id: int):
+    return await Tortoise.get_connection("default").execute_query_dict(
         """
-SELECT 
+    SELECT 
+    d.id AS dialog_id,
+    d.status AS status,
+    d.started_at AS started_at,
+    r.username AS recipient_username,
+    COALESCE(a.username, a.phone) AS account_username,
+    p.name AS project_name,
+    COUNT(m.id) AS msg_count,
+    MAX(m.created_at) AS last_msg_at
+FROM dialogs d
+JOIN recipients r ON r.id = d.recipient_id
+JOIN mailings ml ON ml.id = r.mailing_id
+LEFT JOIN projects p ON p.id = ml.project_id
+LEFT JOIN accounts a ON a.id = d.account_id
+LEFT JOIN messages m ON m.dialog_id = d.id
+WHERE ml.user_id = $1
+GROUP BY d.id, d.status, d.started_at, r.username, a.username, p.name, a.phone
+ORDER BY last_msg_at DESC NULLS LAST, d.started_at DESC;
+    """[user_id],
+    )
+
+
+async def _get_filtered_dialogs(user_id: int):
+    return await Tortoise.get_connection("default").execute_query_dict(
+        """
+  SELECT 
     d.id AS dialog_id,
     d.status AS status,
     d.started_at AS started_at,
@@ -40,9 +64,13 @@ HAVING NOT (
     COUNT(m.id) < 3
 )
 ORDER BY last_msg_at DESC NULLS LAST, d.started_at DESC
-""",
-        [user.id],
+    """[user_id],
     )
+
+
+@router.get("/", response_model=list[DialogOut])
+async def get_dialogs(user=Depends(get_current_user)):
+    rows = await _get_dialogs(user.id)
     return [
         DialogOut(
             id=r["dialog_id"],
