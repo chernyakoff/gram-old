@@ -782,7 +782,10 @@ class DialogManager:
             # ВАЖНО: Возвращаем False = диалог завершён
             return False
 
-        if new_status == enums.DialogStatus.CLOSING:
+        if (
+            new_status == enums.DialogStatus.CLOSING
+            and dialog.status != enums.DialogStatus.CLOSING
+        ):
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
 
         # Обновляем статус диалога
