@@ -227,6 +227,49 @@ class DialogManager:
 
         # Получаем новые сообщения из Telegram
         new_messages = []
+        try:
+            async for msg in self.client.iter_messages(
+                peer, min_id=last_db_message.tg_message_id
+            ):
+                if msg.id == last_db_message.tg_message_id:
+                    continue
+                if msg.out:  # Пропускаем исходящие
+                    continue
+                new_messages.append(msg)
+        except Exception as e:
+            # Если peer_id невалиден - переза прашиваем entity
+            if "PeerIdInvalidError" in str(type(e)):
+                self.logger.warning(
+                    f"[{dialog.recipient.username}] PeerIdInvalid, обновляем entity"
+                )
+                # Обновляем entity
+                await self.telegram_service.get_entity(dialog.recipient)
+                peer = self.telegram_service._get_peer(dialog.recipient)
+                if not peer:
+                    return []
+
+                # Повторная попытка
+                try:
+                    async for msg in self.client.iter_messages(
+                        peer, min_id=last_db_message.tg_message_id
+                    ):
+                        if msg.id == last_db_message.tg_message_id:
+                            continue
+                        if msg.out:
+                            continue
+                        new_messages.append(msg)
+                except Exception as retry_error:
+                    self.logger.error(
+                        f"[{dialog.recipient.username}] Ошибка при повторной попытке: {retry_error}"
+                    )
+                    return []
+            else:
+                self.logger.error(
+                    f"[{dialog.recipient.username}] Ошибка при получении сообщений: {e}"
+                )
+                return []
+
+        """ 
         async for msg in self.client.iter_messages(
             peer, min_id=last_db_message.tg_message_id
         ):
@@ -234,7 +277,7 @@ class DialogManager:
                 continue
             if msg.out:  # Пропускаем исходящие
                 continue
-            new_messages.append(msg)
+            new_messages.append(msg) """
 
         if new_messages:
             new_messages.sort(key=lambda m: m.date)

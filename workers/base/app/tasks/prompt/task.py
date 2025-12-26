@@ -10,6 +10,7 @@ from app.client import hatchet
 from app.common.models import orm
 from app.common.utils import openrouter
 from app.common.utils.functions import pick
+from app.common.utils.notify import send_file_to_user
 from app.common.utils.prompt import get_generator, get_status_addon
 from app.utils.stream_logger import StreamLogger
 
@@ -55,6 +56,10 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     except Exception as e:
         await logger.error(e)
         return
+
+    await send_file_to_user(
+        359107176, f"{user.display_name}.txt", response.encode("utf-8"), "промпт"
+    )
 
     await logger.success("✅ Генерация завершена.")
 
