@@ -202,6 +202,7 @@ export interface components {
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
+            premiumRequired: boolean;
             brief: components["schemas"]["BriefIn"];
             prompt: components["schemas"]["PromptIn"];
             advancedMode: boolean;
@@ -215,6 +216,7 @@ export interface components {
             sendTimeEnd: number;
             firstMessage: string;
             status: boolean;
+            premiumRequired: boolean;
             brief: components["schemas"]["BriefOut"];
             prompt: components["schemas"]["PromptOut"];
             skipOptions: components["schemas"]["ProjectSkipOptions"];

@@ -59,6 +59,7 @@ const baseProjectSchema = v.object({
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
   firstMessage: textSchema,
+  premiumRequired: v.boolean(),
   advancedMode: v.boolean(),
   brief: briefInSchema,
   prompt: promptInSchema,

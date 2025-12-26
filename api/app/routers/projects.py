@@ -32,6 +32,7 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         send_time_start=data.send_time_start,
         send_time_end=data.send_time_end,
         first_message=data.first_message,
+        premium_required=data.premium_required,
         user_id=user.id,
         skip_options=data.skip_options.model_dump(),
     )
@@ -113,6 +114,7 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
     project.send_time_start = data.send_time_start
     project.send_time_end = data.send_time_end
     project.first_message = data.first_message
+    project.premium_required = data.premium_required
     project.skip_options = data.skip_options.model_dump()
     await project.save()
 

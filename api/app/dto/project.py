@@ -65,6 +65,7 @@ class ProjectIn(BaseModel):
     send_time_start: int
     send_time_end: int
     first_message: str
+    premium_required: bool
     brief: BriefIn
     prompt: PromptIn
     advanced_mode: bool
@@ -83,6 +84,7 @@ class ProjectOut(Serializer):
     send_time_end: int
     first_message: str
     status: bool
+    premium_required: bool
     brief: BriefOut
     prompt: PromptOut
     skip_options: ProjectSkipOptions
@@ -104,6 +106,7 @@ def create_default_project() -> ProjectIn:
         send_time_end=23,
         first_message="",
         advanced_mode=False,
+        premium_required=True,
         skip_options=DEFAULT_SKIP_OPTIONS,
         prompt=PromptIn(
             role="",

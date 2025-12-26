@@ -28,6 +28,10 @@
             <UInputNumber v-model="state.dialogLimit" size="md" />
           </UFormField>
 
+          <UFormField label="Только премиум аккаунты" name="premiumRequired" class="mb-4">
+            <USwitch v-model="state.premiumRequired" />
+          </UFormField>
+
           <div class="mb-4 max-w-sm">
             <label class="block text-sm mb-2">Время рассылки</label>
             <div class="flex items-center gap-2">
@@ -343,6 +347,7 @@ const state = reactive<ProjectInSchema>({
   sendTimeEnd: 24,
   firstMessage: '',
   advancedMode: false,
+  premiumRequired: true,
   skipOptions: {
     engage: false,
     offer: false,

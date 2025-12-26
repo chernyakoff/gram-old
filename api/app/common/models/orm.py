@@ -322,6 +322,7 @@ class Project(Model, TimestampMixin):
 
     mailings: fields.ReverseRelation["Mailing"]
     brief: fields.ReverseRelation["Brief"]
+    premium_required = fields.BooleanField(default=True)
     user_id: int
 
     class Meta:
