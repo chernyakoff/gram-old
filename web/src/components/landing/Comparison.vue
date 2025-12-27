@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { XCircle, CheckCircle } from 'lucide-vue-next';
-import type { ComparisonPoint } from '../types';
+import { XCircle, CheckCircle } from 'lucide-vue-next'
+import type { ComparisonPoint } from './types'
 
 const comparisons: ComparisonPoint[] = [
   {
@@ -23,15 +23,19 @@ const comparisons: ComparisonPoint[] = [
     oldWay: 'Нужен софт, сервер, прокси, навыки кода',
     newWay: 'Все внутри облачного сервиса, настройка мышкой',
   },
-];
+]
 </script>
 
 <template>
   <section class="py-20 bg-transparent relative">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       <div class="text-center mb-16">
-        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Почему спам умер, а ИИ работает</h2>
-        <p class="mt-4 text-slate-400">Сравните старые методы рассылок и нашу технологию умных диалогов.</p>
+        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Почему спам умер, а ИИ работает
+        </h2>
+        <p class="mt-4 text-slate-400">
+          Сравните старые методы рассылок и нашу технологию умных диалогов.
+        </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
@@ -52,8 +56,12 @@ const comparisons: ComparisonPoint[] = [
           </div>
         </div>
 
-        <div class="bg-green-900/10 border border-green-900/30 rounded-2xl p-8 relative overflow-hidden backdrop-blur-sm">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-[50px] rounded-full"></div>
+        <div
+          class="bg-green-900/10 border border-green-900/30 rounded-2xl p-8 relative overflow-hidden backdrop-blur-sm"
+        >
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-[50px] rounded-full"
+          ></div>
           <h3 class="text-2xl font-bold text-green-400 mb-8 flex items-center gap-2">
             <CheckCircle class="h-6 w-6" />
             ИИ Диалоги (SaaS)

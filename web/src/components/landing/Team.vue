@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TeamMember } from '../types';
+import type { TeamMember } from './types'
 
 const team: TeamMember[] = [
   {
@@ -26,7 +26,7 @@ const team: TeamMember[] = [
     imageUrl: '/Misha.jpg',
     bio: '',
   },
-];
+]
 </script>
 
 <template>
@@ -34,7 +34,9 @@ const team: TeamMember[] = [
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
         <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Команда экспертов</h2>
-        <p class="mt-4 text-lg text-slate-400">Мы практики, которые каждый день работают с трафиком в Telegram.</p>
+        <p class="mt-4 text-lg text-slate-400">
+          Мы практики, которые каждый день работают с трафиком в Telegram.
+        </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Star, MessageCircle } from 'lucide-vue-next';
-import type { Testimonial } from '../types';
+import { Star, MessageCircle } from 'lucide-vue-next'
+import type { Testimonial } from './types'
 
 const testimonials: Testimonial[] = [
   {
@@ -27,7 +27,7 @@ const testimonials: Testimonial[] = [
     company: 'EdTech Start',
     avatarUrl: 'https://picsum.photos/seed/sergey/100/100',
   },
-];
+]
 </script>
 
 <template>

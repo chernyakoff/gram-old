@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Plus, Minus } from 'lucide-vue-next';
-import { ref } from 'vue';
-import type { FAQItem } from '../types';
+import { Plus, Minus } from 'lucide-vue-next'
+import { ref } from 'vue'
+import type { FAQItem } from './types'
 
 const faqItems: FAQItem[] = [
   {
@@ -24,20 +24,22 @@ const faqItems: FAQItem[] = [
     answer:
       'Правила платформы меняются, и мы постоянно адаптируемся. Мы используем выделенные прокси и систему, имитирующую поведение человека, чтобы работа сервиса соответствовала текущим условиям Telegram и минимизировала риски.',
   },
-];
+]
 
-const openIndex = ref<number | null>(0);
+const openIndex = ref<number | null>(0)
 
 const toggle = (index: number) => {
-  openIndex.value = openIndex.value === index ? null : index;
-};
+  openIndex.value = openIndex.value === index ? null : index
+}
 </script>
 
 <template>
   <section id="faq" class="py-20 bg-slate-900/30 backdrop-blur-sm border-t border-slate-800/50">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Вопросы о платформе</h2>
+        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Вопросы о платформе
+        </h2>
       </div>
 
       <div class="space-y-4">

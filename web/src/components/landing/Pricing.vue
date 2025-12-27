@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Check } from 'lucide-vue-next';
-import Button from './Button.vue';
-import type { PricingPlan } from '../types';
+import { Check } from 'lucide-vue-next'
+import Button from './Button.vue'
+import type { PricingPlan } from './types'
 
 const plans: PricingPlan[] = [
   {
@@ -47,20 +47,26 @@ const plans: PricingPlan[] = [
     ],
     buttonText: 'Обсудить условия',
   },
-];
+]
 </script>
 
 <template>
   <section id="pricing" class="py-20 bg-transparent relative overflow-hidden">
-    <div class="absolute top-1/2 left-1/4 w-96 h-96 bg-primary-900/20 rounded-full blur-[100px] pointer-events-none"></div>
-    <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-accent-900/20 rounded-full blur-[100px] pointer-events-none"></div>
+    <div
+      class="absolute top-1/2 left-1/4 w-96 h-96 bg-primary-900/20 rounded-full blur-[100px] pointer-events-none"
+    ></div>
+    <div
+      class="absolute bottom-0 right-1/4 w-96 h-96 bg-accent-900/20 rounded-full blur-[100px] pointer-events-none"
+    ></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Тарифы на доступ к платформе</h2>
+        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Тарифы на доступ к платформе
+        </h2>
         <p class="mt-4 text-lg text-slate-400">
-          Вы платите ТОЛЬКО за лицензию на использование софта. Расходные материалы (оплата токенов дополнительно) и
-          аккаунты приобретаются внутри сервиса.
+          Вы платите ТОЛЬКО за лицензию на использование софта. Расходные материалы (оплата токенов
+          дополнительно) и аккаунты приобретаются внутри сервиса.
         </p>
       </div>
 
@@ -86,7 +92,9 @@ const plans: PricingPlan[] = [
             <h3 class="text-lg font-semibold text-white">{{ plan.name }}</h3>
             <div class="mt-4 flex items-baseline text-white">
               <span class="text-3xl font-extrabold tracking-tight">{{ plan.price }}</span>
-              <span v-if="plan.period" class="ml-1 text-xl font-semibold text-slate-500">{{ plan.period }}</span>
+              <span v-if="plan.period" class="ml-1 text-xl font-semibold text-slate-500">
+                {{ plan.period }}
+              </span>
             </div>
             <p class="mt-4 text-sm text-slate-400">{{ plan.description }}</p>
           </div>
@@ -101,7 +109,12 @@ const plans: PricingPlan[] = [
             </li>
           </ul>
 
-          <a href="https://t.me/Maksim_Belichenko" target="_blank" rel="noopener noreferrer" class="block">
+          <a
+            href="https://t.me/Maksim_Belichenko"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block"
+          >
             <Button
               :variant="plan.isPopular ? 'primary' : 'outline'"
               :class="[
