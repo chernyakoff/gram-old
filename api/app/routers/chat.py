@@ -16,9 +16,7 @@ from app.common.utils.prompt import (
     analyze_dialog_status,
     build_prompt_v2,
     get_active_status,
-    get_ooc_status,
     get_status_addon,
-    strip_ooc_status,
 )
 from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
 from app.dto.project import ProjectSkipOptions
@@ -81,15 +79,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not response:
         return ChatOut(text="AI не вернул ответ", status=chat.status)
 
-    add_status_alert = False
-    status = get_ooc_status(response)
-    if not status:
-        add_status_alert = True
-        status = chat.status
-
-    response = strip_ooc_status(response)
     response = normalize_dashes(response)
 
-    if add_status_alert:
-        response += "\n\nВНИМАНИЕ!! AI НЕ ВЕРНУЛ СТАТУС"
-    return ChatOut(text=response, status=status)
+    return ChatOut(text=response, status=chat.status)
