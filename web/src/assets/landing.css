@@ -1,6 +1,5 @@
 @reference 'tailwindcss';
 
-/* ЛОКАЛЬНАЯ тема лендинга */
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
 
