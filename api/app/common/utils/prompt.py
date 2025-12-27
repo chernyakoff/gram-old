@@ -164,4 +164,7 @@ async def analyze_dialog_status(
         re.IGNORECASE,
     )
     if match:
-        return DialogStatus(response.strip().lower())
+        try:
+            return DialogStatus(response.strip().lower())
+        except:
+            return status
