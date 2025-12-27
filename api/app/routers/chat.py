@@ -52,6 +52,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
         chat.status = get_active_status(new_status, skip_options)
 
+    if chat.status in [
+        DialogStatus.COMPLETE,
+        DialogStatus.NEGATIVE,
+        DialogStatus.OPERATOR,
+    ]:
+        return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
+
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
