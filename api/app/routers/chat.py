@@ -73,6 +73,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     try:
         response = await openrouter.create_response(user, messages)
+        print(messages)
+        print(response)
     except Exception as e:
         return ChatOut(text=str(e), status=chat.status)
 
