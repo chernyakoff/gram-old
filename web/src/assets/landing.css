@@ -1,0 +1,29 @@
+@reference 'tailwindcss';
+
+@layer base {
+  .landing {
+    @apply bg-slate-900 text-slate-50 antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  .landing ::selection {
+    background-color: #0ea5e9;
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  .landing .font-montserrat {
+    font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  }
+
+  .landing .scroll-smooth {
+    scroll-behavior: smooth;
+  }
+
+  .landing .glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}

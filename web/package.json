@@ -26,6 +26,7 @@
     "@tiptap/vue-3": "^3.7.2",
     "apexcharts": "^5.3.5",
     "ky": "^1.10.0",
+    "lucide-vue-next": "^0.562.0",
     "pinia": "^3.0.3",
     "scule": "^1.3.0",
     "valibot": "^1.1.0",
