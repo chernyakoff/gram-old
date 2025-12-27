@@ -740,6 +740,7 @@ class DialogManager:
                         dialog.status,
                         messages,
                         name_addon,
+                        self.project.skip_options,
                         self.logger,
                     ),
                     timeout=60,

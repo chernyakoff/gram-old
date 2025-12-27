@@ -13,11 +13,11 @@ from app.common.utils.functions import (
 )
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
+    analyze_dialog_status,
     build_prompt_v2,
     get_active_status,
     get_ooc_status,
     get_status_addon,
-    get_status_info,
     strip_ooc_status,
 )
 from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
@@ -25,22 +25,6 @@ from app.dto.project import ProjectSkipOptions
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-async def analyze_dialog_status(
-    user: orm.User, messages: list[Message]
-) -> DialogStatus | None:
-    prompt = await orm.AppSettings.fetch("prompt.findStatus")
-    history = [{"role": m.role.value, "content": m.text} for m in messages]
-    history.append({"role": "user", "content": prompt})
-    response = await openrouter.create_response(user, history)
-    match = re.search(
-        r"(init|engage|offer|closing|complete|negative|operator)",
-        response.strip(),
-        re.IGNORECASE,
-    )
-    if match:
-        return DialogStatus(response.strip().lower())
 
 
 @router.post("/", response_model=ChatOut)
@@ -57,17 +41,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         if project.skip_options
         else DEFAULT_SKIP_OPTIONS
     )
+    history = [{"role": m.role.value, "content": m.text} for m in chat.messages]
 
-    if skip_options != DEFAULT_SKIP_OPTIONS and chat.messages:
-        new_status = await analyze_dialog_status(user, chat.messages)
-        print("found status", new_status)
-        if not new_status:
-            raise HTTPException(
-                status_code=404, detail="Не могу определить статус диалога"
-            )
-        chat.status = get_active_status(new_status, skip_options)
+    new_status = await analyze_dialog_status(user, history)
+    if not new_status:
+        raise HTTPException(status_code=404, detail="Не могу определить статус диалога")
 
-    STATUS_INFO = ""  # get_status_info(chat.status, skip_options)
+    chat.status = get_active_status(new_status, skip_options)
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
@@ -77,7 +57,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         STATUS_ADDON = await get_status_addon()
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
-                msg.text = f"{msg.text}\n{STATUS_ADDON}\n{STATUS_INFO}"
+                msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
@@ -89,7 +69,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]
-    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
+    messages.extend(history)
 
     try:
         response = await openrouter.create_response(user, messages)

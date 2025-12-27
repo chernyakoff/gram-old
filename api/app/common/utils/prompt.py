@@ -3,7 +3,8 @@ import re
 from pydantic import BaseModel
 
 from app.common.models.enums import DialogStatus
-from app.common.models.orm import Account, AppSettings, Recipient
+from app.common.models.orm import Account, AppSettings, Recipient, User
+from app.common.utils import openrouter
 
 
 class ProjectSkipOptions(BaseModel):
@@ -167,3 +168,16 @@ def build_prompt_v2(
             block = f"# {title}\n{prompt[key]}"
             text.append(block)
     return "\n\n".join(text)
+
+
+async def analyze_dialog_status(user: User, history: list[dict]) -> DialogStatus | None:
+    prompt = await AppSettings.fetch("prompt.findStatus")
+    history.append({"role": "user", "content": prompt})
+    response = await openrouter.create_response(user, history)
+    match = re.search(
+        r"(init|engage|offer|closing|complete|negative|operator)",
+        response.strip(),
+        re.IGNORECASE,
+    )
+    if match:
+        return DialogStatus(response.strip().lower())

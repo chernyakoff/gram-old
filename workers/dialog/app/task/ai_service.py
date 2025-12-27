@@ -9,10 +9,12 @@ from app.common.utils import openrouter
 from app.common.utils.functions import normalize_dashes
 from app.common.utils.notify import BotNotify
 from app.common.utils.prompt import (
-    build_prompt,
-    get_ooc_status,
+    DEFAULT_SKIP_OPTIONS,
+    ProjectSkipOptions,
+    analyze_dialog_status,
+    build_prompt_v2,
+    get_active_status,
     get_status_addon,
-    strip_ooc_status,
 )
 from app.utils.logger import Logger
 
@@ -29,12 +31,29 @@ class AIService:
         status: enums.DialogStatus,
         dialog_messages: list[orm.Message],
         name_addon: str,
+        project_skip_options: dict,
         logger: Logger,
     ) -> tuple[str | None, enums.DialogStatus | None]:
         """Получает ответ от AI и определяет статус диалога"""
 
         history = self._build_history(dialog_messages)
-        system_prompt = await self._build_system_prompt(project_prompt, status)
+
+        skip_options = (
+            ProjectSkipOptions(**project_skip_options)
+            if project_skip_options
+            else DEFAULT_SKIP_OPTIONS
+        )
+
+        new_status = await analyze_dialog_status(self.user, history)
+        if new_status:
+            status = new_status
+            logger.info(f"AI установил статус: {status.value}")
+        else:
+            logger.warning("AI не вернул статус")
+
+        status = get_active_status(status, skip_options)
+
+        system_prompt = build_prompt_v2(project_prompt, status)
         messages = [{"role": "system", "content": system_prompt}] + history
         status_addon = await get_status_addon()
 
@@ -46,20 +65,17 @@ class AIService:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
                     )
-
                 break
-
         try:
             response = await openrouter.create_response(self.user, messages)
 
             if not response:
                 return None, None
 
-            text, new_status = self._parse_response(response, logger)
-            if text.strip() == "COMPLETE":
+            if response.strip() == "COMPLETE":
                 return "COMPLETE", enums.DialogStatus.COMPLETE
 
-            return normalize_dashes(text), new_status
+            return normalize_dashes(response), status
 
         except Exception as e:
             await BotNotify.error(self.user.id, str(e))
@@ -83,33 +99,6 @@ class AIService:
 
             history.append({"role": role, "content": content})
         return history
-
-    async def _build_system_prompt(
-        self, project_prompt: dict, status: enums.DialogStatus
-    ) -> str:
-        """Формирует системный промпт с инструкциями по статусам"""
-        return build_prompt(project_prompt, status)
-
-    def _parse_response(
-        self, response: str, logger: Logger
-    ) -> tuple[str, enums.DialogStatus | None]:
-        """Парсит ответ AI и извлекает статус"""
-
-        status = None
-        text = response
-
-        status = get_ooc_status(response)
-        text = strip_ooc_status(text)
-
-        if status:
-            if status:
-                logger.info(f"AI установил статус: {status.value}")
-            else:
-                logger.warning(f"Неизвестный статус от AI: {status.value}")
-        else:
-            logger.warning(f"AI не вернул статус. Ответ: {response[:100]}...")
-
-        return text, status
 
     async def transcribe(self, oga_bytes: bytes) -> str:
         """
