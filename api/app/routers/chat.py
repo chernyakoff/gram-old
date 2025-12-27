@@ -39,6 +39,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         if project.skip_options
         else DEFAULT_SKIP_OPTIONS
     )
+    # TODO - сделать оповещение если статус не найден и оставлен предыдущий
     if chat.messages:
         new_status = await analyze_dialog_status(
             user,

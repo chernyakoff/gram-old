@@ -44,7 +44,7 @@ class AIService:
             else DEFAULT_SKIP_OPTIONS
         )
 
-        new_status = await analyze_dialog_status(self.user, history)
+        new_status = await analyze_dialog_status(self.user, history, status)
         if new_status:
             status = new_status
             logger.info(f"AI установил статус: {status.value}")
