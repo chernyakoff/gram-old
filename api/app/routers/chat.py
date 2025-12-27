@@ -39,9 +39,12 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         if project.skip_options
         else DEFAULT_SKIP_OPTIONS
     )
-    history = [{"role": m.role.value, "content": m.text} for m in chat.messages]
     if chat.messages:
-        new_status = await analyze_dialog_status(user, history, chat.status)
+        new_status = await analyze_dialog_status(
+            user,
+            [{"role": m.role.value, "content": m.text} for m in chat.messages],
+            chat.status,
+        )
         if not new_status:
             raise HTTPException(
                 status_code=404, detail="Не могу определить статус диалога"
@@ -69,12 +72,10 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]
-    messages.extend(history)
+    messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
     try:
         response = await openrouter.create_response(user, messages)
-        print(messages)
-        print(response)
     except Exception as e:
         return ChatOut(text=str(e), status=chat.status)
 
