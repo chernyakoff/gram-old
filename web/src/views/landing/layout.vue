@@ -4,7 +4,7 @@
     <div class="relative z-10">
       <LandindNavbar />
       <main>
-        <RouterView />
+        <!-- <RouterView /> -->
       </main>
       <LandindFooter />
     </div>
