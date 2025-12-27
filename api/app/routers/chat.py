@@ -42,12 +42,14 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         else DEFAULT_SKIP_OPTIONS
     )
     history = [{"role": m.role.value, "content": m.text} for m in chat.messages]
+    if chat.messages:
+        new_status = await analyze_dialog_status(user, history, chat.status)
+        if not new_status:
+            raise HTTPException(
+                status_code=404, detail="Не могу определить статус диалога"
+            )
 
-    new_status = await analyze_dialog_status(user, history)
-    if not new_status:
-        raise HTTPException(status_code=404, detail="Не могу определить статус диалога")
-
-    chat.status = get_active_status(new_status, skip_options)
+        chat.status = get_active_status(new_status, skip_options)
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)

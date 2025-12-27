@@ -35,25 +35,6 @@ PROMPT_TITLES = {
 }
 
 
-def get_ooc_status(message: str) -> DialogStatus | None:
-    match = re.search(
-        r"STATUS:\s*\[?(init|engage|offer|closing|complete|negative|operator)\]?",
-        message,
-        re.IGNORECASE,
-    )
-    if match:
-        return DialogStatus(match.group(1).lower())
-
-
-def strip_ooc_status(message: str) -> str:
-    return re.sub(
-        r"STATUS:\s*\[?(init|engage|offer|closing|complete|negative|operator)\]?",
-        "",
-        message,
-        flags=re.IGNORECASE,
-    ).strip()
-
-
 async def get_status_addon() -> str:
     return await AppSettings.fetch("prompt.system")
 
@@ -170,8 +151,11 @@ def build_prompt_v2(
     return "\n\n".join(text)
 
 
-async def analyze_dialog_status(user: User, history: list[dict]) -> DialogStatus | None:
+async def analyze_dialog_status(
+    user: User, history: list[dict], status: DialogStatus
+) -> DialogStatus | None:
     prompt = await AppSettings.fetch("prompt.findStatus")
+    prompt = f"ТЕКУЩИЙ СТАТУС: {status.value}\n\n" + prompt
     history.append({"role": "user", "content": prompt})
     response = await openrouter.create_response(user, history)
     match = re.search(
