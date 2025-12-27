@@ -39,9 +39,8 @@ async def proxies_upload(input: ProxiesUploadIn, ctx: Context):
                 raise ValueError("Не определяется страна")
 
             orm_proxy = proxy.to_orm(user_id=input.user_id, country=country)
-
+            await orm_proxy.save()
             async with in_transaction() as conn:
-                await orm_proxy.save(using_db=conn)
                 await (
                     Account.filter(
                         user_id=input.user_id,
