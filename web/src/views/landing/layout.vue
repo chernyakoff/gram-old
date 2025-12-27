@@ -11,7 +11,6 @@
   </div>
 </template>
 <script setup lang="ts">
-import '@/assets/landing.css'
 import LandindNavbar from '@/components/landing/Navbar.vue'
 import LandindFooter from '@/components/landing/Footer.vue'
 import NeuralNoise from '@/components/landing/NeuralNoise.vue'
