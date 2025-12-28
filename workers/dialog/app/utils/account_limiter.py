@@ -87,7 +87,7 @@ class AccountLimiter:
 
         rows = await conn.execute_query_dict(
             """
-            UPDATE account
+            UPDATE accounts
             SET active_days_count = active_days_count + 1,
                 first_dialog_date = COALESCE(first_dialog_date, $2),
                 last_dialog_date = $2

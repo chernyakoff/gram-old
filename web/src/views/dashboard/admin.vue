@@ -20,7 +20,7 @@
       </UDashboardNavbar>
     </template>
     <template #body>
-      <div class="min-w-[800px] max-w-4xl mx-auto">
+      <div class="w-full max-w-4xl mx-auto md:min-w-[800px] px-4">
         <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
           <template #license><AdminLicenseForm /></template>
           <template #impersonate><AdminImpersonateForm /></template>

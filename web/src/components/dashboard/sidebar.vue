@@ -83,6 +83,12 @@ const links = [
     onSelect: () => (open.value = false),
   },
   {
+    label: 'Календарь',
+    to: '/app/calendar',
+    icon: 'bxs-calendar',
+    onSelect: () => (open.value = false),
+  },
+  {
     label: 'Задачи',
     to: '/app/jobs',
     icon: 'i-lucide-logs',

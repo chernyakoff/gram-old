@@ -76,7 +76,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     orm_prompt = await orm.Prompt.get(project_id=project.id)
 
-    # prompt = build_prompt(orm_prompt.to_dict(), chat.status)
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 
     messages = [{"role": "system", "content": prompt}]

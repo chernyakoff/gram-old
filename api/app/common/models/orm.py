@@ -19,6 +19,7 @@ from .enums import (
     MessageSender,
     RecipientStatus,
     Role,
+    WeekDay,
 )
 
 """ 
@@ -564,3 +565,24 @@ class AiModel(Model, TimestampMixin):
 
     class Meta:
         table = "ai_models"
+
+
+class UserWorkDay(Model):
+    id = fields.IntField(pk=True)
+
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="work_days",
+        on_delete=fields.CASCADE,
+    )
+
+    weekday = fields.IntEnumField(WeekDay)
+
+    is_enabled = fields.BooleanField(default=True)
+
+    work_from = fields.TimeField(null=True)
+    work_to = fields.TimeField(null=True)
+
+    class Meta:
+        table = "user_work_days"
+        unique_together = ("user", "weekday")
