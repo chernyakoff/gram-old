@@ -44,7 +44,7 @@ class AIService:
             else DEFAULT_SKIP_OPTIONS
         )
 
-        new_status = await analyze_dialog_status(self.user, history, status)
+        new_status = await analyze_dialog_status(self.user, history.copy(), status)
         if new_status:
             status = new_status
             logger.info(f"AI установил статус: {status.value}")
@@ -52,6 +52,13 @@ class AIService:
             logger.warning("AI не вернул статус")
 
         status = get_active_status(status, skip_options)
+
+        if status in [
+            enums.DialogStatus.COMPLETE,
+            enums.DialogStatus.NEGATIVE,
+            enums.DialogStatus.OPERATOR,
+        ]:
+            return "", status
 
         system_prompt = build_prompt_v2(project_prompt, status)
         messages = [{"role": "system", "content": system_prompt}] + history

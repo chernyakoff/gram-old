@@ -793,7 +793,7 @@ class DialogManager:
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 
         # Если AI вернул COMPLETE - диалог завершён
-        if ai_response == "COMPLETE":
+        if dialog.status == enums.DialogStatus.COMPLETE or ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
             # ВАЖНО: Уменьшаем счётчик активных диалогов
