@@ -14,7 +14,9 @@ from telethon.errors import (
     UserDeactivatedError,
     UsernameInvalidError,
     UsernameNotOccupiedError,
+    YouBlockedUserError,
 )
+from telethon.tl.functions.contacts import UnblockRequest
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types import InputPeerUser, User
 from tortoise import timezone as tz
@@ -239,8 +241,15 @@ class TelegramService:
             return False
 
     async def is_spamblock(self) -> datetime | None:
-        await self.client.send_message("spambot", "/start")
+        try:
+            await self.client.send_message("spambot", "/start")
+        except YouBlockedUserError:
+            await self.client(UnblockRequest("spambot"))  # type: ignore
+            await asyncio.sleep(0.5)
+            await self.client.send_message("spambot", "/start")
+
         await asyncio.sleep(1)
+
         messages = await self.client.get_messages("spambot", limit=1)
         if not messages:
             return
