@@ -5,7 +5,7 @@ from hatchet_sdk import Context
 from pydantic import BaseModel
 
 from app.client import hatchet
-from app.common.models.orm import User
+from app.common.models.orm import AppSettings, User
 from app.common.utils import openrouter
 
 PROMPT = """
@@ -36,9 +36,13 @@ class SynonimizeOut(BaseModel):
 )
 async def synonimize(data: SynonimizeIn, ctx: Context) -> SynonimizeOut:
     ctx.log("Запущена рандомизация")
+    prompt = await AppSettings.fetch("prompt.randomizer")
+    if not prompt:
+        prompt = PROMPT
+
     user = await User.get(id=data.user_id)
     try:
-        messages = [{"role": "user", "content": f"{PROMPT}\n\n{data.text}"}]
+        messages = [{"role": "user", "content": f"{prompt}\n\n{data.text}"}]
         text = await openrouter.create_response(user, messages)
         return SynonimizeOut(text=text)
     except Exception as e:

@@ -13,7 +13,7 @@
     <template #body>
       <div class="mx-auto bg-dimmed">
         <div class="flex flex-wrap items-center justify-end gap-1.5 mb-4">
-          <CheckProxiesModal :selected-ids="selectedIds" @close="refresh" />
+          <CheckProxiesModal :selected-ids="selectedIds" @completed="refresh" />
           <ChangeCountryModal :selected-ids="selectedIds" @close="refresh" />
           <DeleteProxiesModal :selected-ids="selectedIds" @close="refresh" />
         </div>
