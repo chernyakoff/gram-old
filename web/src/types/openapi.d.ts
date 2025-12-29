@@ -113,6 +113,11 @@ export interface components {
             text: string;
             status: components["schemas"]["DialogStatus"];
         };
+        DialogIn: {
+            projectId?: number | null;
+            accountId?: number | null;
+            mailingId?: number | null;
+        };
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
             text: string;
@@ -363,6 +368,7 @@ export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
+export type DialogIn = components['schemas']['DialogIn'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];

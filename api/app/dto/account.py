@@ -78,7 +78,7 @@ class AccountListOut(Serializer):
 
     @classmethod
     async def resolve_name(cls, instance: orm.Account, context: ContextType):
-        return " ".join([str(instance.first_name), str(instance.last_name)])
+        return instance.display_username
 
 
 class AccountsCheckIn(BaseModel):
