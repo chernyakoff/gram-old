@@ -33,6 +33,9 @@
               <template #generator>
                 <AdminPromptForm label="Генератор" path="prompt.generator" />
               </template>
+              <template #randomizer>
+                <AdminPromptForm label="Рандомизатор" path="prompt.randomizer" />
+              </template>
               <template #findStatus>
                 <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
               </template>
@@ -67,6 +70,7 @@ const tabs = [
 const promptTabs = [
   { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
   { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
+  { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
   { label: 'Поиск статуса', icon: 'bx:bxs-edit-alt', slot: 'findStatus' as const },
 ] satisfies TabsItem[]
 
