@@ -42,7 +42,7 @@ export function useProxies() {
   }
 
   async function check(body: ProxiesCheckIn): Promise<WorkflowOut> {
-    return await api(`accounts/check`, { method: 'POST', body })
+    return await api(`proxies/check`, { method: 'POST', body })
   }
 
   return { upload, get, del, changeCountry, check, proxies, loading, error, success }

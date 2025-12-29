@@ -9,7 +9,7 @@
       label="Проверить"
       color="neutral"
       variant="subtle"
-      icon="bx:world"
+      icon="bx:search-alt"
     >
       <template #trailing>
         <UKbd>
@@ -21,7 +21,7 @@
     <template #footer>
       <div class="flex justify-end gap-2">
         <UButton label="Отмена" color="neutral" variant="subtle" @click="open = false" />
-        <UButton label="Изменить" color="primary" variant="solid" loading-auto @click="onSubmit" />
+        <UButton label="Проверить" color="primary" variant="solid" loading-auto @click="onSubmit" />
       </div>
     </template>
   </UModal>
