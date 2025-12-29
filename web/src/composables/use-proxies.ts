@@ -2,7 +2,13 @@ import { ref } from 'vue'
 
 import { useApi } from '@/composables/use-api'
 
-import type { ProxiesBulkCreateIn, ProxiesCountryIn, ProxyOut, WorkflowOut } from '@/types/openapi'
+import type {
+  ProxiesBulkCreateIn,
+  ProxiesCheckIn,
+  ProxiesCountryIn,
+  ProxyOut,
+  WorkflowOut,
+} from '@/types/openapi'
 
 export function useProxies() {
   const proxies = ref<ProxyOut[]>([])
@@ -35,5 +41,9 @@ export function useProxies() {
     })
   }
 
-  return { upload, get, del, changeCountry, proxies, loading, error, success }
+  async function check(body: ProxiesCheckIn): Promise<WorkflowOut> {
+    return await api(`accounts/check`, { method: 'POST', body })
+  }
+
+  return { upload, get, del, changeCountry, check, proxies, loading, error, success }
 }

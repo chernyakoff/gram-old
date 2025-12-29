@@ -31,3 +31,7 @@ class ProxyOut(Serializer):
 class ProxiesCountryIn(BaseModel):
     country: str
     ids: list[int]
+
+
+class ProxiesCheckIn(BaseModel):
+    ids: list[int]

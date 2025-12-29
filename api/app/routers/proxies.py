@@ -5,7 +5,12 @@ from fastapi.responses import JSONResponse
 
 from app.common.models import orm
 from app.dto.common import WorkflowOut
-from app.dto.proxy import ProxiesBulkCreateIn, ProxiesCountryIn, ProxyOut
+from app.dto.proxy import (
+    ProxiesBulkCreateIn,
+    ProxiesCheckIn,
+    ProxiesCountryIn,
+    ProxyOut,
+)
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
 from app.routers.sse import watch_job
@@ -54,3 +59,14 @@ async def change_country(
         raise HTTPException(status_code=404, detail="not found")
 
     return {"updated": updated}
+
+
+@router.post("/check", response_model=WorkflowOut)
+async def check(data: ProxiesCheckIn, user=Depends(get_current_user)):
+    proxies = await orm.Proxy.filter(id__in=data.ids, user_id=user.id).all()
+    ids = [p.id for p in proxies]
+    ref = await tasks.proxies_check.aio_run_no_wait(
+        input=models.ProxiesCheckIn(ids=ids)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}

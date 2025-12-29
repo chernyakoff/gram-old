@@ -257,6 +257,9 @@ export interface components {
         ProxiesBulkCreateIn: {
             proxies: string[];
         };
+        ProxiesCheckIn: {
+            ids: number[];
+        };
         ProxiesCountryIn: {
             country: string;
             ids: number[];
@@ -389,6 +392,7 @@ export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
 export type PromptIn = components['schemas']['PromptIn'];
 export type PromptOut = components['schemas']['PromptOut'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
+export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];

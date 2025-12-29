@@ -13,6 +13,7 @@
     <template #body>
       <div class="mx-auto bg-dimmed">
         <div class="flex flex-wrap items-center justify-end gap-1.5 mb-4">
+          <CheckProxiesModal :selected-ids="selectedIds" @close="refresh" />
           <ChangeCountryModal :selected-ids="selectedIds" @close="refresh" />
           <DeleteProxiesModal :selected-ids="selectedIds" @close="refresh" />
         </div>
@@ -53,6 +54,7 @@ import { onMounted, ref } from 'vue'
 import DeleteProxiesModal from '@/components/dashboard/proxies/delete-modal.vue'
 import ChangeCountryModal from '@/components/dashboard/proxies/country-modal.vue'
 import AddProxiesModal from '@/components/dashboard/proxies/add-modal.vue'
+import CheckProxiesModal from '@/components/dashboard/proxies/check-modal.vue'
 import ProxyStatusBadge from '@/components/dashboard/proxies/status-badge.vue'
 import { useProxies } from '@/composables/use-proxies'
 import { useTableSelection } from '@/composables/table/use-selection.bak'

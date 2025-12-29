@@ -13,6 +13,7 @@ from app.tasks.accounts.upload import accounts_upload
 from app.tasks.daily.task import daily
 from app.tasks.heartbeat.task import heartbeat
 from app.tasks.prompt.task import generate_prompt
+from app.tasks.proxies.check import proxies_check
 from app.tasks.proxies.upload import proxies_upload
 from app.tasks.synonimize.task import synonimize
 
@@ -42,6 +43,7 @@ worker = hatchet.worker(
         accounts_upload,
         accounts_update,
         accounts_check,
+        proxies_check,
         buy_premium,
         generate_prompt,
         synonimize,
