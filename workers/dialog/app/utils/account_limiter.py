@@ -69,11 +69,11 @@ class AccountLimiter:
 
         # Для NEW_DIALOG увеличиваем active_days_count при первом диалоге дня
         if action == enums.AccountAction.NEW_DIALOG:
-            await self._increment_active_days_if_first_today()
+            await self.increment_active_days()
 
         return True
 
-    async def _increment_active_days_if_first_today(self):
+    async def increment_active_days(self):
         """
         Увеличивает active_days_count только если это первый диалог сегодня
         Атомарная операция через SQL
