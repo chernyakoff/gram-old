@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils import openrouter
-from app.common.utils.functions import pick
+from app.common.utils.functions import generate_message, pick, randomize_message
 from app.common.utils.notify import send_file_to_user
 from app.common.utils.prompt import get_generator, get_status_addon
 from app.utils.stream_logger import StreamLogger
@@ -49,7 +49,10 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     generator = await get_generator()
     status_addon = await get_status_addon()
 
-    content = f"{generator}\n\n---\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```\n\n---\n\nОбрати внимание, этот раздел мы крепим в каждый промпт, учитывай эти особенности и составляй разделы не повторяясь и не нарушая системных правил\n\n{status_addon}"
+    first_message = generate_message(project.first_message)
+    first_message = randomize_message(first_message)
+
+    content = f"{generator}\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```\n\nSYSTEM ADDON{status_addon}\n\nFIRST MESSAGE\n{first_message}"
 
     try:
         response = await openrouter.generate_prompt(user, content)
