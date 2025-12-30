@@ -50,7 +50,6 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     status_addon = await get_status_addon()
 
     first_message = generate_message(project.first_message)
-    first_message = randomize_message(first_message)
 
     content = f"{generator}\n\n# ВХОДНОЙ БРИФ:\n\n```json\n{brief_json}\n```\n\nSYSTEM ADDON{status_addon}\n\nFIRST MESSAGE\n{first_message}"
 

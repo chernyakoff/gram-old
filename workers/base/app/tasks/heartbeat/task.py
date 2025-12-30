@@ -123,12 +123,8 @@ async def get_available_accounts(project: orm.Project, now, conn):
 
 
 async def check_daily_limit(account: orm.Account, now, conn) -> int:
-    """
-    Проверяет доступное количество диалогов
-    """
-
-    # Получаем лимит на основе ТЕКУЩЕГО количества активных дней
-    daily_limit = account.get_dynamic_daily_limit()
+    # Получаем динамический лимит (с запросом к dialogs)
+    daily_limit = await account.get_dynamic_daily_limit()
 
     counter = (
         await orm.AccountActionCounter.filter(

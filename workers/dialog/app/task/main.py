@@ -199,7 +199,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 text=first_message,
             )
 
-            await limiter.increment_active_days()
             new_dialogs_started += 1
 
             # Запускаем ожидание ответа на первое сообщение
