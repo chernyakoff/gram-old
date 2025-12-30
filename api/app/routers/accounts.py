@@ -1,5 +1,6 @@
 import asyncio
 
+from aerich import Tortoise
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from tortoise.query_utils import Prefetch
@@ -54,14 +55,32 @@ async def get_account(id: int, user=Depends(get_current_user)):
 
 @router.get("/", response_model=list[AccountOut])
 async def get_accounts(user=Depends(get_current_user)):
+    qs = orm.Account.filter(user_id=user.id).prefetch_related(
+        Prefetch(
+            "photos",
+            queryset=orm.AccountPhoto.filter(main=True),
+        ),
+        "project",
+    )
+
+    # 🔽 Получаем id аккаунтов одним лёгким запросом
+    account_ids = await qs.values_list("id", flat=True)
+
+    rows = await Tortoise.get_connection("default").execute_query_dict(
+        """
+        SELECT account_id, COUNT(DISTINCT DATE(started_at)) AS active_days
+        FROM dialogs
+        WHERE account_id = ANY($1)
+        GROUP BY account_id
+        """,
+        [account_ids],
+    )
+
+    active_days_map = {r["account_id"]: r["active_days"] for r in rows}
+
     return await AccountOut.from_queryset(
-        orm.Account.filter(user_id=user.id).prefetch_related(
-            Prefetch(
-                "photos",
-                queryset=orm.AccountPhoto.filter(main=True),
-            ),
-            "project",
-        )
+        qs,
+        context={"active_days_map": active_days_map},
     )
 
 

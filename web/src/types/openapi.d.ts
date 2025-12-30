@@ -33,6 +33,8 @@ export interface components {
             status: components["schemas"]["AccountStatus"];
             mutedUntil: string | null;
             outDailyLimit: number;
+            isDynamicLimit: boolean;
+            dynamicDailyLimit: number | null;
         };
         AccountPhotoOut: {
             id: number;

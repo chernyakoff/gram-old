@@ -152,7 +152,7 @@ async def reserve_daily_limit(
         return 0
 
     # Получаем лимит на основе текущего active_days_count
-    daily_limit = account.get_dynamic_daily_limit()
+    daily_limit = await account.get_dynamic_daily_limit()
 
     await orm.AccountActionCounter.get_or_create(
         account=account,

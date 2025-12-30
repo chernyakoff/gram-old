@@ -84,6 +84,15 @@
             </div>
           </div>
         </template>
+        <template #outDailyLimit-cell="{ row }">
+          <span v-if="!row.original.isDynamicLimit">
+            {{ row.original.outDailyLimit }}
+          </span>
+
+          <span v-else>
+            {{ row.original.outDailyLimit }} ({{ row.original.dynamicDailyLimit }})
+          </span>
+        </template>
       </UTable>
     </template>
   </UDashboardPanel>

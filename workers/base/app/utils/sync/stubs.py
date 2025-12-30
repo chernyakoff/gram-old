@@ -36,8 +36,8 @@ def get_stubs_data(worker: Worker) -> StubsData:
             tasks.append(
                 TaskData(
                     name=task.name,
-                    input_model=get_validator(task.validators.workflow_input),
-                    output_model=get_validator(task.validators.step_output),
+                    input_model=get_validator(task.validators.workflow_input),  # type: ignore
+                    output_model=get_validator(task.validators.step_output),  # type: ignore
                 )
             )
         else:
