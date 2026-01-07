@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-2">
+  <div class="mx-auto w-max space-y-4 px-4">
     <div v-for="(day, dayIndex) in schedule" :key="dayIndex" class="space-y-1">
       <!-- Основная строка дня -->
       <div class="flex items-center gap-3">
@@ -27,21 +27,13 @@
           <div class="flex flex-col">
             <div class="flex items-center gap-2">
               <!-- Поле начала интервала -->
-              <TimeInput
-                v-model="day.intervals[0].start"
-                @change="saveToServer"
-                @blur="saveToServer"
-              />
+              <TimeInput v-model="day.intervals[0].start" @change="save" />
 
               <!-- Тире -->
               <span class="text-gray-400">—</span>
 
               <!-- Поле окончания интервала -->
-              <TimeInput
-                v-model="day.intervals[0].end"
-                @change="saveToServer"
-                @blur="saveToServer"
-              />
+              <TimeInput v-model="day.intervals[0].end" @change="save" />
 
               <!-- Кнопка удалить -->
               <UButton
@@ -58,7 +50,7 @@
                 size="xs"
                 color="neutral"
                 variant="ghost"
-                @click="handleAddInterval(dayIndex)"
+                @click="addInterval(dayIndex)"
               />
 
               <!-- Кнопка копировать -->
@@ -83,7 +75,7 @@
                       />
                     </div>
                     <div class="flex gap-2 mt-4">
-                      <UButton size="xs" @click="handleCopyIntervals(dayIndex)">Применить</UButton>
+                      <UButton size="xs" @click="copyIntervals(dayIndex)">Применить</UButton>
                       <UButton
                         size="xs"
                         color="neutral"
@@ -115,13 +107,13 @@
         <div class="flex flex-col">
           <div class="flex items-center gap-2">
             <!-- Поле начала интервала -->
-            <TimeInput v-model="interval.start" @change="saveToServer" @blur="saveToServer" />
+            <TimeInput v-model="interval.start" @change="save" @blur="save" />
 
             <!-- Тире -->
             <span class="text-gray-400">—</span>
 
             <!-- Поле окончания интервала -->
-            <TimeInput v-model="interval.end" @change="saveToServer" @blur="saveToServer" />
+            <TimeInput v-model="interval.end" @change="save" @blur="save" />
 
             <!-- Кнопка удалить -->
             <UButton
@@ -139,69 +131,49 @@
         </div>
       </div>
     </div>
+    <USelectMenu
+      class="w-full mt-4"
+      :search-input="{
+        placeholder: 'Поиск...',
+        icon: 'i-lucide-search',
+      }"
+      v-model="selectedTimezone"
+      :items="timezones"
+      virtualize
+      value-key="value"
+      label-key="label"
+      searchable
+      placeholder="Выберите таймзону"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import TimeInput from '@/components/dashboard/calendar/time-input.vue'
 import { useSchedule } from '@/composables/use-schedule'
+import { useTimezones } from '@/composables/use-timezones'
+import { onMounted, ref } from 'vue'
 
+const { timezones, loadTimezone } = useTimezones()
 const {
+  load,
+  save,
   schedule,
   enableDay,
   disableDay,
   addInterval,
   removeInterval,
   copyIntervals,
-  validateAll,
+
   getDayFullName,
 } = useSchedule()
 // Инициализация расписания
 
-const handleCopyIntervals = async (dayIndex: number) => {
-  copyIntervals(dayIndex)
-  await saveToServer()
-}
-
-const handleAddInterval = (dayIndex: number) => {
-  addInterval(dayIndex)
-  saveToServer()
-}
-
-// Сохранение на сервер
-const saveToServer = async () => {
-  if (!validateAll()) {
-    console.log('POP')
-    return
-  }
-  try {
-    // Пример API запроса
-    const response = '' /* await $fetch('/api/working-hours', {
-      method: 'POST',
-      body: {
-        schedule: schedule.value.map((day) => ({
-          name: day.name,
-          enabled: day.enabled,
-          intervals: day.intervals,
-        })),
-      },
-    }) */
-
-    console.log('Расписание сохранено:', response)
-  } catch (error) {
-    console.error('Ошибка сохранения:', error)
-  }
-}
+const selectedTimezone = ref('Europe/Moscow')
 
 // Загрузка данных при монтировании (опционально)
-// onMounted(async () => {
-//   try {
-//     const data = await $fetch('/api/working-hours')
-//     if (data?.schedule) {
-//       schedule.value = data.schedule
-//     }
-//   } catch (error) {
-//     console.error('Ошибка загрузки:', error)
-//   }
-// })
+onMounted(async () => {
+  await load()
+  selectedTimezone.value = await loadTimezone()
+})
 </script>

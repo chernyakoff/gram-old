@@ -4,7 +4,6 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Self
 
-from pydantic import BaseModel
 from tortoise import fields
 from tortoise import timezone as tz
 from tortoise.models import Model
@@ -51,6 +50,7 @@ class User(Model, TimestampMixin):
     or_api_key = fields.CharField(max_length=256, null=True)
     or_api_hash = fields.CharField(max_length=256, null=True)
     or_model = fields.CharField(max_length=256, null=True)
+    timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
 
     async def extend_license(self, days: int) -> None:
         """Продлевает лицензию на указанное число дней."""
@@ -585,10 +585,24 @@ class UserWorkDay(Model):
     weekday = fields.IntEnumField(WeekDay)
 
     is_enabled = fields.BooleanField(default=True)
-
-    work_from = fields.TimeField(null=True)
-    work_to = fields.TimeField(null=True)
+    intervals: fields.ReverseRelation["UserWorkInterval"]
 
     class Meta:
         table = "user_work_days"
         unique_together = ("user", "weekday")
+
+
+class UserWorkInterval(Model):
+    id = fields.IntField(pk=True)
+
+    work_day = fields.ForeignKeyField(
+        "models.UserWorkDay",
+        related_name="intervals",
+        on_delete=fields.CASCADE,
+    )
+
+    time_from = fields.TimeField()
+    time_to = fields.TimeField()
+
+    class Meta:
+        table = "user_work_intervals"

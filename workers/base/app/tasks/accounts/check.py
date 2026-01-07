@@ -150,24 +150,45 @@ async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger
             await logger.error(f"{account.phone} заморожен")
             return
 
-        muted_until = await check_spamblock(client)
-        if muted_until:
+        now = datetime.now()
+        prev_status = orm_account.status
+        prev_muted_until = orm_account.muted_until
+
+        muted_until_now = await check_spamblock(client)
+
+        if muted_until_now:
+            # мут есть сейчас
             orm_account.status = enums.AccountStatus.MUTED
-            orm_account.muted_until = muted_until
-            await logger.error(
-                f"{account.phone} в муте до {muted_until.strftime('%d.%m.%Y')}"
-            )
+            orm_account.muted_until = muted_until_now
+
+            if prev_status != enums.AccountStatus.MUTED:
+                await logger.error(
+                    f"{account.phone} в муте до {muted_until_now.strftime('%d.%m.%Y')}"
+                )
+
         else:
-            orm_account.muted_until = None  # type: ignore
+            # мута нет сейчас
+            if (
+                prev_status == enums.AccountStatus.MUTED
+                and prev_muted_until
+                and prev_muted_until <= now
+            ):
+                orm_account.muted_until = None  # type: ignore
+                orm_account.status = enums.AccountStatus.GOOD
+
+                await logger.success(f"{account.phone} мут истёк, аккаунт в порядке")
+
+            elif prev_status != enums.AccountStatus.MUTED:
+                # аккаунт был и остаётся нормальным
+                if prev_status != enums.AccountStatus.GOOD:
+                    orm_account.status = enums.AccountStatus.GOOD
+                    await logger.success(f"{account.phone} аккаунт в порядке")
 
         await renew_info(client, orm_account)
         await logger.success(f"{account.phone} данные обновлены")
 
         await save_photos(client, orm_account)
         await logger.success(f"{account.phone} фото скачаны")
-
-        orm_account.status = enums.AccountStatus.GOOD
-        await logger.success(f"{account.phone} в порядке!")
 
         if orm_account.premium is False:
             orm_account.premium_stopped = False

@@ -115,6 +115,16 @@ export interface components {
             text: string;
             status: components["schemas"]["DialogStatus"];
         };
+        DayIn: {
+            weekday: number;
+            enabled: boolean;
+            intervals: components["schemas"]["IntervalIn"][];
+        };
+        DayOut: {
+            weekday: number;
+            enabled: boolean;
+            intervals: components["schemas"]["IntervalOut"][];
+        };
         DialogIn: {
             projectId?: number | null;
             accountId?: number | null;
@@ -156,6 +166,14 @@ export interface components {
         };
         ImpersonateOut: {
             access: string;
+        };
+        IntervalIn: {
+            start: string;
+            end: string;
+        };
+        IntervalOut: {
+            start: string;
+            end: string;
         };
         LicenseIn: {
             username: string;
@@ -283,6 +301,12 @@ export interface components {
             failures: number;
             account?: components["schemas"]["EmbedAccountOut"] | null;
         };
+        ScheduleIn: {
+            schedule: components["schemas"]["DayIn"][];
+        };
+        ScheduleOut: {
+            schedule: components["schemas"]["DayOut"][];
+        };
         SetLimitIn: {
             outDailyLimit: number;
             accountIds: number[];
@@ -335,6 +359,9 @@ export interface components {
             impersonated?: boolean | null;
             realUserId?: number | null;
         };
+        UserTimezone: {
+            timezone: string;
+        };
         ValidationError: {
             loc: (string | number)[];
             msg: string;
@@ -370,6 +397,8 @@ export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
+export type DayIn = components['schemas']['DayIn'];
+export type DayOut = components['schemas']['DayOut'];
 export type DialogIn = components['schemas']['DialogIn'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
@@ -380,6 +409,8 @@ export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type ImpersonateIn = components['schemas']['ImpersonateIn'];
 export type ImpersonateOut = components['schemas']['ImpersonateOut'];
+export type IntervalIn = components['schemas']['IntervalIn'];
+export type IntervalOut = components['schemas']['IntervalOut'];
 export type LicenseIn = components['schemas']['LicenseIn'];
 export type LicenseOut = components['schemas']['LicenseOut'];
 export type MailingIn = components['schemas']['MailingIn'];
@@ -403,6 +434,8 @@ export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
+export type ScheduleIn = components['schemas']['ScheduleIn'];
+export type ScheduleOut = components['schemas']['ScheduleOut'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
@@ -411,5 +444,6 @@ export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserMeOut = components['schemas']['UserMeOut'];
+export type UserTimezone = components['schemas']['UserTimezone'];
 export type ValidationError = components['schemas']['ValidationError'];
 export type WorkflowOut = components['schemas']['WorkflowOut'];

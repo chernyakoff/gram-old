@@ -19,11 +19,8 @@
     "openapi-gen": "node scripts/openapi-gen.mjs http://localhost:8833/openapi.json ./src/types/openapi.d.ts"
   },
   "dependencies": {
-    "@nuxt/ui": "^4.0.0",
+    "@nuxt/ui": "^4.3.0",
     "@tanstack/vue-table": "^8.21.3",
-    "@tiptap/core": "^3.7.2",
-    "@tiptap/starter-kit": "^3.7.2",
-    "@tiptap/vue-3": "^3.7.2",
     "apexcharts": "^5.3.5",
     "ky": "^1.10.0",
     "lucide-vue-next": "^0.562.0",
