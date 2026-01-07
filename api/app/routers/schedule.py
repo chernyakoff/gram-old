@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-import pytz
 from aerich import in_transaction
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -62,10 +61,21 @@ async def get_schedule(user=Depends(get_current_user)):
     return {"schedule": result}
 
 
+# ВАЖНО:
+# time_from/time_to — локальное время пользователя
+# tzinfo используется ТОЛЬКО чтобы удовлетворить Tortoise
+# реальная таймзона хранится отдельно (user.timezone)
+def local_time_hack(time_str: str):
+    # tz пока игнорируется, но оставлен на будущее
+    return (
+        datetime.strptime(time_str, "%H:%M")
+        .time()
+        .replace(tzinfo=timezone(timedelta(hours=3)))
+    )
+
+
 @router.post("/working-hours")
 async def save_schedule(data: ScheduleIn, user=Depends(get_current_user)):
-    moscow_tz = timezone(timedelta(hours=3))  # +03:00
-
     async with in_transaction() as conn:  # транзакция на default connection
         for day_data in data.schedule:
             day_obj, _ = await orm.UserWorkDay.get_or_create(
@@ -79,17 +89,10 @@ async def save_schedule(data: ScheduleIn, user=Depends(get_current_user)):
 
             # Создаём новые интервалы
             for interval in day_data.intervals:
-                time_from = (
-                    datetime.strptime("09:00", "%H:%M").time().replace(tzinfo=moscow_tz)
-                )
-                time_to = (
-                    datetime.strptime("12:00", "%H:%M").time().replace(tzinfo=moscow_tz)
-                )
-
                 await orm.UserWorkInterval.create(
                     work_day=day_obj,
-                    time_from=time_from,
-                    time_to=time_to,
+                    time_from=local_time_hack(interval.start),
+                    time_to=local_time_hack(interval.end),
                     using_db=conn,
                 )
 
