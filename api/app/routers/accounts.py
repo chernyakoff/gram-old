@@ -45,12 +45,30 @@ async def get_account_list(user=Depends(get_current_user)):
     return await AccountListOut.from_queryset(orm.Account.filter(user_id=user.id))
 
 
+async def get_active_days_map(account_ids: list[int]):
+    rows = await Tortoise.get_connection("default").execute_query_dict(
+        """
+        SELECT account_id, COUNT(DISTINCT DATE(started_at)) AS active_days
+        FROM dialogs
+        WHERE account_id = ANY($1)
+        GROUP BY account_id
+        """,
+        [account_ids],
+    )
+
+    return {r["account_id"]: r["active_days"] for r in rows}
+
+
 @router.get("/{id}", response_model=AccountOut)
 async def get_account(id: int, user=Depends(get_current_user)):
     account = await orm.Account.get(id=id).prefetch_related("photos")
     if not account:
         raise HTTPException(status_code=404, detail="not found")
-    return await AccountOut.from_tortoise_orm(account)
+
+    active_days_map = await get_active_days_map([id])
+    return await AccountOut.from_tortoise_orm(
+        account, context={"active_days_map": active_days_map}
+    )
 
 
 @router.get("/", response_model=list[AccountOut])
@@ -63,20 +81,8 @@ async def get_accounts(user=Depends(get_current_user)):
         "project",
     )
 
-    # 🔽 Получаем id аккаунтов одним лёгким запросом
     account_ids = await qs.values_list("id", flat=True)
-
-    rows = await Tortoise.get_connection("default").execute_query_dict(
-        """
-        SELECT account_id, COUNT(DISTINCT DATE(started_at)) AS active_days
-        FROM dialogs
-        WHERE account_id = ANY($1)
-        GROUP BY account_id
-        """,
-        [account_ids],
-    )
-
-    active_days_map = {r["account_id"]: r["active_days"] for r in rows}
+    active_days_map = await get_active_days_map(account_ids)  # type: ignore
 
     return await AccountOut.from_queryset(
         qs,
