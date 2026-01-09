@@ -343,8 +343,8 @@ const toastTitle = id ? `Успешно сохранено` : 'Проект со
 const state = reactive<ProjectInSchema>({
   name: '',
   dialogLimit: 0,
-  sendTimeStart: 0,
-  sendTimeEnd: 24,
+  sendTimeStart: 10,
+  sendTimeEnd: 21,
   firstMessage: '',
   advancedMode: false,
   premiumRequired: true,
