@@ -102,8 +102,8 @@ def create_default_project() -> ProjectIn:
     return ProjectIn(
         name="Мой проект",
         dialog_limit=50,
-        send_time_start=0,
-        send_time_end=23,
+        send_time_start=10,
+        send_time_end=21,
         first_message="",
         advanced_mode=False,
         premium_required=True,
