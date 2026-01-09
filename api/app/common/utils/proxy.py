@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType  # type: ignore
+
 from app.common.models.orm import Proxy
 from app.config import config
 
@@ -112,19 +113,25 @@ class ProxyUtil:
             rdns=True,
         )
 
-    async def check(self) -> Optional[str]:
-        try:
-            async with aiohttp.ClientSession(
-                connector=self.connector, timeout=timeout
-            ) as session:
-                async with session.get(
-                    "https://api.ipify.org/?format=text"
-                ) as response:
-                    ip = (await response.text()).strip()
-                    if IPV4_REGEX.fullmatch(ip):
-                        return ip
-        except Exception:
-            pass  # Можно добавить логгирование
+    async def check(
+        self, max_retries: int = 1, retry_delay: float = 1.0
+    ) -> Optional[str]:
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession(
+                    connector=self.connector, timeout=timeout
+                ) as session:
+                    async with session.get(
+                        "https://api.ipify.org/?format=text"
+                    ) as response:
+                        ip = (await response.text()).strip()
+                        if IPV4_REGEX.fullmatch(ip):
+                            return ip
+            except Exception:
+                if attempt < max_retries - 1:  # Не последняя попытка
+                    await asyncio.sleep(retry_delay)
+                # Можно добавить логгирование
+                # logger.warning(f"Attempt {attempt + 1} failed: {e}")
 
         return None
 

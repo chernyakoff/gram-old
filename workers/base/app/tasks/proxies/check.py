@@ -17,13 +17,17 @@ class ProxiesCheckIn(BaseModel):
 
 async def _check(proxy: orm.Proxy, logger: StreamLogger):
     util = ProxyUtil.from_orm(proxy)
-    if await util.check():
+    if await util.check(max_retries=3):
         await logger.success(util.line)
         async with in_transaction() as conn:
             proxy.failures = 0
             proxy.active = True
             await proxy.save(update_fields=["failures", "active"], using_db=conn)
     else:
+        async with in_transaction() as conn:
+            proxy.failures = 5
+            proxy.active = False
+            await proxy.save(update_fields=["failures", "active"], using_db=conn)
         await logger.error(util.line)
 
 

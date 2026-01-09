@@ -14,10 +14,12 @@ def codegen(cfg: SyncConfig):
     generate_models(cfg.codegen, data)
 
 
-def run():
+def run(mode: str):
     cfg = get_config()
-    copy_modules(cfg)
-    codegen(cfg)
+    if mode == "common":
+        copy_modules(cfg)
+    if mode == "tasks":
+        codegen(cfg)
 
 
 __all__ = ["run"]
