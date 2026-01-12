@@ -12,6 +12,7 @@ from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.account import AccountUtil
 from app.common.utils.functions import generate_message, pick, randomize_message
+from app.common.utils.notify import BotNotify
 from app.common.utils.proxy_pool import ProxyPool
 from app.task.manager import DialogManager
 from app.task.telegram_service import FrozenError, SpamBlockedError
@@ -127,11 +128,17 @@ async def dialog_task(input: DialogIn, ctx: Context):
         await renew_account_info(client, account)
 
         project = await orm.Project.get(id=account.project_id)  # type: ignore
+
+        if not account.premium and project.premium_required:
+            premium_error = f"У аккаунта [{account.phone}] закончился премиум"
+            await BotNotify.warning(account.user_id, premium_error)
+            raise Exception(premium_error)
+
         prompt = await orm.Prompt.get_or_none(project_id=account.project_id)  # type: ignore
         if not prompt:
             raise Exception(f"У юзера [{account.user_id}] отсутствует промпт")
 
-        limiter = AccountLimiter(account)
+        # limiter = AccountLimiter(account)
 
         # Создаём менеджер диалогов
         manager = DialogManager(
