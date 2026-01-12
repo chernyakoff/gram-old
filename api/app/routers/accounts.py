@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from tortoise.query_utils import Prefetch
 
-from app.common.models import orm
+from app.common.models import enums, orm
 from app.common.utils.s3 import AsyncS3Client
 from app.dto.account import (
     AccountIn,
@@ -95,9 +95,17 @@ async def delete_accounts_photos(paths: list[str]):
         await s3.delete_many(paths)
 
 
+async def save_to_muted(ids: list[int]):
+    muted = await orm.Account.filter(id__in=ids, status=enums.AccountStatus.MUTED).all()
+    if muted:
+        insert = [orm.MutedAccount.from_account(m) for m in muted]
+        await orm.MutedAccount.bulk_create(insert, ignore_conflicts=True)
+
+
 @router.delete("/")
 async def delete_accounts(id: list[int] = Query(...), user=Depends(get_current_user)):
     photos = await orm.AccountPhoto.filter(account_id__in=id).all()
+    await save_to_muted(id)
     await orm.Account.filter(id__in=id, user_id=user.id).delete()
     asyncio.create_task(delete_accounts_photos([p.path for p in photos]))
 

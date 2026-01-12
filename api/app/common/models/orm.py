@@ -606,3 +606,38 @@ class UserWorkInterval(Model):
 
     class Meta:
         table = "user_work_intervals"
+
+
+class MutedAccount(Model, TimestampMixin):
+    id = fields.BigIntField(pk=True, generated=False)
+    username = fields.CharField(max_length=34, null=True)
+    first_name = fields.CharField(max_length=64, null=True)
+    last_name = fields.CharField(max_length=64, null=True)
+    phone = fields.CharField(max_length=32, null=True)
+    twofa = fields.CharField(max_length=64, null=True)
+    app_id = fields.IntField(null=False)
+    app_hash = fields.CharField(max_length=64, null=False)
+    session = fields.TextField()
+    device_model = fields.CharField(max_length=64, null=True)
+    system_version = fields.CharField(max_length=64, null=True)
+    app_version = fields.CharField(max_length=64, null=True)
+
+    @classmethod
+    def from_account(cls, account: Account) -> Self:
+        return cls(
+            id=account.id,
+            username=account.username,
+            first_name=account.first_name,
+            last_name=account.last_name,
+            phone=account.phone,
+            twofa=account.twofa,
+            app_id=account.app_id,
+            app_hash=account.app_hash,
+            session=account.session,
+            device_model=account.device_model,
+            system_version=account.system_version,
+            app_version=account.app_version,
+        )
+
+    class Meta:
+        table = "muted_accounts"
