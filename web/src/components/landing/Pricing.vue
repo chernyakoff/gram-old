@@ -5,13 +5,13 @@ import type { PricingPlan } from './types'
 
 const plans: PricingPlan[] = [
   {
-    name: 'Базовый доступ',
-    price: 'Лицензия',
+    name: 'Базовый',
+    price: '24 900 ₽ / год',
     period: '',
     description: 'Полный доступ ко всему функционалу платформы для самостоятельной работы.',
     features: [
-      'Неограниченное количество аккаунтов',
-      'Неограниченное количество проектов',
+      'До 20 аккаунтов',
+      '1 проект',
       'Полный доступ к ИИ инструментам',
       'Автоупаковка и Внутренняя CRM',
       'Поддержка в общем чате комьюнити',
@@ -19,13 +19,13 @@ const plans: PricingPlan[] = [
     buttonText: 'Получить доступ',
   },
   {
-    name: 'Сопровождение',
-    price: 'Pro',
+    name: 'Стандарт',
+    price: '44 900 ₽ / год',
     period: '',
     description: 'Для тех, кому нужна помощь в стратегии и быстрых результатах.',
     features: [
-      'Все возможности Базового доступа',
-      'Неограниченное количество аккаунтов',
+      'До 60 аккаунтов',
+      'До 3 проектов',
       'Приоритетная техническая поддержка',
       'Помощь в составлении офферов',
       'Аудит ваших кампаний',
@@ -34,16 +34,15 @@ const plans: PricingPlan[] = [
     buttonText: 'Получить доступ',
   },
   {
-    name: 'Под ключ / Агентство',
-    price: 'VIP',
+    name: 'Безлимит',
+    price: '74 900 ₽',
     period: '',
     description: 'Мы берем настройку кампаний на себя. Идеально для крупных клиентов.',
     features: [
-      'Все возможности Pro тарифа',
-      'Помощь в сборе кампаний под ключ',
-      'Персональный менеджер',
-      'Стратегическое планирование',
+      'Неограниченно аккаунтов',
+      'Неограниченно проектов',
       'Индивидуальные консультации',
+      'Персональный менеджер',
     ],
     buttonText: 'Обсудить условия',
   },
@@ -91,7 +90,7 @@ const plans: PricingPlan[] = [
           <div class="mb-6">
             <h3 class="text-lg font-semibold text-white">{{ plan.name }}</h3>
             <div class="mt-4 flex items-baseline text-white">
-              <span class="text-3xl font-extrabold tracking-tight">{{ plan.price }}</span>
+              <span class="text-2xl font-extrabold tracking-tight">{{ plan.price }}</span>
               <span v-if="plan.period" class="ml-1 text-xl font-semibold text-slate-500">
                 {{ plan.period }}
               </span>
