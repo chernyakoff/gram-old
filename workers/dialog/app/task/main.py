@@ -39,8 +39,10 @@ async def release_account(account: orm.Account, error: str | None = None):
     }
 
     account.update_from_dict(update_data)
+    update_fields = list(update_data.keys())
+    update_fields.append("status")
     async with in_transaction():
-        await account.save(update_fields=list(update_data.keys()))
+        await account.save(update_fields=update_fields)
 
 
 async def renew_account_info(client: TelegramClient, account: orm.Account):
@@ -104,9 +106,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 logger.error(
                     "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
                 )
-                account.active = False
+
                 account.status = enums.AccountStatus.EXITED
-                await account.save(update_fields=["active", "status"])
+                await account.save(update_fields=["status"])
             await release_account(account, error=f"Connection error: {e}")
             return
 
@@ -115,6 +117,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 client.is_user_authorized(), timeout=10
             )
             if not is_authorized:
+                account.status = enums.AccountStatus.EXITED
                 logger.error(f"Account {account.id} не авторизован")
                 await release_account(account, error="Account not authorized")
                 return

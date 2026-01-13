@@ -118,9 +118,9 @@ class ProxyPool:
         )
 
     async def _deactivate_account(self, account: Account):
-        account.active = False
+        # account.active = False
         account.status = AccountStatus.NOPROXY
-        await account.save(update_fields=["active", "status"])
+        await account.save(update_fields=["status"])
         await BotNotify.warning(
             account.user_id,
             f"{account.display_username} выключен. Не работает привязанный прокси",

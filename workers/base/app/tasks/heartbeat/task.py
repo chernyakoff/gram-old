@@ -112,7 +112,6 @@ async def get_available_accounts(project: orm.Project, now, conn):
     return (
         await orm.Account.filter(
             project=project,
-            active=True,
             premium=project.premium_required,
             status=enums.AccountStatus.GOOD,
             busy=False,
