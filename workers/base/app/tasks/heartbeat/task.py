@@ -109,15 +109,16 @@ def is_project_in_send_window(project: orm.Project, now) -> bool:
 
 
 async def get_available_accounts(project: orm.Project, now, conn):
+    params = dict(
+        project=project,
+        status=enums.AccountStatus.GOOD,
+        busy=False,
+    )
+    if project.premium_required:
+        params["premium"] = True
+
     return (
-        await orm.Account.filter(
-            project=project,
-            premium=project.premium_required,
-            status=enums.AccountStatus.GOOD,
-            busy=False,
-        )
-        .limit(MAX_ACCOUNTS_PER_CYCLE)
-        .using_db(conn)
+        await orm.Account.filter(**params).limit(MAX_ACCOUNTS_PER_CYCLE).using_db(conn)
     )
 
 
