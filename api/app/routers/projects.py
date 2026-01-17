@@ -15,7 +15,6 @@ from app.common.utils.prompt import (
 from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
-    ProjectFilesIn,
     ProjectShortOut,
     ProjectStatusIn,
     SynonimizeIn,
@@ -62,7 +61,8 @@ async def update_project_status(
             errors.append("В проекте отсутсвует промпт")
         if not project.first_message:
             errors.append("В проекте отсутсвует первое сообщение")
-        return ProjectStatusOut(result="error", errors=errors)
+        if errors:
+            return ProjectStatusOut(result="error", errors=errors)
 
     project.status = data.status
     await project.save()
@@ -77,8 +77,13 @@ async def synonimize(data: SynonimizeIn, user=Depends(get_current_user)):
     return response
 
 
-@router.post("/upload-files", response_model=WorkflowOut)
-async def upload_files(data: ProjectFilesIn, user=Depends(get_current_user)):
+class EmbedIn(BaseModel):
+    project_id: int
+    files: list[str]
+
+
+@router.post("/upload-embed", response_model=WorkflowOut)
+async def upload_files(data: EmbedIn, user=Depends(get_current_user)):
     print(data)
 
 

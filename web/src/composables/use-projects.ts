@@ -48,8 +48,8 @@ export function useProjects() {
     })
   }
 
-  async function uploadFiles(body: ProjectFilesIn) {
-    return await api<SynonimizeOut>(`projects/upload-files`, {
+  async function uploadEmbed(body: ProjectFilesIn): Promise<WorkflowOut> {
+    return await api<WorkflowOut>(`projects/upload-embed`, {
       method: 'POST',
       body,
     })
@@ -111,7 +111,7 @@ export function useProjects() {
   return {
     get,
     del,
-    uploadFiles,
+    uploadEmbed,
     synonimize,
     projects,
     status,

@@ -21,6 +21,7 @@
         <template #settings><ProjectSettingsTab :projectId="projectId" /></template>
         <template #brief><ProjectBriefTab :projectId="projectId" /></template>
         <template #prompt><ProjectPromptTab :projectId="projectId" /></template>
+        <template #embed><ProjectEmbedTab :projectId="projectId" /></template>
       </UTabs>
     </template>
   </UDashboardPanel>
@@ -31,6 +32,7 @@ import type { TabsItem } from '@nuxt/ui'
 import ProjectSettingsTab from '@/components/dashboard/project/settings-tab.vue'
 import ProjectBriefTab from '@/components/dashboard/project/brief-tab.vue'
 import ProjectPromptTab from '@/components/dashboard/project/prompt-tab.vue'
+import ProjectEmbedTab from '@/components/dashboard/project/embed-tab.vue'
 
 const title = 'Редактирование проекта'
 useTitle(title)
@@ -43,6 +45,6 @@ const tabs = [
   { label: 'Бриф', icon: 'mdi:briefcase-account', slot: 'brief' as const },
   { label: 'Промпт', icon: 'bx:brain', slot: 'prompt' as const },
   { label: 'Файлы', icon: 'lucide:files', slot: 'files' as const },
-  { label: 'База знаний', icon: 'bx:bxs-graduation', slot: 'knowledge' as const },
+  { label: 'База знаний', icon: 'bx:bxs-graduation', slot: 'embed' as const },
 ] satisfies TabsItem[]
 </script>
