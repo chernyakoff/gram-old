@@ -1,10 +1,6 @@
-from datetime import timedelta
 
 from aerich import Tortoise
 from fastapi import APIRouter, Depends, HTTPException
-from tortoise import timezone as tz
-from tortoise.expressions import Q
-from tortoise.functions import Count, Max
 
 from app.common.models import enums, orm
 from app.dto.dialog import DialogIn, DialogMessageOut, DialogOut, DialogSystemMessageIn

@@ -240,6 +240,10 @@ export interface components {
         ProjectStatusIn: {
             status: boolean;
         };
+        ProjectStatusOut: {
+            result: "success" | "error";
+            errors: string[];
+        };
         Prompt: {
             role: string;
             context: string;
@@ -400,6 +404,7 @@ export type ProjectSettings = components['schemas']['ProjectSettings'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectSkipOptions = components['schemas']['ProjectSkipOptions'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
+export type ProjectStatusOut = components['schemas']['ProjectStatusOut'];
 export type Prompt = components['schemas']['Prompt'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];

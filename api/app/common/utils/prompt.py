@@ -3,7 +3,14 @@ import re
 from pydantic import BaseModel
 
 from app.common.models.enums import DialogStatus
-from app.common.models.orm import Account, AppSettings, Recipient, User
+from app.common.models.orm import (
+    PROMPT_FIELDS,
+    Account,
+    AppSettings,
+    Prompt,
+    Recipient,
+    User,
+)
 from app.common.utils import openrouter
 
 
@@ -168,3 +175,17 @@ async def analyze_dialog_status(
             return DialogStatus(response.strip().lower())
         except:
             return status
+
+
+def validate_prompt(prompt: Prompt | None, skip_option: ProjectSkipOptions) -> bool:
+    if prompt is None:
+        return False
+
+    for f in PROMPT_FIELDS:
+        skip = getattr(skip_option, f) if hasattr(skip_option, f) else False
+        if skip:
+            continue
+        v = getattr(prompt, f)
+        if len(v) < 3:
+            return False
+    return True

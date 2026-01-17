@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from tortoise.expressions import Q
 from tortoise_serializer import Serializer
 
-from app.common.models import enums, orm
+from app.common.models import enums
 
 
 class DialogIn(BaseModel):

@@ -140,6 +140,9 @@ const state = reactive<ProjectSettingsSchema>({
 const isRandomizing = ref(false)
 
 const doSynonimize = async () => {
+  if (state.firstMessage.length < 1) {
+    return
+  }
   isRandomizing.value = true
   const { text } = await synonimize({ text: state.firstMessage })
   state.firstMessage = text

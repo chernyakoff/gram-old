@@ -7,6 +7,7 @@ import type {
   ProjectFilesIn,
   ProjectSettings,
   ProjectShortOut,
+  ProjectStatusOut,
   Prompt,
   SynonimizeIn,
   SynonimizeOut,
@@ -34,7 +35,10 @@ export function useProjects() {
   }
 
   async function status(id: number, value: boolean) {
-    return await api(`projects/${id}/status`, { method: 'PATCH', body: { status: value } })
+    return await api<ProjectStatusOut>(`projects/${id}/status`, {
+      method: 'PATCH',
+      body: { status: value },
+    })
   }
 
   async function synonimize(body: SynonimizeIn) {

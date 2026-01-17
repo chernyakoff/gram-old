@@ -97,6 +97,7 @@ import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
 import MTextrarea from '@/components/shared/m-textrarea.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { useProjects } from '@/composables/use-projects'
+import { watch } from 'fs'
 
 const { getPrompt, savePrompt } = useProjects()
 

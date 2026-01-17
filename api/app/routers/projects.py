@@ -1,12 +1,17 @@
 # app/router/projects.py
 
 import asyncio
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.common.models import orm
-from app.common.utils.prompt import DEFAULT_SKIP_OPTIONS, ProjectSkipOptions
+from app.common.utils.prompt import (
+    DEFAULT_SKIP_OPTIONS,
+    ProjectSkipOptions,
+    validate_prompt,
+)
 from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
@@ -37,7 +42,12 @@ async def delete_projects(id: list[int] = Query(...), user=Depends(get_current_u
     await orm.Project.filter(id__in=id, user_id=user.id).delete()
 
 
-@router.patch("/{id}/status")
+class ProjectStatusOut(BaseModel):
+    result: Literal["success", "error"]
+    errors: list[str]
+
+
+@router.patch("/{id}/status", response_model=ProjectStatusOut)
 async def update_project_status(
     id: int, data: ProjectStatusIn, user=Depends(get_current_user)
 ):
@@ -45,8 +55,18 @@ async def update_project_status(
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
+    errors = []
+    if data.status is True:
+        prompt = await orm.Prompt.get_or_none(project_id=id)
+        if not validate_prompt(prompt, project.skip_options):
+            errors.append("В проекте отсутсвует промпт")
+        if not project.first_message:
+            errors.append("В проекте отсутсвует первое сообщение")
+        return ProjectStatusOut(result="error", errors=errors)
+
     project.status = data.status
     await project.save()
+    return ProjectStatusOut(result="success", errors=[])
 
 
 @router.post("/synonimize", response_model=models.SynonimizeOut)

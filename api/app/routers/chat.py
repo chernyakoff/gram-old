@@ -1,6 +1,3 @@
-import re
-from typing import Any, cast
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.common.models import orm
@@ -13,13 +10,14 @@ from app.common.utils.functions import (
 )
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
+    ProjectSkipOptions,
     analyze_dialog_status,
     build_prompt_v2,
     get_active_status,
     get_status_addon,
+    validate_prompt,
 )
-from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
-from app.dto.project import ProjectSkipOptions
+from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -34,11 +32,21 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    orm_prompt = await orm.Prompt.get_or_none(project_id=project.id)
     skip_options = (
         ProjectSkipOptions(**project.skip_options)
         if project.skip_options
         else DEFAULT_SKIP_OPTIONS
     )
+
+    if not validate_prompt(orm_prompt, project.skip_options):
+        return ChatOut(text="В проекте отсутсвует промпт", status=chat.status)
+
+    if not project.first_message:
+        return ChatOut(
+            text="В проекте отсутсвует первое сообщениет", status=chat.status
+        )
+
     # TODO - сделать оповещение если статус не найден и оставлен предыдущий
     if chat.messages:
         new_status = await analyze_dialog_status(
@@ -73,8 +81,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
                 break
-
-    orm_prompt = await orm.Prompt.get(project_id=project.id)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 

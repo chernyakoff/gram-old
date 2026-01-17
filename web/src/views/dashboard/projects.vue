@@ -6,7 +6,7 @@
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <CreateProjectModal />
+          <CreateProjectModal @close="refresh" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -77,6 +77,8 @@ useTitle(title)
 
 onMounted(() => get())
 
+const toast = useToast()
+
 // - drawer
 
 //- table
@@ -86,15 +88,24 @@ const columnVisibility = ref()
 const refresh = () => {
   get()
 }
-
 const toggleStatus = async (project: ProjectShortOut, value: boolean) => {
-  project.status = value
-  try {
-    await status(project.id, value)
-  } catch (error) {
-    console.error(error)
+  const prev = project.status
 
-    project.status = !value
+  // временно показываем переключение
+  project.status = value
+
+  const res = await status(project.id, value)
+
+  if (res.result !== 'success') {
+    // откат
+    project.status = prev
+
+    toast.add({
+      title: 'Нельзя активировать проект',
+      description: res.errors.join('\n'),
+      color: 'error',
+      ui: { description: 'whitespace-pre-line' },
+    })
   }
 }
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 from tortoise_serializer import ContextType, Serializer
@@ -66,14 +66,14 @@ class AccountOut(AccountBase):
     async def resolve_is_dynamic_limit(
         cls, instance: orm.Account, context: ContextType
     ) -> bool:
-        active_days = context["active_days_map"].get(instance.id, 0)
+        active_days = context["active_days_map"].get(instance.id, 0)  # type: ignore
         return active_days < len(instance.PROGREV)
 
     @classmethod
     async def resolve_dynamic_daily_limit(
         cls, instance: orm.Account, context: ContextType
     ) -> int | None:
-        active_days = context["active_days_map"].get(instance.id, 0)
+        active_days = context["active_days_map"].get(instance.id, 0)  # type: ignore
 
         if active_days >= len(instance.PROGREV):
             return None
