@@ -141,6 +141,7 @@ async def get_brief(id: int, user=Depends(get_current_user)):
     brief = await orm.Brief.get_or_none(project_id=id)
     if not brief:
         brief = await orm.Brief.create(
+            project_id=id,
             description="",
             offer="",
             client="",
@@ -202,7 +203,7 @@ class Prompt(BaseModel):
     skip_options: ProjectSkipOptions
 
 
-@router.get("/{id}/prompt", response_model=Brief)
+@router.get("/{id}/prompt", response_model=Prompt)
 async def get_prompt(id: int, user=Depends(get_current_user)):
     project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
     if not project:
@@ -210,6 +211,7 @@ async def get_prompt(id: int, user=Depends(get_current_user)):
     prompt = await orm.Prompt.get_or_none(project_id=id)
     if not prompt:
         prompt = await orm.Prompt.create(
+            project_id=id,
             role="",
             context="",
             init="",
@@ -220,6 +222,11 @@ async def get_prompt(id: int, user=Depends(get_current_user)):
             rules="",
         )
 
+    skip_options = (
+        ProjectSkipOptions(**project.skip_options)
+        if project.skip_options
+        else DEFAULT_SKIP_OPTIONS
+    )
     return Prompt(
         role=prompt.role,
         context=prompt.context,
@@ -229,7 +236,7 @@ async def get_prompt(id: int, user=Depends(get_current_user)):
         closing=prompt.closing,
         instruction=prompt.instruction,
         rules=prompt.rules,
-        skip_options=project.skip_options,
+        skip_options=skip_options,
     )
 
 

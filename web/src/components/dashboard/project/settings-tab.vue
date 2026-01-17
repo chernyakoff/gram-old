@@ -65,12 +65,18 @@
       <UButton type="submit">Сохранить</UButton>
     </div>
   </UForm>
+  <BlockingModal
+    title="Рандомизирую"
+    text="Дождитесь окончания рандомизации"
+    :open="isRandomizing"
+  />
 </template>
 <script setup lang="ts">
 import { useProjects } from '@/composables/use-projects'
 import { computed, onMounted } from 'vue'
 import { reactive, ref } from 'vue'
 import { generateMessage } from '@/utils/prompt'
+import BlockingModal from '@/components/shared/blocking-modal.vue'
 
 import * as v from 'valibot'
 import type { FormSubmitEvent } from '@nuxt/ui'

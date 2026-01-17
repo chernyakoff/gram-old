@@ -97,7 +97,7 @@ export function useProjects() {
     })
   }
 
-  async function generatePrompt(id: number, body: Prompt) {
+  async function generatePrompt(id: number, body: Brief) {
     return await api<WorkflowOut>(`projects/${id}/generate-prompt`, {
       method: 'POST',
       body,
