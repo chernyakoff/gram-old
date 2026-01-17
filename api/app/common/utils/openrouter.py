@@ -2,7 +2,7 @@ import os
 from decimal import ROUND_DOWN, Decimal
 from typing import Any
 
-import tiktoken  # type: ignore
+# import tiktoken  # type: ignore
 from openrouter import OpenRouter
 from openrouter.components import ChatGenerationTokenUsage
 from openrouter.operations import (
@@ -17,7 +17,7 @@ from app.common.models.orm import AiModel, User
 from app.common.utils.usd_rate import get_usd_rate
 from app.config import config
 
-enc = tiktoken.get_encoding("cl100k_base")
+# enc = tiktoken.get_encoding("cl100k_base")
 DEFAULT_MODEL = "openai/gpt-5.2-chat"
 GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.5"
 EMBED_MODEL = "openai/text-embedding-3-small"
@@ -119,6 +119,7 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
     return str(content)
 
 
+""" 
 async def embed_chunks(user, chunks: list[str], batch_size=32):
     user = await add_openrouter_to_user(user)
     model = await get_ai_model(EMBED_MODEL)
@@ -147,7 +148,7 @@ async def embed_chunks(user, chunks: list[str], batch_size=32):
 
     os.environ.pop("ALL_PROXY", None)
 
-
+ """
 # ----------------- ПОТОКОБЕЗОПАСНЫЕ ВСПОМОГАТЕЛЬНЫЕ -----------------
 
 
