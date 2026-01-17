@@ -31,6 +31,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/dashboard/project-create.vue'),
         props: true, // чтобы id сразу приходил как пропс
       },
+      {
+        path: 'project-files/:id?',
+        name: 'project-files',
+        component: () => import('@/views/dashboard/project-files.vue'),
+        props: true, // чтобы id сразу приходил как пропс
+      },
     ],
   },
 ]

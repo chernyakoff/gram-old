@@ -14,7 +14,7 @@ async def get_ai_models(user=Depends(get_current_user)):
     usd_rate = await get_usd_rate()
 
     return await AiModelOut.from_queryset(
-        orm.AiModel.filter()
+        orm.AiModel.filter(visible=True)
         .exclude(id__startswith="google")
         .order_by("completion_price")
         .all(),

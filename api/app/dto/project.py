@@ -136,3 +136,8 @@ class SynonimizeIn(BaseModel):
 
 class SynonimizeOut(BaseModel):
     text: str
+
+
+class ProjectFilesIn(BaseModel):
+    project_id: int
+    files: list[str]

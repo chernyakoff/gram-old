@@ -9,6 +9,7 @@ from app.common.models import orm
 from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
+    ProjectFilesIn,
     ProjectIn,
     ProjectOut,
     ProjectShortOut,
@@ -169,3 +170,8 @@ async def synonimize(data: SynonimizeIn, user=Depends(get_current_user)):
         models.SynonimizeIn(text=data.text, user_id=user.id)
     )
     return response
+
+
+@router.post("/upload-files", response_model=WorkflowOut)
+async def upload_files(data: ProjectFilesIn, user=Depends(get_current_user)):
+    print(data)

@@ -41,8 +41,9 @@ const plans: PricingPlan[] = [
     features: [
       'Неограниченно аккаунтов',
       'Неограниченно проектов',
+      'Помощь в сборе кампаний под ключ',
       'Индивидуальные консультации',
-      'Персональный менеджер',
+      'Стратегическое планирование',
     ],
     buttonText: 'Обсудить условия',
   },
@@ -90,7 +91,9 @@ const plans: PricingPlan[] = [
           <div class="mb-6">
             <h3 class="text-lg font-semibold text-white">{{ plan.name }}</h3>
             <div class="mt-4 flex items-baseline text-white">
-              <span class="text-2xl font-extrabold tracking-tight">{{ plan.price }}</span>
+              <span class="text-2xl font-bold text-slate-400 tracking-tight">
+                {{ plan.price }}
+              </span>
               <span v-if="plan.period" class="ml-1 text-xl font-semibold text-slate-500">
                 {{ plan.period }}
               </span>

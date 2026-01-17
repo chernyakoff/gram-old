@@ -2,6 +2,7 @@ import { useApi } from '@/composables/use-api'
 
 import type {
   ProjectBase,
+  ProjectFilesIn,
   ProjectIn,
   ProjectOut,
   ProjectShortOut,
@@ -50,6 +51,13 @@ export function useProjects() {
     })
   }
 
+  async function uploadFiles(body: ProjectFilesIn) {
+    return await api<SynonimizeOut>(`projects/upload-files`, {
+      method: 'POST',
+      body,
+    })
+  }
+
   async function update(id: number, body: ProjectIn) {
     return await api<WorkflowOut>(`projects/${id}`, {
       method: 'PATCH',
@@ -69,6 +77,7 @@ export function useProjects() {
     get,
     del,
     update,
+    uploadFiles,
     synonimize,
     projects,
     status,

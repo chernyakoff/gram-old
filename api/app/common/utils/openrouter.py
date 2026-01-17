@@ -244,9 +244,7 @@ async def get_key(hash: str) -> GetKeyResponse:
 
 
 async def upsert_models():
-    model_ids = await AiModel.all().values_list("id", flat=True)
-    async with OpenRouter(api_key=config.openrouter.manager_api_key) as app:
-        response = await app.models.list_async()
+    async def _upsert_models(response):
         for model in response.data:
             if model.id not in model_ids:
                 continue
@@ -259,6 +257,13 @@ async def upsert_models():
                     "completion_price": Decimal(model.pricing.completion),
                 },
             )
+
+    model_ids = await AiModel.all().values_list("id", flat=True)
+    async with OpenRouter(api_key=config.openrouter.manager_api_key) as app:
+        response = await app.models.list_async()
+        await _upsert_models(response)
+        response = app.embeddings.list_models()
+        await _upsert_models(response)
 
 
 async def get_balance() -> Decimal:

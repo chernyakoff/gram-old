@@ -221,6 +221,10 @@ export interface components {
             id: number;
             name: string;
         };
+        ProjectFilesIn: {
+            projectId: number;
+            files: string[];
+        };
         ProjectIn: {
             name: string;
             dialogLimit: number;
@@ -423,6 +427,7 @@ export type MessageSender = components['schemas']['MessageSender'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
+export type ProjectFilesIn = components['schemas']['ProjectFilesIn'];
 export type ProjectIn = components['schemas']['ProjectIn'];
 export type ProjectOut = components['schemas']['ProjectOut'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];

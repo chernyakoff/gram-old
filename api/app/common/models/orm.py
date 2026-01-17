@@ -2,6 +2,7 @@ import math
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
+from enum import StrEnum, auto
 from typing import Self
 
 from tortoise import fields
@@ -568,6 +569,7 @@ class AiModel(Model, TimestampMixin):
     completion_price = fields.DecimalField(
         max_digits=20, decimal_places=12, default=Decimal("0")
     )
+    visible = fields.BooleanField(default=True)
 
     class Meta:
         table = "ai_models"
@@ -641,3 +643,79 @@ class MutedAccount(Model, TimestampMixin):
 
     class Meta:
         table = "muted_accounts"
+
+
+class DocumentStatus(StrEnum):
+    UPLOADED = auto()
+    PROCESSING = auto()
+    READY = auto()
+    FAILED = auto()
+
+
+class DocumentSourceType(StrEnum):
+    FILE = auto()
+    URL = auto()
+    TEXT = auto()
+
+
+class Document(Model):
+    """
+    Документ, загруженный пользователем в рамках проекта.
+    Используется как единица ingestion для RAG.
+    """
+
+    id = fields.BigIntField(pk=True)
+
+    project = fields.ForeignKeyField(
+        "models.Project",
+        related_name="documents",
+        on_delete=fields.CASCADE,
+        index=True,
+    )
+
+    # Метаданные
+    title = fields.CharField(max_length=255, null=True)
+    filename = fields.CharField(max_length=255, null=True)
+    content_type = fields.CharField(
+        max_length=100, null=True
+    )  # application/pdf, text/plain
+
+    source_type = fields.CharEnumField(
+        DocumentSourceType,
+        default=DocumentSourceType.FILE,
+        index=True,
+    )
+
+    # Статус ingestion
+    status = fields.CharEnumField(
+        DocumentStatus,
+        default=DocumentStatus.UPLOADED,
+        index=True,
+    )
+
+    error_message = fields.TextField(null=True)
+
+    # Размеры / статистика (удобно для лимитов и UI)
+    file_size = fields.BigIntField(null=True)
+    text_length = fields.IntField(null=True)  # длина извлечённого текста
+    chunks_count = fields.IntField(null=True)
+
+    # Источник
+    source_url = fields.CharField(max_length=2048, null=True)
+    storage_path = fields.CharField(
+        max_length=1024, null=True
+    )  # путь к файлу (S3, local, etc.)
+
+    # Аудит
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+    processed_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = "project_documents"
+        indexes = [
+            ("project_id", "status"),
+        ]
+
+    def __str__(self) -> str:
+        return f"<Document {self.id} ({self.status})>"

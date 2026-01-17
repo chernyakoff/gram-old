@@ -24,15 +24,16 @@
           </div>
 
           <div class="flex items-center gap-3 border-l border-slate-700 pl-6 h-8">
-            <Button
+            <UButton
               @click="showLoginModal = true"
-              variant="ghost"
-              size="sm"
-              class="text-slate-300 hover:text-white hover:bg-white/5 gap-2"
+              variant="link"
+              color="neutral"
+              size="md"
+              class="gap-2"
             >
               <LogIn class="h-4 w-4" />
               Вход
-            </Button>
+            </UButton>
 
             <a href="https://t.me/Maksim_Belichenko" target="_blank" rel="noopener noreferrer">
               <Button
@@ -69,14 +70,15 @@
           {{ item.label }}
         </a>
         <div class="pt-4 space-y-3 border-t border-slate-800 mt-4">
-          <Button
+          <UButton
             @click="showLoginModal = true"
             variant="ghost"
-            class="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800 gap-2"
+            color="neutral"
+            class="w-full justify-start gap-2"
           >
             <LogIn class="h-4 w-4" />
             Вход в кабинет
-          </Button>
+          </UButton>
           <a
             href="https://t.me/Maksim_Belichenko"
             target="_blank"

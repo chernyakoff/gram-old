@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: neuro-postgres
     restart: unless-stopped
     environment:
@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: neurogram
     ports:
-      - "5445:5432"   # доступ с хоста (ноута)
+      - "5445:5432" # доступ с хоста (ноута)
     volumes:
       - postgres-data-dev:/var/lib/postgresql/data
     networks:
@@ -21,8 +21,8 @@ services:
     container_name: neuro-base-worker
     volumes:
       - ../../workers/base:/app
-      - uv-venv-base-worker:/app/.venv   # отдельный том под venv worker
-      - ./config.yml:/app/config.yml 
+      - uv-venv-base-worker:/app/.venv # отдельный том под venv worker
+      - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
@@ -42,8 +42,8 @@ services:
     container_name: neuro-dialog-worker
     volumes:
       - ../../workers/dialog:/app
-      - uv-venv-dialog-worker:/app/.venv   # отдельный том под venv worker
-      - ./config.yml:/app/config.yml 
+      - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
+      - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
@@ -62,11 +62,11 @@ services:
       target: dev
     container_name: neuro-api
     ports:
-      - "8833:8833"   # маппим наружу API
+      - "8833:8833" # маппим наружу API
     volumes:
       - ../../api:/app
-      - uv-venv-api:/app/.venv      # отдельный том под venv api
-      - ./config.yml:/app/config.yml 
+      - uv-venv-api:/app/.venv # отдельный том под venv api
+      - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
@@ -74,7 +74,7 @@ services:
     depends_on:
       - postgres
     networks:
-      - hatchet 
+      - hatchet
       - dev
       - web
 
@@ -87,7 +87,7 @@ services:
       - "5173:5173"
     volumes:
       - ../../web:/app
-      - ./config.yml:/app/config.yml 
+      - ./config.yml:/app/config.yml
     depends_on:
       - api
       - base-worker

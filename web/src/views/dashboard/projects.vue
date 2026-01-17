@@ -21,7 +21,7 @@
           v-model:column-filters="columnFilters"
           v-model:column-visibility="columnVisibility"
           class="shrink-0 w-full"
-          :data="projects ?? []"
+          :data="projects"
           :columns="columns"
           :loading="loading"
           :ui="{
@@ -40,7 +40,7 @@
             />
           </template>
           <template #actions-cell="{ row }">
-            <div class="flex items-center gap-2 w-32">
+            <div class="flex items-center gap-2 w-42">
               <USwitch
                 title="Изменить статус"
                 :modelValue="row.original.status"
@@ -52,6 +52,12 @@
                 variant="ghost"
                 icon="lucide:edit"
                 :to="{ name: 'project-create', params: { id: row.original.id } }"
+              />
+              <UButton
+                title="Файлы проекта"
+                variant="ghost"
+                icon="lucide:files"
+                :to="{ name: 'project-files', params: { id: row.original.id } }"
               />
               <DeleteModal :id="row.original.id" @close="refresh" />
             </div>
@@ -67,6 +73,7 @@ import { ref, onMounted } from 'vue'
 import { useTitle } from '@vueuse/core'
 import DeleteModal from '@/components/dashboard/projects/delete-modal.vue'
 import ChatModal from '@/components/dashboard/projects/chat-modal.vue'
+//import FilesDrawer from '@/components/dashboard/projects/files-drawer.vue'
 import { useProjects } from '@/composables/use-projects'
 
 import type { ProjectShortOut } from '@/types/openapi'
