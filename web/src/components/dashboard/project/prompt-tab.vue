@@ -57,6 +57,7 @@
               />
             </div>
           </UFormField>
+          <UButton type="submit">Сохранить</UButton>
         </template>
         <template #json>
           <div class="space-y-4 mb-4">
@@ -87,7 +88,6 @@
           </div>
         </template>
       </UTabs>
-      <UButton type="submit">Сохранить</UButton>
     </div>
   </UForm>
 </template>
@@ -95,9 +95,8 @@
 import * as v from 'valibot'
 import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
 import MTextrarea from '@/components/shared/m-textrarea.vue'
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watchEffect } from 'vue'
 import { useProjects } from '@/composables/use-projects'
-import { watch } from 'fs'
 
 const { getPrompt, savePrompt } = useProjects()
 
@@ -214,6 +213,10 @@ const updatePromptFromJson = () => {
     })
   }
 }
+
+watchEffect(() => {
+  jsonText.value = JSON.stringify(state, null, 2)
+})
 
 onMounted(async () => {
   const response = await getPrompt(projectId)
