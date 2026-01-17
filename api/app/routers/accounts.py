@@ -133,7 +133,7 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="not found")
 
     await orm.Account.filter(
-        id__in=data.account_ids, user_id=user.id, premium=True
+        id__in=data.account_ids, user_id=user.id
     ).update(project_id=data.project_id)
 
 
