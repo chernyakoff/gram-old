@@ -59,6 +59,8 @@ class ProjectStatusIn(BaseModel):
     status: bool
 
 
+
+
 class ProjectIn(BaseModel):
     name: str
     dialog_limit: int
@@ -101,7 +103,7 @@ class ProjectOut(Serializer):
 def create_default_project() -> ProjectIn:
     return ProjectIn(
         name="Мой проект",
-        dialog_limit=50,
+        dialog_limit=20,
         send_time_start=10,
         send_time_end=21,
         first_message="",
@@ -141,3 +143,21 @@ class SynonimizeOut(BaseModel):
 class ProjectFilesIn(BaseModel):
     project_id: int
     files: list[str]
+
+#-----
+# create
+class BaseProjectSettings(BaseModel):
+    name: str
+    dialog_limit: int
+    send_time_start: int
+    send_time_end: int
+    first_message: str
+    premium_required: bool
+
+class ProjectSettingsCreate(BaseModel):
+    name: str
+    dialog_limit: int
+    send_time_start: int
+    send_time_end: int
+    first_message: str
+    premium_required: bool

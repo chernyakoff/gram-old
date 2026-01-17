@@ -325,7 +325,7 @@ class Project(Model, TimestampMixin):
         null=False,
         default=21,
     )
-    first_message = fields.TextField(null=False)
+    first_message = fields.TextField(null=True)
 
     prompt: fields.ReverseRelation["Prompt"]
 

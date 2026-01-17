@@ -6,11 +6,7 @@
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton
-            label="Добавить проект"
-            icon="bx:bxs-plus-circle"
-            :to="{ name: 'project-create' }"
-          />
+          <CreateProjectModal />
         </template>
       </UDashboardNavbar>
     </template>
@@ -51,14 +47,9 @@
                 title="Редактировать проект"
                 variant="ghost"
                 icon="lucide:edit"
-                :to="{ name: 'project-create', params: { id: row.original.id } }"
+                :to="{ name: 'project', params: { id: row.original.id } }"
               />
-              <UButton
-                title="Файлы проекта"
-                variant="ghost"
-                icon="lucide:files"
-                :to="{ name: 'project-files', params: { id: row.original.id } }"
-              />
+
               <DeleteModal :id="row.original.id" @close="refresh" />
             </div>
           </template>
@@ -73,6 +64,7 @@ import { ref, onMounted } from 'vue'
 import { useTitle } from '@vueuse/core'
 import DeleteModal from '@/components/dashboard/projects/delete-modal.vue'
 import ChatModal from '@/components/dashboard/projects/chat-modal.vue'
+import CreateProjectModal from '@/components/dashboard/projects/create-modal.vue'
 //import FilesDrawer from '@/components/dashboard/projects/files-drawer.vue'
 import { useProjects } from '@/composables/use-projects'
 

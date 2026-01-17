@@ -1,21 +1,19 @@
 # app/router/projects.py
 
 import asyncio
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.common.models import orm
+from app.common.utils.prompt import DEFAULT_SKIP_OPTIONS, ProjectSkipOptions
 from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
     ProjectFilesIn,
-    ProjectIn,
-    ProjectOut,
     ProjectShortOut,
     ProjectStatusIn,
     SynonimizeIn,
-    create_default_project,
 )
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
@@ -24,44 +22,9 @@ from app.routers.sse import watch_job
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.post("/", response_model=WorkflowOut)
-async def create_project(data: ProjectIn, user=Depends(get_current_user)):
-    # Создаём проект
-    project = orm.Project(
-        name=data.name,
-        dialog_limit=data.dialog_limit,
-        send_time_start=data.send_time_start,
-        send_time_end=data.send_time_end,
-        first_message=data.first_message,
-        premium_required=data.premium_required,
-        user_id=user.id,
-        skip_options=data.skip_options.model_dump(),
-    )
-    await project.save()
-    if data.advanced_mode:
-        prompt_params = data.prompt.model_dump()
-        prompt_params["project_id"] = project.id
-        await orm.Prompt.create(**prompt_params)
-        return {"id": "NONE"}
-    else:
-        brief_params = data.brief.model_dump()
-        brief_params["project_id"] = project.id
-        await orm.Brief.create(**brief_params)
-        ref = await tasks.generate_prompt.aio_run_no_wait(
-            input=models.GeneratePromptIn(project_id=project.id)
-        )
-        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-        return {"id": ref.workflow_run_id}
-
-
 @router.get("/", response_model=list[ProjectShortOut])
 async def get_projects(user=Depends(get_current_user)):
     return await ProjectShortOut.from_queryset(orm.Project.filter(user_id=user.id))
-
-
-@router.get("/default", response_model=ProjectIn)
-async def get_default_project(user=Depends(get_current_user)):
-    return create_default_project()
 
 
 @router.get("/list", response_model=list[ProjectBase])
@@ -69,87 +32,9 @@ async def get_project_list(user=Depends(get_current_user)):
     return await ProjectBase.from_queryset(orm.Project.filter(user_id=user.id))
 
 
-@router.get("/{id}", response_model=ProjectOut)
-async def get_project(id: int, user=Depends(get_current_user)):
-    project = await orm.Project.get_or_none(id=id, user_id=user.id).prefetch_related(
-        "brief", "prompt"
-    )
-    if not project:
-        raise HTTPException(status_code=404, detail="not found")
-    need_refresh = False
-    if not project.prompt:  # костыль если не сгенерировался промпт по каким то причинам
-        params: dict[str, Any] = {key: "" for key in orm.PROMPT_FIELDS}
-        params["project_id"] = id
-        await orm.Prompt.create(**params)
-        need_refresh = True
-
-    if not project.brief:
-        params: dict[str, Any] = {key: "" for key in orm.BRIEF_FIELDS}
-        params["project_id"] = id
-        await orm.Brief.create(**params)
-        need_refresh = True
-
-    if need_refresh:
-        project = await orm.Project.get_or_none(
-            id=id, user_id=user.id
-        ).prefetch_related("brief", "prompt")
-
-    return await ProjectOut.from_tortoise_orm(project)  # type: ignore
-
-
 @router.delete("/")
 async def delete_projects(id: list[int] = Query(...), user=Depends(get_current_user)):
     await orm.Project.filter(id__in=id, user_id=user.id).delete()
-
-
-@router.patch("/{id}")
-async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user)):
-    project = await orm.Project.get_or_none(id=id, user_id=user.id)
-
-    if not project:
-        raise HTTPException(status_code=404, detail="not found")
-
-    # обновляем проект
-    project.name = data.name
-    project.dialog_limit = data.dialog_limit
-    project.send_time_start = data.send_time_start
-    project.send_time_end = data.send_time_end
-    project.first_message = data.first_message
-    project.premium_required = data.premium_required
-    project.skip_options = data.skip_options.model_dump()
-    await project.save()
-
-    # режим prompt
-    if data.advanced_mode:
-        await orm.Prompt.update_or_create(
-            project_id=id, defaults=data.prompt.model_dump()
-        )
-        return {"id": "NONE"}
-
-    brief = await orm.Brief.get_or_none(project_id=project.id)
-    incoming = data.brief.model_dump()
-
-    if not brief:
-        await orm.Brief.create(project_id=project.id, **incoming)
-        brief_changed = True
-    else:
-        brief_changed = incoming != brief.to_dict()
-        if brief_changed:
-            for key, value in incoming.items():
-                setattr(brief, key, value)
-            await brief.save()
-
-    # если ничего не изменилось — выходим
-    if not brief_changed:
-        return {"id": "NONE"}
-
-    # запускаем генерацию
-    ref = await tasks.generate_prompt.aio_run_no_wait(
-        input=models.GeneratePromptIn(project_id=project.id)
-    )
-    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-
-    return {"id": ref.workflow_run_id}
 
 
 @router.patch("/{id}/status")
@@ -175,3 +60,189 @@ async def synonimize(data: SynonimizeIn, user=Depends(get_current_user)):
 @router.post("/upload-files", response_model=WorkflowOut)
 async def upload_files(data: ProjectFilesIn, user=Depends(get_current_user)):
     print(data)
+
+
+# рефакторинг ----------------------------------------
+
+# создание проекта
+
+
+class ProjectCreateIn(BaseModel):
+    name: str
+
+
+@router.post("/create")
+async def create_project(data: ProjectCreateIn, user=Depends(get_current_user)):
+    await orm.Project.create(
+        name=data.name, user_id=user.id, active=False, skip_options=DEFAULT_SKIP_OPTIONS
+    )
+
+
+# настройки проекта
+
+
+class ProjectSettings(BaseModel):
+    name: str
+    dialog_limit: int
+    send_time_start: int
+    send_time_end: int
+    first_message: str
+    premium_required: bool
+
+
+@router.get("/{id}/settings", response_model=ProjectSettings)
+async def get_project_settings(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    if not project.first_message:
+        project.first_message = ""
+    return ProjectSettings(
+        name=project.name,
+        dialog_limit=project.dialog_limit,
+        send_time_start=project.send_time_start,
+        send_time_end=project.send_time_end,
+        first_message=project.first_message,
+        premium_required=project.premium_required,
+    )
+
+
+@router.post("/{id}/settings")
+async def update_project_settings(
+    id: int, data: ProjectSettings, user=Depends(get_current_user)
+):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    project.update_from_dict(data.model_dump())
+    await project.save()
+
+
+# бриф
+
+
+class Brief(BaseModel):
+    description: str
+    offer: str
+    client: str
+    pains: str
+    advantages: str
+    mission: str
+    focus: str
+
+
+@router.get("/{id}/brief", response_model=Brief)
+async def get_brief(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    brief = await orm.Brief.get_or_none(project_id=id)
+    if not brief:
+        brief = await orm.Brief.create(
+            description="",
+            offer="",
+            client="",
+            pains="",
+            advantages="",
+            mission="",
+            focus="",
+        )
+
+    return Brief(
+        description=brief.description,
+        offer=brief.offer,
+        client=brief.client,
+        pains=brief.pains,
+        advantages=brief.advantages,
+        mission=brief.mission,
+        focus=brief.focus,
+    )
+
+
+@router.post("/{id}/brief")
+async def save_brief(id: int, data: Brief, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    brief = await orm.Brief.get(project_id=id)
+    brief.update_from_dict(data.model_dump())
+    await brief.save()
+
+
+@router.post("/{id}/generate-prompt", response_model=WorkflowOut)
+async def generate_prompt(id: int, data: Brief, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    brief = await orm.Brief.get(project_id=id)
+    brief.update_from_dict(data.model_dump())
+    await brief.save()
+    ref = await tasks.generate_prompt.aio_run_no_wait(
+        input=models.GeneratePromptIn(project_id=project.id)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+
+    return {"id": ref.workflow_run_id}
+
+
+# промпт
+
+
+class Prompt(BaseModel):
+    role: str
+    context: str
+    init: str
+    engage: str
+    offer: str
+    closing: str
+    instruction: str
+    rules: str
+    skip_options: ProjectSkipOptions
+
+
+@router.get("/{id}/prompt", response_model=Brief)
+async def get_prompt(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    prompt = await orm.Prompt.get_or_none(project_id=id)
+    if not prompt:
+        prompt = await orm.Prompt.create(
+            role="",
+            context="",
+            init="",
+            engage="",
+            offer="",
+            closing="",
+            instruction="",
+            rules="",
+        )
+
+    return Prompt(
+        role=prompt.role,
+        context=prompt.context,
+        init=prompt.init,
+        engage=prompt.engage,
+        offer=prompt.offer,
+        closing=prompt.closing,
+        instruction=prompt.instruction,
+        rules=prompt.rules,
+        skip_options=project.skip_options,
+    )
+
+
+@router.post("/{id}/prompt")
+async def save_promptf(id: int, data: Prompt, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    params = data.model_dump()
+    project.skip_options = params["skip_options"]
+    await project.save(update_fields=["skip_options"])
+    del params["skip_options"]
+    prompt = await orm.Prompt.get(project_id=id)
+
+    prompt.update_from_dict(params)
+    await prompt.save()

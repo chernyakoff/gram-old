@@ -26,9 +26,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'settings', component: () => import('@/views/dashboard/settings.vue') },
       { path: 'calendar', component: () => import('@/views/dashboard/calendar.vue') },
       {
-        path: 'project/:id?',
-        name: 'project-create',
-        component: () => import('@/views/dashboard/project-create.vue'),
+        path: 'project/:id',
+        name: 'project',
+        component: () => import('@/views/dashboard/project.vue'),
         props: true, // чтобы id сразу приходил как пропс
       },
       {

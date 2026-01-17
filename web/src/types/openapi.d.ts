@@ -77,16 +77,7 @@ export interface components {
             projectId: number;
             accountIds: number[];
         };
-        BriefIn: {
-            description: string;
-            offer: string;
-            client: string;
-            pains: string;
-            advantages: string;
-            mission: string;
-            focus: string;
-        };
-        BriefOut: {
+        Brief: {
             description: string;
             offer: string;
             client: string;
@@ -221,34 +212,20 @@ export interface components {
             id: number;
             name: string;
         };
+        ProjectCreateIn: {
+            name: string;
+        };
         ProjectFilesIn: {
             projectId: number;
             files: string[];
         };
-        ProjectIn: {
+        ProjectSettings: {
             name: string;
             dialogLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
             firstMessage: string;
             premiumRequired: boolean;
-            brief: components["schemas"]["BriefIn"];
-            prompt: components["schemas"]["PromptIn"];
-            advancedMode: boolean;
-            skipOptions: components["schemas"]["ProjectSkipOptions"];
-        };
-        ProjectOut: {
-            id: number;
-            name: string;
-            dialogLimit: number;
-            sendTimeStart: number;
-            sendTimeEnd: number;
-            firstMessage: string;
-            status: boolean;
-            premiumRequired: boolean;
-            brief: components["schemas"]["BriefOut"];
-            prompt: components["schemas"]["PromptOut"];
-            skipOptions: components["schemas"]["ProjectSkipOptions"];
         };
         ProjectShortOut: {
             id: number;
@@ -263,7 +240,7 @@ export interface components {
         ProjectStatusIn: {
             status: boolean;
         };
-        PromptIn: {
+        Prompt: {
             role: string;
             context: string;
             init: string;
@@ -272,16 +249,7 @@ export interface components {
             closing: string;
             instruction: string;
             rules: string;
-        };
-        PromptOut: {
-            role: string;
-            context: string;
-            init: string;
-            engage: string;
-            offer: string;
-            closing: string;
-            instruction: string;
-            rules: string;
+            skipOptions: components["schemas"]["ProjectSkipOptions"];
         };
         ProxiesBulkCreateIn: {
             proxies: string[];
@@ -395,8 +363,7 @@ export type AppSettingIn = components['schemas']['AppSettingIn'];
 export type BalanceIn = components['schemas']['BalanceIn'];
 export type BalanceOut = components['schemas']['BalanceOut'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
-export type BriefIn = components['schemas']['BriefIn'];
-export type BriefOut = components['schemas']['BriefOut'];
+export type Brief = components['schemas']['Brief'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
@@ -427,14 +394,13 @@ export type MessageSender = components['schemas']['MessageSender'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
+export type ProjectCreateIn = components['schemas']['ProjectCreateIn'];
 export type ProjectFilesIn = components['schemas']['ProjectFilesIn'];
-export type ProjectIn = components['schemas']['ProjectIn'];
-export type ProjectOut = components['schemas']['ProjectOut'];
+export type ProjectSettings = components['schemas']['ProjectSettings'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectSkipOptions = components['schemas']['ProjectSkipOptions'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
-export type PromptIn = components['schemas']['PromptIn'];
-export type PromptOut = components['schemas']['PromptOut'];
+export type Prompt = components['schemas']['Prompt'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
