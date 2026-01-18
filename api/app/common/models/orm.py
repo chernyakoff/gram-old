@@ -447,6 +447,7 @@ class Message(Model):
     text = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     ack = fields.BooleanField(default=False)
+    ui_only = fields.BooleanField(default=False)
 
     class Meta:
         table = "messages"

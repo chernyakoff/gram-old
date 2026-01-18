@@ -45,7 +45,9 @@ async def find_stuck_dialogs(
     for dialog in dialogs:
         # Получаем последнее сообщение
         last_message = (
-            await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+            await orm.Message.filter(dialog=dialog, ui_only=False)
+            .order_by("-created_at")
+            .first()
         )
 
         if not last_message:
@@ -101,7 +103,9 @@ async def check_and_recover_stuck_dialogs(
             )
 
             # Получаем ВСЕ сообщения для контекста
-            messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+            messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
+                "created_at"
+            )
 
             if not messages:
                 continue
@@ -158,7 +162,9 @@ async def get_stuck_dialogs_report(account_id: int) -> dict:
 
     for dialog in stuck_dialogs:
         last_message = (
-            await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+            await orm.Message.filter(dialog=dialog, ui_only=False)
+            .order_by("-created_at")
+            .first()
         )
         if last_message:
             age_minutes = (tz.now() - last_message.created_at).total_seconds() / 60

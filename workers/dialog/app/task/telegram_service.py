@@ -2,6 +2,7 @@ import asyncio
 import re
 from ctypes import cast
 from datetime import datetime
+from io import BytesIO
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -22,6 +23,7 @@ from telethon.tl.types import InputPeerUser, User
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
+from app.common.utils.s3 import AsyncS3Client
 from app.utils.logger import Logger
 
 
@@ -281,4 +283,48 @@ class TelegramService:
             )
             return params
         except:
+            return None
+
+    async def send_file(self, recipient: orm.Recipient, file: orm.ProjectFile):
+        try:
+            # Пытаемся использовать InputPeerUser если есть dialog с данными
+            peer = self._get_peer(recipient)
+            if not peer:
+                await self.get_entity(recipient)
+                peer = self._get_peer(recipient)
+                if not peer:
+                    raise Exception("PeerId and AccessHash not found")
+
+            async with AsyncS3Client() as s3:
+                content_bytes = await s3.get(file.storage_path)
+
+            buffer = BytesIO(content_bytes)
+            buffer.name = file.filename
+
+            msg = await self.client.send_file(peer, buffer, caption=file.title)
+
+            return msg
+
+        except FloodWaitError as e:
+            await self._handle_flood_wait(recipient, e)
+            return None
+
+        except SlowModeWaitError as e:
+            await self._handle_slow_mode(recipient, e)
+            return None
+
+        except ChatWriteForbiddenError:
+            await self._handle_chat_forbidden(recipient)
+            return None
+
+        except PeerFloodError:
+            await self._handle_peer_flood(recipient)
+            return None
+
+        except RPCError as e:
+            await self._handle_rpc_error(recipient, e)
+            return None
+
+        except Exception as e:
+            await self._handle_send_error(recipient, e)
             return None

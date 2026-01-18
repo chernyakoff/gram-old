@@ -150,7 +150,9 @@ class DialogManager:
         Проверяет и отправляет system-сообщения для конкретного диалога.
         Возвращает True если были отправлены system-сообщения.
         """
-        messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+        messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
+            "created_at"
+        )
 
         if not messages:
             return False
@@ -219,7 +221,9 @@ class DialogManager:
 
         # Получаем последнее сообщение из БД
         last_db_message = (
-            await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+            await orm.Message.filter(dialog=dialog, ui_only=False)
+            .order_by("-created_at")
+            .first()
         )
 
         if not last_db_message or not last_db_message.tg_message_id:
@@ -432,7 +436,7 @@ class DialogManager:
 
                     # Получаем последнее сообщение из БД
                     last_db_message = (
-                        await orm.Message.filter(dialog=dialog)
+                        await orm.Message.filter(dialog=dialog, ui_only=False)
                         .order_by("-created_at")
                         .first()
                     )
@@ -595,7 +599,9 @@ class DialogManager:
 
         try:
             # Проверяем лимит сообщений
-            messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+            messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
+                "created_at"
+            )
 
             if len(messages) >= self.project.dialog_limit:
                 await self._close_dialog(dialog, recipient, "лимит сообщений")
@@ -681,7 +687,9 @@ class DialogManager:
                 False если диалог завершён
         """
 
-        fresh_messages = await orm.Message.filter(dialog=dialog).order_by("created_at")
+        fresh_messages = await orm.Message.filter(
+            dialog=dialog, ui_only=False
+        ).order_by("created_at")
 
         # Ищем неотправленные system-сообщения в конце
         unsent_system = []
@@ -737,10 +745,12 @@ class DialogManager:
                 ai_response, new_status = await asyncio.wait_for(
                     self.ai_service.get_response_with_status(
                         self.prompt,
-                        dialog.status,
+                        dialog,
                         messages,
                         name_addon,
-                        self.project.skip_options,
+                        self.project,
+                        self.telegram_service,
+                        recipient,
                         self.logger,
                     ),
                     timeout=60,
@@ -1028,7 +1038,9 @@ class DialogManager:
 
         for dialog in dialogs:
             last_message = (
-                await orm.Message.filter(dialog=dialog).order_by("-created_at").first()
+                await orm.Message.filter(dialog=dialog, ui_only=False)
+                .order_by("-created_at")
+                .first()
             )
 
             if not last_message:
@@ -1070,9 +1082,9 @@ class DialogManager:
                     f"(статус: {dialog.status.value})"
                 )
 
-                messages = await orm.Message.filter(dialog=dialog).order_by(
-                    "created_at"
-                )
+                messages = await orm.Message.filter(
+                    dialog=dialog, ui_only=False
+                ).order_by("created_at")
 
                 if not messages:
                     continue

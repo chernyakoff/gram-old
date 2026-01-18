@@ -16,6 +16,7 @@ from app.common.utils.prompt import (
     get_active_status,
     get_status_addon,
 )
+from app.task.telegram_service import TelegramService
 from app.utils.logger import Logger
 
 
@@ -28,30 +29,51 @@ class AIService:
     async def get_response_with_status(
         self,
         project_prompt: dict,
-        status: enums.DialogStatus,
+        dialog: orm.Dialog,
         dialog_messages: list[orm.Message],
         name_addon: str,
-        project_skip_options: dict,
+        project: orm.Project,
+        telegram_service: TelegramService,
+        recipient: orm.Recipient,
         logger: Logger,
     ) -> tuple[str | None, enums.DialogStatus | None]:
         """Получает ответ от AI и определяет статус диалога"""
 
+        status = dialog.status
+
         history = self._build_history(dialog_messages)
 
         skip_options = (
-            ProjectSkipOptions(**project_skip_options)
-            if project_skip_options
+            ProjectSkipOptions(**project.skip_options)
+            if project.skip_options
             else DEFAULT_SKIP_OPTIONS
         )
+        # TODO сделать событием смену статуса
 
+        files = []
         new_status = await analyze_dialog_status(self.user, history.copy(), status)
         if new_status:
+            logger.info(f"AI установил статус: {new_status.value}")
+            new_status = get_active_status(new_status, skip_options)
+            if new_status != status:
+                files = await orm.ProjectFile.filter(
+                    project_id=project.id, status=new_status
+                ).all()
+                if files:
+                    for f in files:
+                        msg = await telegram_service.send_file(recipient, f)
+                        if msg:
+                            await orm.Message.create(
+                                dialog=dialog,
+                                tg_message_id=msg.id,  # type: ignore
+                                sender=enums.MessageSender.ACCOUNT,
+                                text=f"{f.filename}\n{f.title}",
+                                ui_only=True,
+                            )
+
             status = new_status
-            logger.info(f"AI установил статус: {status.value}")
         else:
             logger.warning("AI не вернул статус")
-
-        status = get_active_status(status, skip_options)
 
         if status in [
             enums.DialogStatus.COMPLETE,

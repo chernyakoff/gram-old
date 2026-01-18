@@ -98,7 +98,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             for f in files:
                 file_message.append(f.filename)
 
-    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
+    prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)  # type: ignore
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
