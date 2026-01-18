@@ -29,6 +29,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         id=chat.project_id, user_id=user.id
     ).get_or_none()
 
+    chat.messages = [m for m in chat.messages if not m.text.startswith("FILES")]
+
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -47,6 +49,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             text="В проекте отсутсвует первое сообщениет", status=chat.status
         )
 
+    status_changed = False
+
     # TODO - сделать оповещение если статус не найден и оставлен предыдущий
     if chat.messages:
         new_status = await analyze_dialog_status(
@@ -55,11 +59,15 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             chat.status,
         )
         if not new_status:
-            raise HTTPException(
+            return ChatOut(text="Не могу определить статус диалога", status=chat.status)
+            """ raise HTTPException(
                 status_code=404, detail="Не могу определить статус диалога"
-            )
+            ) """
 
-        chat.status = get_active_status(new_status, skip_options)
+        new_status = get_active_status(new_status, skip_options)
+        if new_status != chat.status:
+            status_changed = True
+        chat.status = new_status
 
     if chat.status in [
         DialogStatus.COMPLETE,
@@ -81,6 +89,14 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
                 break
+
+    if status_changed:
+        files = await orm.ProjectFile.filter(project_id=project.id, status=chat.status)
+        if files:
+            file_message = ["FILES"]
+            for f in files:
+                file_message.append(f"{f.filename}\n\n{f.title}")
+            return ChatOut(text="\n".join(file_message), status=chat.status)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 

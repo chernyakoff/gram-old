@@ -59,9 +59,10 @@ const tabs = [
 const onSubmit = async (event: FormSubmitEvent<TextFilesArraySchema>) => {
   uploadAll(event.data.files, `media/embed/${projectId}`)
   const results = await waitForAll()
+  const s3paths = results.fulfilled.map((f) => f.storagePath)
   const payload: ProjectFilesIn = {
     projectId,
-    files: results.fulfilled,
+    files: s3paths,
   }
   const res = await uploadEmbed(payload)
   jobsStore.add({

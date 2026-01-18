@@ -21,6 +21,7 @@
         <template #settings><ProjectSettingsTab :projectId="projectId" /></template>
         <template #brief><ProjectBriefTab :projectId="projectId" /></template>
         <template #prompt><ProjectPromptTab :projectId="projectId" /></template>
+        <template #files><ProjectFilesTab :projectId="projectId" /></template>
         <template #embed><ProjectEmbedTab :projectId="projectId" /></template>
       </UTabs>
     </template>
@@ -32,6 +33,7 @@ import type { TabsItem } from '@nuxt/ui'
 import ProjectSettingsTab from '@/components/dashboard/project/settings-tab.vue'
 import ProjectBriefTab from '@/components/dashboard/project/brief-tab.vue'
 import ProjectPromptTab from '@/components/dashboard/project/prompt-tab.vue'
+import ProjectFilesTab from '@/components/dashboard/project/files-tab.vue'
 import ProjectEmbedTab from '@/components/dashboard/project/embed-tab.vue'
 
 const title = 'Редактирование проекта'

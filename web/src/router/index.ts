@@ -29,13 +29,7 @@ const routes: RouteRecordRaw[] = [
         path: 'project/:id',
         name: 'project',
         component: () => import('@/views/dashboard/project.vue'),
-        props: true, // чтобы id сразу приходил как пропс
-      },
-      {
-        path: 'project-files/:id?',
-        name: 'project-files',
-        component: () => import('@/views/dashboard/project-files.vue'),
-        props: true, // чтобы id сразу приходил как пропс
+        props: true,
       },
     ],
   },

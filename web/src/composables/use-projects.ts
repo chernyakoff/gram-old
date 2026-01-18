@@ -4,7 +4,9 @@ import type {
   Brief,
   ProjectBase,
   ProjectCreateIn,
-  ProjectFilesIn,
+  ProjectFileIn,
+  ProjectFileOut,
+  ProjectFileUpdateIn,
   ProjectSettings,
   ProjectShortOut,
   ProjectStatusOut,
@@ -48,12 +50,12 @@ export function useProjects() {
     })
   }
 
-  async function uploadEmbed(body: ProjectFilesIn): Promise<WorkflowOut> {
+  /* async function uploadEmbed(body: ProjectFilesIn): Promise<WorkflowOut> {
     return await api<WorkflowOut>(`projects/upload-embed`, {
       method: 'POST',
       body,
     })
-  }
+  } */
 
   async function createProject(body: ProjectCreateIn) {
     return await api('projects/create', {
@@ -108,10 +110,31 @@ export function useProjects() {
     })
   }
 
+  async function saveFiles(id: number, body: ProjectFileIn[]) {
+    return await api(`projects/${id}/files`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getFiles(id: number) {
+    return await api<ProjectFileOut[]>(`projects/${id}/files`, {
+      method: 'GET',
+    })
+  }
+
+  async function deleteFile(projectId: number, fileId: number) {
+    return await api(`projects/${projectId}/files/${fileId}`, { method: 'DELETE' })
+  }
+
+  async function updateFile(projectId: number, fileId: number, body: ProjectFileUpdateIn) {
+    return await api(`projects/${projectId}/files/${fileId}`, { method: 'POST', body })
+  }
+
   return {
     get,
     del,
-    uploadEmbed,
+
     synonimize,
     projects,
     status,
@@ -124,6 +147,10 @@ export function useProjects() {
     savePrompt,
     getPrompt,
     generatePrompt,
+    saveFiles,
+    getFiles,
+    deleteFile,
+    updateFile,
     loading,
     error,
     success,

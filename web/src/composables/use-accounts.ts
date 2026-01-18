@@ -55,10 +55,10 @@ export function useAccounts() {
   }
 
   async function upload(file: File): Promise<WorkflowOut> {
-    const s3path = await uploadOne(file, 'service')
+    const fileMeta = await uploadOne(file, 'service')
     return await api<WorkflowOut>('accounts', {
       method: 'POST',
-      body: { s3path },
+      body: { s3path: fileMeta.storagePath },
     })
   }
 

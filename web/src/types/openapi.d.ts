@@ -145,6 +145,10 @@ export interface components {
             phone: string;
             username: string | null;
         };
+        EmbedIn: {
+            projectId: number;
+            files: string[];
+        };
         GetBalanceOut: {
             openrouter: number;
             users: number;
@@ -215,9 +219,26 @@ export interface components {
         ProjectCreateIn: {
             name: string;
         };
-        ProjectFilesIn: {
-            projectId: number;
-            files: string[];
+        ProjectFileIn: {
+            filename: string;
+            fileSize: number;
+            storagePath: string;
+            contentType: string;
+        };
+        ProjectFileOut: {
+            id: number;
+            title: string;
+            filename: string;
+            fileSize: number;
+            url: string;
+            contentType: string;
+            status?: components["schemas"]["ProjectFileStatus"] | null;
+        };
+        ProjectFileStatus: "engage" | "offer" | "closing" | "complete";
+        ProjectFileUpdateIn: {
+            title: string;
+            filename: string;
+            status?: components["schemas"]["ProjectFileStatus"] | null;
         };
         ProjectSettings: {
             name: string;
@@ -380,6 +401,7 @@ export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
+export type EmbedIn = components['schemas']['EmbedIn'];
 export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type ImpersonateIn = components['schemas']['ImpersonateIn'];
@@ -399,7 +421,10 @@ export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
 export type ProjectCreateIn = components['schemas']['ProjectCreateIn'];
-export type ProjectFilesIn = components['schemas']['ProjectFilesIn'];
+export type ProjectFileIn = components['schemas']['ProjectFileIn'];
+export type ProjectFileOut = components['schemas']['ProjectFileOut'];
+export type ProjectFileStatus = components['schemas']['ProjectFileStatus'];
+export type ProjectFileUpdateIn = components['schemas']['ProjectFileUpdateIn'];
 export type ProjectSettings = components['schemas']['ProjectSettings'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectSkipOptions = components['schemas']['ProjectSkipOptions'];

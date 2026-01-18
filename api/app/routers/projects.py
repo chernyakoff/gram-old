@@ -1,10 +1,12 @@
 # app/router/projects.py
 
 import asyncio
-from typing import Literal
+import os
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from tortoise_serializer import ContextType, Serializer
 
 from app.common.models import orm
 from app.common.utils.prompt import (
@@ -12,6 +14,8 @@ from app.common.utils.prompt import (
     ProjectSkipOptions,
     validate_prompt,
 )
+from app.common.utils.s3 import AsyncS3Client
+from app.config import config
 from app.dto.common import WorkflowOut
 from app.dto.project import (
     ProjectBase,
@@ -36,9 +40,17 @@ async def get_project_list(user=Depends(get_current_user)):
     return await ProjectBase.from_queryset(orm.Project.filter(user_id=user.id))
 
 
+async def delete_project_files(paths: list[str]):
+    async with AsyncS3Client() as s3:  # type: ignore
+        await s3.delete_many(paths)
+
+
 @router.delete("/")
 async def delete_projects(id: list[int] = Query(...), user=Depends(get_current_user)):
+    files = await orm.ProjectFile.filter(project_id__in=id).all()
+    s3paths = [f.storage_path for f in files]
     await orm.Project.filter(id__in=id, user_id=user.id).delete()
+    asyncio.create_task(delete_project_files(s3paths))
 
 
 class ProjectStatusOut(BaseModel):
@@ -83,7 +95,7 @@ class EmbedIn(BaseModel):
 
 
 @router.post("/upload-embed", response_model=WorkflowOut)
-async def upload_files(data: EmbedIn, user=Depends(get_current_user)):
+async def upload_embed(data: EmbedIn, user=Depends(get_current_user)):
     print(data)
 
 
@@ -278,3 +290,110 @@ async def save_promptf(id: int, data: Prompt, user=Depends(get_current_user)):
 
     prompt.update_from_dict(params)
     await prompt.save()
+
+
+# файлы
+
+
+class ProjectFileIn(BaseModel):
+    filename: str
+    file_size: int
+    storage_path: str
+    content_type: str
+
+
+class ProjectFileOut(Serializer):
+    id: int
+    title: str
+    filename: str
+    file_size: int
+    url: str
+    content_type: str
+    status: Optional[orm.ProjectFileStatus] = None
+
+    @classmethod
+    async def resolve_url(cls, instance: orm.ProjectFile, context: ContextType) -> str:
+        return f"{config.s3.public_endpoint_url}/{instance.storage_path}"
+
+
+class ProjectFileUpdateIn(BaseModel):
+    title: str
+    filename: str
+    status: Optional[orm.ProjectFileStatus] = None
+
+
+@router.post("/{id}/files")
+async def save_files(
+    id: int, data: list[ProjectFileIn], user=Depends(get_current_user)
+):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    insert = []
+    for file in data:
+        insert.append(
+            orm.ProjectFile(
+                project_id=id,
+                filename=file.filename,
+                file_size=file.file_size,
+                storage_path=file.storage_path,
+                content_type=file.content_type,
+                title=file.filename.split(".")[0],
+            )
+        )
+    await orm.ProjectFile.bulk_create(insert)
+
+
+@router.get("/{id}/files", response_model=list[ProjectFileOut])
+async def get_files(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    return await ProjectFileOut.from_queryset(orm.ProjectFile.filter(project_id=id))
+
+
+@router.delete("/{project_id}/files/{file_id}")
+async def delete_file(project_id: int, file_id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=project_id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    file = await orm.ProjectFile.get_or_none(id=file_id)
+    if file:
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(file.storage_path)
+
+        await file.delete()
+
+
+def preserve_extension(old_name: str, new_name: str) -> str:
+    # извлекаем расширение старого файла (без точки)
+    old_ext = os.path.splitext(old_name)[1]  # вернёт '.txt'
+    
+    # извлекаем имя нового файла без расширения
+    base_name = os.path.splitext(new_name)[0]
+    
+    # собираем обратно
+    return f"{base_name}{old_ext}"
+
+@router.post("/{project_id}/files/{file_id}")
+async def update_file(
+    project_id: int,
+    file_id: int,
+    data: ProjectFileUpdateIn,
+    user=Depends(get_current_user),
+):
+    project = await orm.Project.filter(user_id=user.id, id=project_id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    file = await orm.ProjectFile.get_or_none(id=file_id)
+    if file:
+        file.filename = preserve_extension(file.filename, data.filename)
+        file.title = data.title
+        if data.status:
+            file.status = data.status
+
+        await file.save(update_fields=["filename", "title", "status"])

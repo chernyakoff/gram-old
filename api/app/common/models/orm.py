@@ -334,6 +334,8 @@ class Project(Model, TimestampMixin):
 
     mailings: fields.ReverseRelation["Mailing"]
     brief: fields.ReverseRelation["Brief"]
+    files: fields.ReverseRelation["ProjectFile"]
+    documents: fields.ReverseRelation["ProjectDocument"]
     premium_required = fields.BooleanField(default=True)
     user_id: int
 
@@ -648,25 +650,13 @@ class MutedAccount(Model, TimestampMixin):
         table = "muted_accounts"
 
 
-class DocumentStatus(StrEnum):
-    UPLOADED = auto()
-    PROCESSING = auto()
-    READY = auto()
-    FAILED = auto()
-
-
-class DocumentSourceType(StrEnum):
+class ProjectDocumentSourceType(StrEnum):
     FILE = auto()
     URL = auto()
     TEXT = auto()
 
 
-class Document(Model):
-    """
-    Документ, загруженный пользователем в рамках проекта.
-    Используется как единица ingestion для RAG.
-    """
-
+class ProjectDocument(Model, TimestampMixin):
     id = fields.BigIntField(pk=True)
 
     project = fields.ForeignKeyField(
@@ -684,17 +674,12 @@ class Document(Model):
     )  # application/pdf, text/plain
 
     source_type = fields.CharEnumField(
-        DocumentSourceType,
-        default=DocumentSourceType.FILE,
+        ProjectDocumentSourceType,
+        default=ProjectDocumentSourceType.FILE,
         index=True,
     )
 
     # Статус ingestion
-    status = fields.CharEnumField(
-        DocumentStatus,
-        default=DocumentStatus.UPLOADED,
-        index=True,
-    )
 
     error_message = fields.TextField(null=True)
 
@@ -710,15 +695,47 @@ class Document(Model):
     )  # путь к файлу (S3, local, etc.)
 
     # Аудит
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-    processed_at = fields.DatetimeField(null=True)
 
     class Meta:
         table = "project_documents"
-        indexes = [
-            ("project_id", "status"),
-        ]
 
     def __str__(self) -> str:
-        return f"<Document {self.id} ({self.status})>"
+        return f"<Document {self.id} ({self.filename})>"
+
+
+class ProjectFileStatus(StrEnum):
+    ENGAGE = auto()  # проявил интерес
+    OFFER = auto()  # сделали предложение
+    CLOSING = auto()  # завершено (отказ / интерес / договорились о звонке)
+    COMPLETE = auto()  # попрощались
+
+
+class ProjectFile(Model, TimestampMixin):
+    id = fields.BigIntField(pk=True)
+
+    project = fields.ForeignKeyField(
+        "models.Project",
+        related_name="files",
+        on_delete=fields.CASCADE,
+        index=True,
+    )
+    project_id: int
+    # Метаданные
+    title = fields.CharField(max_length=255, null=True)
+    status = fields.CharEnumField(ProjectFileStatus, null=True)
+
+    filename = fields.CharField(max_length=255, null=True)
+    content_type = fields.CharField(
+        max_length=100, null=True
+    )  # application/pdf, text/plain
+
+    file_size = fields.BigIntField(null=True)
+    storage_path = fields.CharField(
+        max_length=1024, null=True
+    )  # путь к файлу (S3, local, etc.)
+
+    class Meta:
+        table = "project_files"
+
+    def __str__(self) -> str:
+        return f"<Files {self.id} ({self.filename})>"
