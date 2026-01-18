@@ -97,7 +97,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             file_message = ["Отправляю вам файлы"]
             for f in files:
                 file_message.append(f.filename)
-            return ChatOut(text="\n".join(file_message), status=chat.status)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
 
