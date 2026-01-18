@@ -29,7 +29,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         id=chat.project_id, user_id=user.id
     ).get_or_none()
 
-    chat.messages = [m for m in chat.messages if not m.text.startswith("FILES")]
+    # chat.messages = [m for m in chat.messages if not m.text.startswith("FILES")]
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -90,12 +90,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
                 break
 
+    file_message = []
     if status_changed:
         files = await orm.ProjectFile.filter(project_id=project.id, status=chat.status)
         if files:
-            file_message = ["FILES"]
+            file_message = ["Отправляю вам файлы"]
             for f in files:
-                file_message.append(f"{f.filename}\n\n{f.title}")
+                file_message.append(f.filename)
             return ChatOut(text="\n".join(file_message), status=chat.status)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)
@@ -112,5 +113,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         return ChatOut(text="AI не вернул ответ", status=chat.status)
 
     response = normalize_dashes(response)
+
+    if file_message:
+        response = f"{'\n'.join(file_message)}\n\n{response}"
 
     return ChatOut(text=response, status=chat.status)
