@@ -78,6 +78,9 @@ class AccountOut(AccountBase):
         if active_days >= len(instance.PROGREV):
             return None
 
+        if not instance.premium:
+            return 1
+
         return instance.PROGREV[active_days]
 
 

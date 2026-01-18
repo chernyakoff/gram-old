@@ -269,6 +269,9 @@ class Account(Model, TimestampMixin):
         if active_days >= len(self.PROGREV):
             return self.out_daily_limit
 
+        if not self.premium:
+            return 1
+
         return self.PROGREV[active_days]
 
     @property
