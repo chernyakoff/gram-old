@@ -62,7 +62,7 @@ import Button from './Button.vue'
           </a>
 
           <a
-            href="https://www.youtube.com/watch?v=oaSkBLolVA4"
+            href="https://www.youtube.com/watch?v=0ye0cgDweuw"
             target="_blank"
             rel="noopener noreferrer"
             class="w-full sm:w-auto"
