@@ -123,7 +123,7 @@ async def embed_chunks(user, chunks: list[str], batch_size=32) -> list[list[floa
             )
 
             response = await app.embeddings.generate(
-                model=model,  # type: ignore
+                model=model.id,
                 input=batch,
                 encoding_format="float",
             )
