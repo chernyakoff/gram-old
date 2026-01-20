@@ -165,11 +165,16 @@ async def save_chunks(
         batch_chunks = chunks[i : i + batch_size]
         batch_embeddings = embeddings[i : i + batch_size]
 
-        values_sql = []
-        params = []
+        values_sql: list[str] = []
+        params: list[object] = []
+
+        param_idx = 1
 
         for text, embedding in zip(batch_chunks, batch_embeddings):
-            values_sql.append("(%s, %s, %s, %s::vector, %s)")
+            values_sql.append(
+                f"(${param_idx}, ${param_idx + 1}, ${param_idx + 2}, ${param_idx + 3}::vector, ${param_idx + 4})"
+            )
+
             params.extend(
                 [
                     project_id,
@@ -179,6 +184,8 @@ async def save_chunks(
                     None,  # metadata
                 ]
             )
+
+            param_idx += 5
 
         sql = sql_template.format(values=", ".join(values_sql))
 
