@@ -22,7 +22,7 @@
         <template #brief><ProjectBriefTab :projectId="projectId" /></template>
         <template #prompt><ProjectPromptTab :projectId="projectId" /></template>
         <template #files><ProjectFilesTab :projectId="projectId" /></template>
-        <template #embed><ProjectEmbedTab :projectId="projectId" /></template>
+        <template #embed><ProjectDocumentsTab :projectId="projectId" /></template>
       </UTabs>
     </template>
   </UDashboardPanel>
@@ -34,7 +34,7 @@ import ProjectSettingsTab from '@/components/dashboard/project/settings-tab.vue'
 import ProjectBriefTab from '@/components/dashboard/project/brief-tab.vue'
 import ProjectPromptTab from '@/components/dashboard/project/prompt-tab.vue'
 import ProjectFilesTab from '@/components/dashboard/project/files-tab.vue'
-import ProjectEmbedTab from '@/components/dashboard/project/embed-tab.vue'
+import ProjectDocumentsTab from '@/components/dashboard/project/documents-tab.vue'
 
 const title = 'Редактирование проекта'
 useTitle(title)

@@ -145,10 +145,6 @@ export interface components {
             phone: string;
             username: string | null;
         };
-        EmbedIn: {
-            projectId: number;
-            files: string[];
-        };
         GetBalanceOut: {
             openrouter: number;
             users: number;
@@ -218,6 +214,19 @@ export interface components {
         };
         ProjectCreateIn: {
             name: string;
+        };
+        ProjectDocumentIn: {
+            filename: string;
+            fileSize: number;
+            storagePath: string;
+            contentType: string;
+        };
+        ProjectDocumentOut: {
+            id: number;
+            filename: string;
+            fileSize: number;
+            url: string;
+            contentType: string;
         };
         ProjectFileIn: {
             filename: string;
@@ -401,7 +410,6 @@ export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
-export type EmbedIn = components['schemas']['EmbedIn'];
 export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type ImpersonateIn = components['schemas']['ImpersonateIn'];
@@ -421,6 +429,8 @@ export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
 export type ProjectCreateIn = components['schemas']['ProjectCreateIn'];
+export type ProjectDocumentIn = components['schemas']['ProjectDocumentIn'];
+export type ProjectDocumentOut = components['schemas']['ProjectDocumentOut'];
 export type ProjectFileIn = components['schemas']['ProjectFileIn'];
 export type ProjectFileOut = components['schemas']['ProjectFileOut'];
 export type ProjectFileStatus = components['schemas']['ProjectFileStatus'];

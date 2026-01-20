@@ -11,6 +11,7 @@ from app.tasks.accounts.stop_premium import stop_premium
 from app.tasks.accounts.update import accounts_update
 from app.tasks.accounts.upload import accounts_upload
 from app.tasks.daily.task import daily
+from app.tasks.documents.task import save_documents
 from app.tasks.heartbeat.task import heartbeat
 from app.tasks.prompt.task import generate_prompt
 from app.tasks.proxies.check import proxies_check
@@ -48,6 +49,7 @@ worker = hatchet.worker(
         generate_prompt,
         synonimize,
         stop_premium,
+        save_documents,
         heartbeat,
         daily,
     ],

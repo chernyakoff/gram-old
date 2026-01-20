@@ -24,10 +24,8 @@ from app.common.models.orm import AiModel, User
 from app.common.utils.usd_rate import get_usd_rate
 from app.config import config
 
-# enc = tiktoken.get_encoding("cl100k_base")
 DEFAULT_MODEL = "openai/gpt-5.2-chat"
 GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.5"
-EMBED_MODEL = "openai/text-embedding-3-small"
 
 
 class AiError(Exception):
@@ -126,36 +124,6 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
     return str(content)
 
 
-""" 
-async def embed_chunks(user, chunks: list[str], batch_size=32):
-    user = await add_openrouter_to_user(user)
-    model = await get_ai_model(EMBED_MODEL)
-    usd_rate = await get_usd_rate()
-
-    os.environ["ALL_PROXY"] = config.openrouter.proxy
-    async with OpenRouter(api_key=user.or_api_key) as app:
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i : i + batch_size]
-
-            tokens_estimate = sum(len(enc.encode(c)) for c in batch)
-            await check_balance_before_request(user, model, tokens_estimate, usd_rate)
-
-            try:
-                response = await app.embeddings.generate(
-                    model=model, input=batch, encodingFormat="float"
-                )
-            except Exception as e:
-                raise OpenRouterResponseError(f"Ошибка embedding: {e}") from e
-
-            if not response or not response.data:
-                raise OpenRouterResponseError("Пустой ответ от embeddings")
-
-            await charge_user_for_usage(user, model, response.usage, usd_rate)
-            await save_embeddings(batch, response.data)
-
-    os.environ.pop("ALL_PROXY", None)
-
- """
 # ----------------- ПОТОКОБЕЗОПАСНЫЕ ВСПОМОГАТЕЛЬНЫЕ -----------------
 
 

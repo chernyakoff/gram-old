@@ -89,18 +89,6 @@ async def synonimize(data: SynonimizeIn, user=Depends(get_current_user)):
     return response
 
 
-class EmbedIn(BaseModel):
-    project_id: int
-    files: list[str]
-
-
-@router.post("/upload-embed", response_model=WorkflowOut)
-async def upload_embed(data: EmbedIn, user=Depends(get_current_user)):
-    print(data)
-
-
-# рефакторинг ----------------------------------------
-
 # создание проекта
 
 
@@ -371,12 +359,13 @@ async def delete_file(project_id: int, file_id: int, user=Depends(get_current_us
 def preserve_extension(old_name: str, new_name: str) -> str:
     # извлекаем расширение старого файла (без точки)
     old_ext = os.path.splitext(old_name)[1]  # вернёт '.txt'
-    
+
     # извлекаем имя нового файла без расширения
     base_name = os.path.splitext(new_name)[0]
-    
+
     # собираем обратно
     return f"{base_name}{old_ext}"
+
 
 @router.post("/{project_id}/files/{file_id}")
 async def update_file(
@@ -397,3 +386,70 @@ async def update_file(
             file.status = data.status
 
         await file.save(update_fields=["filename", "title", "status"])
+
+
+# documents
+
+
+class ProjectDocumentIn(BaseModel):
+    filename: str
+    file_size: int
+    storage_path: str
+    content_type: str
+
+
+class ProjectDocumentOut(Serializer):
+    id: int
+
+    filename: str
+    file_size: int
+    url: str
+    content_type: str
+
+    @classmethod
+    async def resolve_url(cls, instance: orm.ProjectFile, context: ContextType) -> str:
+        return f"{config.s3.public_endpoint_url}/{instance.storage_path}"
+
+
+@router.post("/{id}/documents", response_model=WorkflowOut)
+async def save_documents(
+    id: int, data: list[ProjectDocumentIn], user=Depends(get_current_user)
+):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    documents = [models.ProjectDocument(**d.model_dump()) for d in data]
+
+    ref = await tasks.save_documents.aio_run_no_wait(
+        input=models.ProjectDocumentsIn(project_id=id, documents=documents)
+    )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}
+
+
+@router.get("/{id}/documents", response_model=list[ProjectDocumentOut])
+async def get_documents(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    return await ProjectDocumentOut.from_queryset(
+        orm.ProjectDocument.filter(project_id=id)
+    )
+
+
+@router.delete("/{project_id}/documents/{file_id}")
+async def delete_document(
+    project_id: int, file_id: int, user=Depends(get_current_user)
+):
+    project = await orm.Project.filter(user_id=user.id, id=project_id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    file = await orm.ProjectDocument.get_or_none(id=file_id)
+    if file:
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(file.storage_path)
+
+        await file.delete()

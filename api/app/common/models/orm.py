@@ -668,7 +668,7 @@ class ProjectDocument(Model, TimestampMixin):
     )
 
     # Метаданные
-    title = fields.CharField(max_length=255, null=True)
+
     filename = fields.CharField(max_length=255, null=True)
     content_type = fields.CharField(
         max_length=100, null=True

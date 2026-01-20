@@ -4,6 +4,8 @@ import type {
   Brief,
   ProjectBase,
   ProjectCreateIn,
+  ProjectDocumentIn,
+  ProjectDocumentOut,
   ProjectFileIn,
   ProjectFileOut,
   ProjectFileUpdateIn,
@@ -49,13 +51,6 @@ export function useProjects() {
       body,
     })
   }
-
-  /* async function uploadEmbed(body: ProjectFilesIn): Promise<WorkflowOut> {
-    return await api<WorkflowOut>(`projects/upload-embed`, {
-      method: 'POST',
-      body,
-    })
-  } */
 
   async function createProject(body: ProjectCreateIn) {
     return await api('projects/create', {
@@ -131,6 +126,23 @@ export function useProjects() {
     return await api(`projects/${projectId}/files/${fileId}`, { method: 'POST', body })
   }
 
+  async function saveDocuments(id: number, body: ProjectDocumentIn[]) {
+    return await api<WorkflowOut>(`projects/${id}/documents`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getDocuments(id: number) {
+    return await api<ProjectDocumentOut[]>(`projects/${id}/documents`, {
+      method: 'GET',
+    })
+  }
+
+  async function deleteDocument(projectId: number, fileId: number) {
+    return await api(`projects/${projectId}/documents/${fileId}`, { method: 'DELETE' })
+  }
+
   return {
     get,
     del,
@@ -151,6 +163,10 @@ export function useProjects() {
     getFiles,
     deleteFile,
     updateFile,
+    saveDocuments,
+    getDocuments,
+    deleteDocument,
+
     loading,
     error,
     success,
