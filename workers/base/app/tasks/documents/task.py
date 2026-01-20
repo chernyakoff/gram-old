@@ -6,6 +6,11 @@ from typing import Sequence
 
 import tiktoken
 from hatchet_sdk import Context
+from langchain_core.documents import Document
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from pydantic import BaseModel
 from tortoise import Tortoise
 
@@ -57,50 +62,80 @@ async def fetch_all(documents: list[ProjectDocument]) -> list[ProjectDocumentFul
     return await asyncio.gather(*tasks)  # возвращает список строк
 
 
+def detect_text_type(text: str) -> str:
+    """
+    Определяем тип текста для выбора сплиттера.
+    Если текст содержит заголовки, списки или блоки кода — Markdown.
+    """
+    lines = text.splitlines()
+    if any(line.startswith(("#", "-", "*", ">")) for line in lines):
+        return "markdown"
+    if "```" in text:
+        return "markdown"
+    return "plain"
+
+
 def normalize(text: str) -> str:
+    """
+    Чистим текст от лишних переносов, разделителей, обрезаем пробелы.
+    """
     text = text.replace("\r\n", "\n")
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"^\s*(---|\*\*\*)\s*$", "", text, flags=re.MULTILINE)
     return text.strip()
 
 
-def split_blocks(text: str) -> list[str]:
-    headers = HEADER_RE.findall(text)
-    if headers:
-        blocks = HEADER_RE.split(text)
-        return [b.strip() for b in blocks if b.strip()]
-    return [p.strip() for p in text.split("\n\n") if p.strip()]
-
-
 def chunk_text(
     text: str,
-    min_tokens=200,
-    max_tokens=700,
-    overlap=120,
-):
+    min_tokens: int = 200,
+    max_tokens: int = 700,
+    overlap: int = 120,
+) -> list[str]:
+    """
+    Разбиваем текст на чанки для embedding.
+    Используется LangChain сплиттер + tiktoken для точного подсчета токенов.
+    Автоматически выбирается Markdown-aware сплиттер.
+    """
     text = normalize(text)
-    blocks = split_blocks(text)
+    text_type = detect_text_type(text)
 
-    chunks = []
-    current = []
-    current_tokens = 0
+    # Функция подсчета токенов через tiktoken
+    def tiktoken_len(s: str) -> int:
+        return len(enc.encode(s))
 
-    for block in blocks:
-        tokens = len(enc.encode(block))
+    # Выбираем сплиттер
+    if text_type == "markdown":
+        splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[
+                ("#", "h1"),
+                ("##", "h2"),
+                ("###", "h3"),
+                ("####", "h4"),
+                ("#####", "h5"),
+                ("######", "h6"),
+            ],
+            strip_headers=True,
+            return_each_line=False,
+        )
+    else:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=max_tokens,
+            chunk_overlap=overlap,
+            length_function=tiktoken_len,
+        )
 
-        if current_tokens + tokens > max_tokens:
-            chunk = "\n\n".join(current)
-            chunks.append(chunk)
+    raw_chunks = splitter.split_text(text)
+    chunks: list[str] = []
 
-            overlap_text = chunk[-overlap * 4 :]
-            current = [overlap_text, block]
-            current_tokens = len(enc.encode(overlap_text)) + tokens
+    for c in raw_chunks:
+        if isinstance(c, Document):
+            chunks.append(c.page_content.strip())
         else:
-            current.append(block)
-            current_tokens += tokens
+            chunks.append(c.strip())
 
-    if current:
-        chunks.append("\n\n".join(current))
+    chunks = [
+        c for c in chunks if len(c) > 30 and not re.match(r"^[^A-Za-zА-Яа-я0-9#]+", c)
+    ]
 
     return chunks
 

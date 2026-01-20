@@ -6,6 +6,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from tortoise import Tortoise
 from tortoise_serializer import ContextType, Serializer
 
 from app.common.models import orm
@@ -453,3 +454,7 @@ async def delete_document(
             await s3.delete(file.storage_path)
 
         await file.delete()
+
+        await Tortoise.get_connection("default").execute_query(
+            "DELETE FROM knowledge_chunks WHERE document_id = $1", [file_id]
+        )
