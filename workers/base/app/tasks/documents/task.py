@@ -131,11 +131,11 @@ async def embed_chunks(user, chunks: list[str], batch_size=32) -> list[list[floa
             if not response or not response.data:
                 raise openrouter.OpenRouterResponseError("Пустой ответ от embeddings")
 
-            await openrouter.charge_user_for_usage(
+            await openrouter.charge_user_for_embedding_usage(
                 user, model, response.usage, usd_rate
             )
 
-            embeddings.extend([e.embedding for e in response.data])
+            embeddings.extend([e.embedding for e in response.data])  # type: ignore
 
     os.environ.pop("ALL_PROXY", None)
 
