@@ -142,6 +142,10 @@ async def embed_chunks(user, chunks: list[str], batch_size=32) -> list[list[floa
     return embeddings
 
 
+def embedding_to_pgvector(embedding: list[float]) -> str:
+    return "[" + ",".join(f"{x:.8f}" for x in embedding) + "]"
+
+
 async def save_chunks(
     *,
     project_id: int,
@@ -167,7 +171,6 @@ async def save_chunks(
 
         values_sql: list[str] = []
         params: list[object] = []
-
         param_idx = 1
 
         for text, embedding in zip(batch_chunks, batch_embeddings):
@@ -180,8 +183,8 @@ async def save_chunks(
                     project_id,
                     document_id,
                     text,
-                    embedding,  # list[float]
-                    None,  # metadata
+                    embedding_to_pgvector(embedding),  # ✅ STRING
+                    None,
                 ]
             )
 
