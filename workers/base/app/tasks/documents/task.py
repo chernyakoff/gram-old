@@ -122,7 +122,7 @@ async def embed_chunks(user, chunks: list[str], batch_size=32) -> list[list[floa
                 user, model, tokens_estimate, usd_rate
             )
 
-            response = await app.embeddings.generate(
+            response = await app.embeddings.generate_async(
                 model=model.id,
                 input=batch,
                 encoding_format="float",
