@@ -123,10 +123,9 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
 
 # TODO BALANCE CHAGRE
 async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
-    # 1. Получаем embedding вопроса
     async with OpenRouter(api_key=user.or_api_key) as app:
         response = await app.embeddings.generate_async(
-            model="openai/text-embedding-3-small",
+            model=EMBED_MODEL,
             input=[question],
             encoding_format="float",
         )
