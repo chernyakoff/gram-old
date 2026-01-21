@@ -83,6 +83,22 @@ class AIService:
             return "", status
 
         system_prompt = build_prompt_v2(project_prompt, status)
+
+        chunks = []
+        if await orm.ProjectDocument.filter(project_id=project.id).count() > 0:
+            for msg in reversed(history):
+                if msg["role"] == "user":
+                    chunks = await openrouter.retrieve_chunks(self.user, msg["content"])
+
+        if chunks:
+            system_prompt = f"""
+                {system_prompt}
+
+                Используй следующий контекст для ответа на вопрос:
+
+                {"\n".join(chunks)}
+            """
+
         messages = [{"role": "system", "content": system_prompt}] + history
         status_addon = await get_status_addon()
 

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.common.models import orm
@@ -8,6 +10,7 @@ from app.common.utils.functions import (
     normalize_dashes,
     randomize_message,
 )
+from app.common.utils.openrouter import OpenRouter, retrieve_chunks
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
     ProjectSkipOptions,
@@ -17,7 +20,7 @@ from app.common.utils.prompt import (
     get_status_addon,
     validate_prompt,
 )
-from app.dto.chat import ChatIn, ChatOut, MessageRole
+from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -99,6 +102,21 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 file_message.append(f.filename)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)  # type: ignore
+
+    chunks = []
+    if await orm.ProjectDocument.filter(project_id=chat.project_id).count() > 0:
+        for msg in reversed(chat.messages):
+            if msg.role == MessageRole.user:
+                chunks = await retrieve_chunks(user, msg.text)
+
+    if chunks:
+        prompt = f"""
+            {prompt}
+
+            Используй следующий контекст для ответа на вопрос:
+
+            {"\n".join(chunks)}
+        """
 
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
