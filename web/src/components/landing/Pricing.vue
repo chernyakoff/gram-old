@@ -6,7 +6,7 @@ import type { PricingPlan } from './types'
 const plans: PricingPlan[] = [
   {
     name: 'Базовый',
-    price: '24 900 ₽ / год',
+    price: '29 900 ₽ / год',
     period: '',
     description: 'Полный доступ ко всему функционалу платформы для самостоятельной работы.',
     features: [

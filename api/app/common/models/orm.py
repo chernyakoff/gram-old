@@ -53,6 +53,10 @@ class User(Model, TimestampMixin):
     or_model = fields.CharField(max_length=256, null=True)
     timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
 
+    work_days: fields.ReverseRelation["UserWorkDay"]
+    work_intervals: fields.ReverseRelation["UserWorkInterval"]
+    disabled_month_days: fields.ReverseRelation["UserDisabledMonthDay"]
+
     async def extend_license(self, days: int) -> None:
         """Продлевает лицензию на указанное число дней."""
 
@@ -605,7 +609,7 @@ class UserWorkInterval(Model):
 
     work_day = fields.ForeignKeyField(
         "models.UserWorkDay",
-        related_name="intervals",
+        related_name="work_intervals",
         on_delete=fields.CASCADE,
     )
 
@@ -614,6 +618,20 @@ class UserWorkInterval(Model):
 
     class Meta:
         table = "user_work_intervals"
+
+
+class UserDisabledMonthDay(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="disabled_month_days",
+        on_delete=fields.CASCADE,
+    )
+    day = fields.IntField()
+
+    class Meta:
+        unique_together = ("user", "day")
+        table = "user_disabled_month_day"
 
 
 class MutedAccount(Model, TimestampMixin):
