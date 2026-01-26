@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from aerich import in_transaction
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.common.models import orm
 from app.routers.auth import (
@@ -25,6 +25,9 @@ class DayOut(BaseModel):
 
 class ScheduleOut(BaseModel):
     schedule: list[DayOut]
+    timezone: str
+    disabled_month_days: list[int]
+    meeting_duration: int
 
 
 class IntervalIn(BaseModel):
@@ -42,7 +45,7 @@ class ScheduleIn(BaseModel):
     schedule: list[DayIn]
 
 
-@router.get("/working-hours", response_model=ScheduleOut)
+@router.get("/", response_model=ScheduleOut)
 async def get_schedule(user=Depends(get_current_user)):
     schedule = (
         await orm.UserWorkDay.filter(user=user)
@@ -58,7 +61,18 @@ async def get_schedule(user=Depends(get_current_user)):
         result.append(
             {"weekday": day.weekday, "enabled": day.is_enabled, "intervals": intervals}
         )
-    return {"schedule": result}
+    days = await (
+        orm.UserDisabledMonthDay.filter(user=user)
+        .order_by("day")
+        .values_list("day", flat=True)
+    )
+
+    return {
+        "schedule": result,
+        "timezone": user.timezone,
+        "meeting_duration": user.meeting_duration,
+        "disabled_month_days": list(days),
+    }
 
 
 # ВАЖНО:
@@ -97,3 +111,32 @@ async def save_schedule(data: ScheduleIn, user=Depends(get_current_user)):
                 )
 
     return {"status": "ok"}
+
+
+class ToggleDayIn(BaseModel):
+    day: int = Field(ge=1, le=31)
+
+
+@router.post("/toggle-day")
+async def toggle_day(data: ToggleDayIn, user=Depends(get_current_user)):
+    obj = await orm.UserDisabledMonthDay.get_or_none(
+        user=user,
+        day=data.day,
+    )
+
+    if obj:
+        await obj.delete()
+        return {
+            "day": data.day,
+            "disabled": False,
+        }
+
+    await orm.UserDisabledMonthDay.create(
+        user=user,
+        day=data.day,
+    )
+
+    return {
+        "day": data.day,
+        "disabled": True,
+    }

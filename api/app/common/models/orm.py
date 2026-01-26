@@ -47,14 +47,16 @@ class User(Model, TimestampMixin):
     settings: fields.ReverseRelation["Settings"]
     mailings = fields.ReverseRelation["Mailing"]
     projects = fields.ReverseRelation["Project"]
+    meetings = fields.ReverseRelation["Meeting"]
     balance = fields.BigIntField(default=0)
     or_api_key = fields.CharField(max_length=256, null=True)
     or_api_hash = fields.CharField(max_length=256, null=True)
     or_model = fields.CharField(max_length=256, null=True)
     timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
+    meeting_duration = fields.IntField(default=30)
 
     work_days: fields.ReverseRelation["UserWorkDay"]
-    work_intervals: fields.ReverseRelation["UserWorkInterval"]
+    intervals: fields.ReverseRelation["UserWorkInterval"]
     disabled_month_days: fields.ReverseRelation["UserDisabledMonthDay"]
 
     async def extend_license(self, days: int) -> None:
@@ -609,7 +611,7 @@ class UserWorkInterval(Model):
 
     work_day = fields.ForeignKeyField(
         "models.UserWorkDay",
-        related_name="work_intervals",
+        related_name="intervals",
         on_delete=fields.CASCADE,
     )
 
@@ -758,3 +760,54 @@ class ProjectFile(Model, TimestampMixin):
 
     def __str__(self) -> str:
         return f"<Files {self.id} ({self.filename})>"
+
+
+class MeetingStatus(StrEnum):
+    SCHEDULED = auto()
+    CANCELLED = auto()
+    COMPLETED = auto()
+
+
+class MeetingSource(StrEnum):
+    MANUAL = auto()
+    API = auto()
+    AUTO = auto()
+
+
+class Meeting(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="meetings",
+        on_delete=fields.CASCADE,
+    )
+
+    start_at = fields.DatetimeField()
+    end_at = fields.DatetimeField()
+
+    status = fields.CharEnumField(
+        enum_type=MeetingStatus,
+        default=MeetingStatus.SCHEDULED,
+        max_length=16,
+        index=True,
+    )
+
+    source = fields.CharEnumField(
+        enum_type=MeetingSource,
+        default=MeetingSource.AUTO,
+        max_length=16,
+    )
+
+    dialog = fields.OneToOneField(
+        "models.Dialog",
+        related_name="meeting",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "meetings"
+        indexes = [
+            ("user", "start_at"),
+            ("user", "end_at"),
+        ]

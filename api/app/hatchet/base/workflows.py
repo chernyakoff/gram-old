@@ -6,7 +6,6 @@
 
 __generated__ = True
 
-from . import models
 from app.hatchet.client import hatchet
 
 heartbeat = hatchet.stubs.workflow(

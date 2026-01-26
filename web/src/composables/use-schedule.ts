@@ -1,7 +1,36 @@
-import type { ScheduleIn, ScheduleOut } from '@/types/openapi'
+import type { ScheduleIn, ScheduleOut, ToggleDayIn } from '@/types/openapi'
 import { ref } from 'vue'
 import { useApi } from './use-api'
+/*
+(alias) type ScheduleIn = {
+    schedule: {
+        weekday: number;
+        enabled: boolean;
+        intervals: {
+            start: string;
+            end: string;
+        }[];
+    }[];
+}
+type ScheduleOut = {
+    schedule: {
+        weekday: number;
+        enabled: boolean;
+        intervals: {
+            start: string;
+            end: string;
+        }[];
+    }[];
+    timezone: string;
+    disabledMonthDays: number[];
+    meetingDuration: number;
+}
+ type ToggleDayIn = {
+    day: number;
+}
 
+
+*/
 export interface Interval {
   start: string
   end: string
@@ -181,6 +210,9 @@ export function formatMinutesToTime(minutes: number) {
 export const useSchedule = () => {
   const schedule = ref<DaySchedule[]>(structuredClone(DEFAULT_SCHEDULE))
   const { api, loading, error, success } = useApi()
+  const meetingDuration = ref<number>()
+  const timezone = ref<string>()
+  const disabledMonthDays = ref<number[]>([])
 
   const fromApi = (data: ScheduleOut) => {
     return data.schedule.map((day) => {
@@ -208,17 +240,18 @@ export const useSchedule = () => {
 
   async function load() {
     try {
-      const data = await api<ScheduleOut>('schedule/working-hours')
+      const data = await api<ScheduleOut>('schedule')
 
       // Если data пустое или schedule отсутствует — берем DEFAULT_SCHEDULE
       if (!data || !Array.isArray(data.schedule) || data.schedule.length === 0) {
         schedule.value = structuredClone(DEFAULT_SCHEDULE)
         await save()
-
         return
       }
-
+      timezone.value = data.timezone
+      meetingDuration.value = data.meetingDuration
       schedule.value = fromApi(data)
+      disabledMonthDays.value = data.disabledMonthDays
     } catch (e) {
       console.error('Ошибка загрузки расписания', e)
       // Можно тоже вернуть DEFAULT_SCHEDULE на случай ошибки
@@ -251,6 +284,7 @@ export const useSchedule = () => {
     const day = schedule.value[index]
     if (!day) return
     day.enabled = false
+    day.intervals = [{ ...DEFAULT_INTERVAL }]
     await save()
   }
 
@@ -315,6 +349,10 @@ export const useSchedule = () => {
     return schedule.value[dayIndex]?.name || ''
   }
 
+  async function toggleMonthDay(body: ToggleDayIn): Promise<void> {
+    return await api('schedule/toggle-day', { method: 'POST', body })
+  }
+
   return {
     loading,
     error,
@@ -322,6 +360,9 @@ export const useSchedule = () => {
     load,
     save,
     schedule,
+    timezone,
+    meetingDuration,
+    disabledMonthDays,
     enableDay,
     getDayFullName,
     disableDay,
@@ -329,5 +370,6 @@ export const useSchedule = () => {
     removeInterval,
     copyIntervals,
     validateAll,
+    toggleMonthDay,
   }
 }

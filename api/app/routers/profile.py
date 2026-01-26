@@ -22,6 +22,10 @@ class UserTimezone(BaseModel):
             )
 
 
+class MeetingDuration(BaseModel):
+    value: int
+
+
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
@@ -33,4 +37,10 @@ async def get_timezone(user=Depends(get_current_user)) -> str:
 @router.post("/timezone")
 async def save_timezone(data: UserTimezone, user=Depends(get_current_user)):
     user.timezone = data.timezone
-    await user.save(update_feilds=["timezone"])
+    await user.save(update_fields=["timezone"])
+
+
+@router.post("/meeting-duration")
+async def save_meeting_duration(data: MeetingDuration, user=Depends(get_current_user)):
+    user.meeting_duration = data.value
+    await user.save(update_fields=["meeting_duration"])

@@ -25,6 +25,7 @@
           <template #license><AdminLicenseForm /></template>
           <template #impersonate><AdminImpersonateForm /></template>
           <template #balance><AdminBalanceForm /></template>
+          <template #dialogs><AdminDialogsForm /></template>
           <template #prompts>
             <UTabs :items="promptTabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
               <template #system>
@@ -54,6 +55,7 @@ import AdminLicenseForm from '@/components/dashboard/admin/license-form.vue'
 import AdminBalanceForm from '@/components/dashboard/admin/balance-form.vue'
 import AdminImpersonateForm from '@/components/dashboard/admin/impersonate-form.vue'
 import AdminPromptForm from '@/components/dashboard/admin/prompt-form.vue'
+import AdminDialogsForm from '@/components/dashboard/admin/dialogs-form.vue'
 import { onMounted, reactive } from 'vue'
 import type { GetBalanceOut } from '@/types/openapi'
 import { useAdmin } from '@/composables/use-admin'
@@ -64,6 +66,7 @@ const tabs = [
   { label: 'Лицензии', icon: 'bx:badge-check', slot: 'license' as const },
   { label: 'Баланс', icon: 'bx:user', slot: 'balance' as const },
   { label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const },
+  { label: 'Скачать диалоги', icon: 'bx:download', slot: 'dialogs' as const },
   { label: 'Промпты', icon: 'bx:brain', slot: 'prompts' as const },
 ] satisfies TabsItem[]
 

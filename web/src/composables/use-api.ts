@@ -90,5 +90,31 @@ export function useApi() {
     }
   }
 
-  return { api, loading, error, success }
+  const apiBlob = async (endpoint: string, options?: AnyOptions): Promise<Blob> => {
+    loading.value = true
+    error.value = null
+    success.value = false
+
+    try {
+      const opts = { ...options }
+
+      if (opts.body && !(opts.body instanceof FormData)) {
+        opts.body = JSON.stringify(keysToSnake(opts.body))
+        opts.headers = { ...opts.headers, 'Content-Type': 'application/json' }
+      }
+
+      const response = await kyInstance(endpoint, opts as Options)
+      const blob = await response.blob()
+
+      success.value = true
+      return blob
+    } catch (e) {
+      error.value = getErrorValue(e)
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { api, apiBlob, loading, error, success }
 }

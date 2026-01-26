@@ -111,6 +111,10 @@ export interface components {
             enabled: boolean;
             intervals: components["schemas"]["IntervalIn"][];
         };
+        DayMeeting: {
+            date: string;
+            count: number;
+        };
         DayOut: {
             weekday: number;
             enabled: boolean;
@@ -139,6 +143,10 @@ export interface components {
         DialogSystemMessageIn: {
             dialogId: number;
             message: string;
+        };
+        DialogsDownloadIn: {
+            username: string;
+            status?: components["schemas"]["DialogStatus"] | null;
         };
         EmbedAccountOut: {
             id: number;
@@ -194,6 +202,16 @@ export interface components {
             failedCount: number;
         };
         MailingStatus: "draft" | "running" | "finished" | "cancelled";
+        MeetingDuration: {
+            value: number;
+        };
+        MeetingOut: {
+            id: number;
+            startAt: string;
+            endAt: string;
+            username: string;
+            dialogId: number;
+        };
         Message: {
             role: components["schemas"]["MessageRole"];
             text: string;
@@ -312,6 +330,9 @@ export interface components {
         };
         ScheduleOut: {
             schedule: components["schemas"]["DayOut"][];
+            timezone: string;
+            disabledMonthDays: number[];
+            meetingDuration: number;
         };
         SetLimitIn: {
             outDailyLimit: number;
@@ -340,6 +361,9 @@ export interface components {
         SynonimizeOut: {
             text: string;
             error?: string | null;
+        };
+        ToggleDayIn: {
+            day: number;
         };
         UserLoginIn: {
             id: number;
@@ -403,12 +427,14 @@ export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
 export type DayIn = components['schemas']['DayIn'];
+export type DayMeeting = components['schemas']['DayMeeting'];
 export type DayOut = components['schemas']['DayOut'];
 export type DialogIn = components['schemas']['DialogIn'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
+export type DialogsDownloadIn = components['schemas']['DialogsDownloadIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
 export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
@@ -422,6 +448,8 @@ export type MailingIn = components['schemas']['MailingIn'];
 export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];
 export type MailingStatus = components['schemas']['MailingStatus'];
+export type MeetingDuration = components['schemas']['MeetingDuration'];
+export type MeetingOut = components['schemas']['MeetingOut'];
 export type Message = components['schemas']['Message'];
 export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
@@ -452,6 +480,7 @@ export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
+export type ToggleDayIn = components['schemas']['ToggleDayIn'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserMeOut = components['schemas']['UserMeOut'];

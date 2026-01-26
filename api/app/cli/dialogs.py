@@ -1,100 +1,83 @@
 import os
+from datetime import datetime
+from typing import Any, Dict, List
 
 from cyclopts import App
 from rich import print
+from tortoise.expressions import Q
 
+from app.common.models import orm
 from app.common.models.enums import DialogStatus, MessageSender
-from app.common.models.orm import Account
 
 app = App(name="dialogs")
 
 
-async def save_account_dialogs_to_files(
-    usernames: list[str], folder: str = "app/dialogs"
-):
-    """
-    Сохраняет каждый диалог аккаунта с COMPLETE или CLOSING статусом в отдельный файл.
-    Файлы называются {account.display_username}-{recipient_name}.txt
-    """
-    if not usernames:
-        print("Список аккаунтов пуст")
-        return
+def fmt_dt(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    return dt.strftime("%d.%m.%Y %H:%M")
 
-    # Создаём папку, если не существует
-    os.makedirs(folder, exist_ok=True)
 
-    # Получаем аккаунты с предзагрузкой диалогов и сообщений
-    accounts = await Account.filter(username__in=usernames).prefetch_related(
-        "dialogs__messages", "dialogs__recipient"
+def fmt_time(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    return dt.strftime("%H:%M")
+
+
+async def get_user_dialogs_by_username(username: str) -> List[Dict[str, Any]]:
+    dialogs = (
+        await orm.Dialog.filter(account__user__username=username)
+        .select_related(
+            "account",
+            "account__project",
+            "recipient",
+        )
+        .prefetch_related(
+            "messages",
+        )
+        .order_by("-started_at")
     )
 
-    if not accounts:
-        print("Аккаунты не найдены")
-        return
+    result: List[Dict[str, Any]] = []
 
-    for account in accounts:
-        dialogs = [
-            d
-            for d in account.dialogs
-            if d.status in (DialogStatus.COMPLETE, DialogStatus.CLOSING)
-        ]
+    for dialog in dialogs:
+        account = dialog.account
+        project = account.project
+        recipient = dialog.recipient
 
-        if not dialogs:
-            print(
-                f"Нет диалогов со статусом COMPLETE или CLOSING для {account.display_username}"
-            )
-            continue
+        messages = sorted(dialog.messages, key=lambda m: m.tg_message_id or 0)
 
-        for dialog in dialogs:
-            recipient_name = getattr(
-                dialog.recipient, "username", f"ID_{dialog.recipient.id}"
-            )
-            # Формируем корректное имя файла
-            safe_account_name = account.display_username.replace("@", "").replace(
-                " ", "_"
-            )
-            safe_recipient_name = str(recipient_name).replace("@", "").replace(" ", "_")
-            filename = os.path.join(
-                folder, f"{safe_account_name}-{safe_recipient_name}.txt"
-            )
+        result.append(
+            {
+                "dialog_id": dialog.id,
+                "project_id": project.id if project else None,
+                "project_name": project.name if project else None,
+                "account_username": account.username,
+                "recipient_username": recipient.username,
+                "dialog_started_at": fmt_dt(dialog.started_at),
+                "dialog_finished_at": fmt_dt(dialog.finished_at),
+                "dialog_status": dialog.status.value,
+                "messages": [
+                    {
+                        "sender": (
+                            account.username
+                            if msg.sender == MessageSender.ACCOUNT
+                            else recipient.username
+                            if msg.sender == MessageSender.RECIPIENT
+                            else "system"
+                        ),
+                        "text": msg.text,
+                        "created_at": fmt_time(msg.created_at),
+                    }
+                    for msg in messages
+                ],
+            }
+        )
 
-            lines = [
-                f"Диалог аккаунта {account.display_username} ({account.name}) с {recipient_name}",
-                f"Статус: {dialog.status}",
-                f"Начат: {dialog.started_at}",
-                "-" * 50,
-            ]
-
-            messages = sorted(dialog.messages, key=lambda m: m.created_at)
-            for msg in messages:
-                sender = (
-                    "Вы" if msg.sender == MessageSender.ACCOUNT else msg.sender.value
-                )
-                lines.append(f"[{msg.created_at}] {sender}: {msg.text}")
-
-            lines.append("-" * 50)
-
-            # Записываем в файл
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
-
-            print(f"Сохранено: {filename}")
-
-
-USERNAMES = """
-GeLidusF
-DavGenMax
-TrafficBoostPro
-LidsMacsim
-DerLibsMaks
-SyperMaximus
-LeadsAndTrafficX
-TrafficLeadForge
-TrafMsimz
-"""
+    return result
 
 
 @app.default
 async def _():
-    usernames = [u.strip() for u in USERNAMES.strip().splitlines()]
-    await save_account_dialogs_to_files(usernames)
+    data = await get_user_dialogs_by_username("chernyakoff")
+    print(data)

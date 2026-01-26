@@ -1,14 +1,37 @@
 <template>
-  <div class="mx-auto w-max space-y-4 px-4">
+  <div class="mx-auto w-max space-y-4 px-4 pt-4">
+    <UFormField label="Часовой пояс">
+      <USelectMenu
+        class="w-full mt-b"
+        :search-input="{
+          placeholder: 'Поиск...',
+          icon: 'i-lucide-search',
+        }"
+        v-model="selectedTimezone"
+        :items="timezones"
+        virtualize
+        value-key="value"
+        label-key="label"
+        searchable
+        placeholder="Выберите таймзону"
+      />
+    </UFormField>
+    <UFormField label="Длительность встречи (мин)">
+      <UInputNumber v-model="selectedMeetingDuration" :step="10" :min="10" />
+    </UFormField>
+    <div class="text-sm mt-8">Недельное расписание</div>
     <div v-for="(day, dayIndex) in schedule" :key="dayIndex" class="space-y-1">
       <!-- Основная строка дня -->
       <div class="flex items-center gap-3">
         <!-- Кружок с буквой дня -->
-        <div
+        <!-- <div
           class="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center font-semibold text-sm flex-shrink-0"
         >
+
+        </div> -->
+        <UBadge class="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm">
           {{ day.letter }}
-        </div>
+        </UBadge>
 
         <!-- Если день выключен -->
         <template v-if="!day.enabled">
@@ -54,7 +77,7 @@
               />
 
               <!-- Кнопка копировать -->
-              <UPopover v-model:open="day.copyPopoverOpen">
+              <!--<UPopover v-model:open="day.copyPopoverOpen">
                 <UButton
                   icon="i-heroicons-document-duplicate"
                   size="xs"
@@ -88,6 +111,7 @@
                   </div>
                 </template>
               </UPopover>
+              -->
             </div>
 
             <!-- Ошибка под интервалом -->
@@ -131,49 +155,88 @@
         </div>
       </div>
     </div>
-    <USelectMenu
-      class="w-full mt-4"
-      :search-input="{
-        placeholder: 'Поиск...',
-        icon: 'i-lucide-search',
-      }"
-      v-model="selectedTimezone"
-      :items="timezones"
-      virtualize
-      value-key="value"
-      label-key="label"
-      searchable
-      placeholder="Выберите таймзону"
-    />
+    <div class="text-sm mt-8">Исключаемые дни</div>
+    <div class="grid grid-cols-7 gap-2">
+      <UButton
+        v-for="n in 31"
+        :key="n"
+        :label="String(n)"
+        square
+        class="w-full justify-center"
+        :variant="isDayDisabled(n) ? 'ghost' : 'soft'"
+        :color="isDayDisabled(n) ? 'neutral' : 'primary'"
+        @click="toggleDay(n)"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import TimeInput from '@/components/dashboard/calendar/time-input.vue'
+import { useProfile } from '@/composables/use-profile'
 import { useSchedule } from '@/composables/use-schedule'
 import { useTimezones } from '@/composables/use-timezones'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
-const { timezones, loadTimezone } = useTimezones()
+const { timezones } = useTimezones()
 const {
   load,
   save,
   schedule,
+  timezone,
+  meetingDuration,
+  disabledMonthDays,
+  toggleMonthDay,
   enableDay,
   disableDay,
   addInterval,
   removeInterval,
-  copyIntervals,
+  /*  copyIntervals,
 
-  getDayFullName,
+  getDayFullName, */
 } = useSchedule()
 // Инициализация расписания
 
-const selectedTimezone = ref('Europe/Moscow')
+const isDayDisabled = (day: number) => {
+  return disabledMonthDays.value.includes(day)
+}
+
+const { saveMeetingDuration, saveTimezone } = useProfile()
+
+const selectedTimezone = ref<string>()
+const selectedMeetingDuration = ref<number>()
+
+onMounted(async () => {
+  await load()
+
+  // инициализация из API
+  selectedTimezone.value = timezone.value
+  selectedMeetingDuration.value = meetingDuration.value
+})
+
+watch(selectedTimezone, async (val, oldVal) => {
+  if (!val || val === oldVal) return
+  await saveTimezone({ timezone: val })
+})
+
+watch(selectedMeetingDuration, async (val, oldVal) => {
+  if (!val || val === oldVal) return
+  await saveMeetingDuration({ value: val })
+})
+
+const toggleDay = async (day: number) => {
+  await toggleMonthDay({ day })
+
+  // optimistic update
+  if (isDayDisabled(day)) {
+    disabledMonthDays.value = disabledMonthDays.value.filter((d) => d !== day)
+  } else {
+    disabledMonthDays.value.push(day)
+  }
+}
 
 // Загрузка данных при монтировании (опционально)
 onMounted(async () => {
   await load()
-  selectedTimezone.value = await loadTimezone()
 })
 </script>

@@ -1,11 +1,18 @@
+import json
+from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
-from typing import Literal
+from enum import StrEnum
+from io import BytesIO
+from typing import Literal, Optional
 
+from aerich import Any
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from tortoise import Tortoise
 
 from app.common.models import orm
+from app.common.models.enums import DialogStatus, MessageSender
 from app.common.utils import openrouter
 from app.config import config
 from app.routers.auth import (
@@ -158,3 +165,94 @@ async def get_balance():
     or_balance = await openrouter.get_balance()
     users_balance = await get_users_balance()
     return GetBalanceOut(openrouter=float(or_balance), users=float(users_balance))
+
+
+def fmt_dt(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    return dt.strftime("%d.%m.%Y %H:%M")
+
+
+def fmt_time(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    return dt.strftime("%H:%M")
+
+
+async def get_user_dialogs_by_username(
+    username: str, status: Optional[DialogStatus] = None
+) -> list[dict[str, Any]]:
+    qs = (
+        orm.Dialog.filter(account__user__username=username)
+        .select_related(
+            "account",
+            "account__project",
+            "recipient",
+        )
+        .prefetch_related("messages")
+        .order_by("-started_at")
+    )
+
+    if status is not None:
+        qs = qs.filter(status=status)
+
+    dialogs = await qs
+
+    result: list[dict[str, Any]] = []
+
+    for dialog in dialogs:
+        account = dialog.account
+        project = account.project
+        recipient = dialog.recipient
+
+        messages = sorted(dialog.messages, key=lambda m: m.tg_message_id or 0)
+
+        result.append(
+            {
+                "dialog_id": dialog.id,
+                "project_id": project.id if project else None,
+                "project_name": project.name if project else None,
+                "account_username": account.username,
+                "recipient_username": recipient.username,
+                "dialog_started_at": fmt_dt(dialog.started_at),
+                "dialog_finished_at": fmt_dt(dialog.finished_at),
+                "dialog_status": dialog.status.value,
+                "messages": [
+                    {
+                        "sender": (
+                            account.username
+                            if msg.sender == MessageSender.ACCOUNT
+                            else recipient.username
+                            if msg.sender == MessageSender.RECIPIENT
+                            else "system"
+                        ),
+                        "text": msg.text,
+                        "created_at": fmt_time(msg.created_at),
+                    }
+                    for msg in messages
+                ],
+            }
+        )
+
+    return result
+
+
+class DialogsDownloadIn(BaseModel):
+    username: str
+    status: Optional[DialogStatus] = None
+
+
+@router.post("/dialogs", dependencies=[Depends(admin_required)])
+async def get_dialogs(data: DialogsDownloadIn):
+    dialogs = await get_user_dialogs_by_username(data.username, data.status)
+
+    content = json.dumps(dialogs, ensure_ascii=False, indent=2)
+
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="dialogs_{data.username}.json"',
+            "Content-Length": str(len(content.encode("utf-8"))),  # Важно!
+        },
+    )

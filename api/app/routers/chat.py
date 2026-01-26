@@ -1,4 +1,3 @@
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -10,7 +9,7 @@ from app.common.utils.functions import (
     normalize_dashes,
     randomize_message,
 )
-from app.common.utils.openrouter import OpenRouter, retrieve_chunks
+from app.common.utils.openrouter import retrieve_chunks
 from app.common.utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
     ProjectSkipOptions,
@@ -20,7 +19,7 @@ from app.common.utils.prompt import (
     get_status_addon,
     validate_prompt,
 )
-from app.dto.chat import ChatIn, ChatOut, Message, MessageRole
+from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])

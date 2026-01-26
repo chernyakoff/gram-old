@@ -21,6 +21,7 @@
   "dependencies": {
     "@nuxt/ui": "^4.3.0",
     "@tanstack/vue-table": "^8.21.3",
+    "ai": "^6.0.49",
     "apexcharts": "^5.3.5",
     "ky": "^1.10.0",
     "lucide-vue-next": "^0.562.0",
