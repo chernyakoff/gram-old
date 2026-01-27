@@ -271,11 +271,13 @@ class ToolContext:
         }
 
     async def get_slots(self, date: str):
+        print("GET_SLOTS")
         service = ScheduleService(self.user)
         slots = await service.get_available_slots(date=date, days_ahead=self.days_ahead)
         return {"slots": [self._slot_to_dict(s) for s in slots]}
 
     async def book_slot(self, slot_key: str):
+        print("BOOK_SLOT")
         slot = self._parse_slot_key(slot_key)
 
         if not self.dialog:

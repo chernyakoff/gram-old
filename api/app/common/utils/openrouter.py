@@ -102,6 +102,13 @@ async def create_response_with_tools(
     )
 
     for _ in range(5):  # защита от зацикливания
+        history.append(
+            {
+                "role": "assistant",
+                "content": message.content,
+                "tool_calls": message.tool_calls,
+            }
+        )
         if not message.tool_calls:
             return message.content
 
