@@ -124,7 +124,6 @@ async def create_response_with_tools(
                 raise RuntimeError(f"Нет handler-а для tool {tool_name}")
 
             result = await handler(**args)
-            print(result)
 
             history.append(
                 {
