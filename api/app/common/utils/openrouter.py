@@ -1,6 +1,7 @@
+import json
 import os
 from decimal import ROUND_DOWN, Decimal
-from typing import Any
+from typing import Any, Callable
 
 from openrouter import OpenRouter
 from openrouter.components import ChatGenerationTokenUsage
@@ -15,7 +16,7 @@ from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import F
 from tortoise.transactions import in_transaction
 
-from app.common.models.orm import AiModel, User
+from app.common.models.orm import AiModel, Dialog, User
 from app.common.utils.usd_rate import get_usd_rate
 from app.config import config
 
@@ -43,6 +44,96 @@ class OpenRouterKeyError(AiError):
 
 class OpenRouterResponseError(AiError):
     pass
+
+
+async def create_raw_response(
+    user: User,
+    messages: list,
+    *,
+    tools: list | None = None,
+    max_tokens: int = 3000,
+    timeout_min: int = 5,
+):
+    user = await add_openrouter_to_user(user)
+    model = await get_ai_model(user.or_model)
+    usd_rate = await get_usd_rate()
+
+    await check_balance_before_request(user, model, max_tokens, usd_rate)
+
+    try:
+        os.environ["ALL_PROXY"] = config.openrouter.proxy
+        async with OpenRouter(api_key=user.or_api_key) as app:
+            response = await app.chat.send_async(
+                model=user.or_model,
+                messages=messages,
+                tools=tools,
+                max_tokens=max_tokens,
+                timeout_ms=timeout_min * 60 * 1000,
+            )
+    except Exception as e:
+        raise OpenRouterResponseError(f"Ошибка запроса к OpenRouter: {e}") from e
+    finally:
+        os.environ.pop("ALL_PROXY", None)
+
+    if not response or not response.choices:
+        raise OpenRouterResponseError("Пустой ответ от AI")
+
+    usage = response.usage
+    if not usage:
+        raise OpenRouterResponseError("Нет usage в ответе")
+
+    await charge_user_for_usage(user, model, usage, usd_rate)
+
+    return response.choices[0].message
+
+
+async def create_response_with_tools(
+    user: User,
+    history: list,
+    tools: list,
+    tool_handlers: dict[str, Callable],
+    max_tokens: int = 3000,
+):
+    message = await create_raw_response(
+        user=user,
+        messages=history,
+        tools=tools,
+        max_tokens=max_tokens,
+    )
+
+    for _ in range(5):  # защита от зацикливания
+        if not message.tool_calls:
+            return message.content
+
+        for call in message.tool_calls:
+            if call.TYPE != "function":
+                continue
+
+            tool_name = call.function.name
+            args = json.loads(call.function.arguments or "{}")
+
+            handler = tool_handlers.get(tool_name)
+            if not handler:
+                raise RuntimeError(f"Нет handler-а для tool {tool_name}")
+
+            result = await handler(**args)
+
+            history.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": json.dumps(result),
+                }
+            )
+
+        message = await create_raw_response(
+            user=user,
+            messages=history,
+            tools=tools,
+            max_tokens=max_tokens,
+        )
+
+    raise RuntimeError("LLM tool loop exceeded limit")
 
 
 async def create_response(

@@ -1,3 +1,4 @@
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -19,6 +20,7 @@ from app.common.utils.prompt import (
     get_status_addon,
     validate_prompt,
 )
+from app.common.utils.schedule import TOOLS, ToolContext
 from app.dto.chat import ChatIn, ChatOut, MessageRole
 from app.routers.auth import get_current_user
 
@@ -102,6 +104,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)  # type: ignore
 
+    prompt = prompt.replace("{CURRENT_DATE}", date.today().isoformat())
+    prompt = prompt.replace("{TIMEZONE}", user.timezone)
+
     chunks = []
     if await orm.ProjectDocument.filter(project_id=chat.project_id).count() > 0:
         for msg in reversed(chat.messages):
@@ -120,8 +125,16 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
+    ctx = ToolContext(user, None)
+    tool_handlers = {
+        "get_slots": ctx.get_slots,
+        "book_slot": ctx.book_slot,
+    }
+
     try:
-        response = await openrouter.create_response(user, messages)
+        response = await openrouter.create_response_with_tools(
+            user, messages, TOOLS, tool_handlers
+        )
     except Exception as e:
         return ChatOut(text=str(e), status=chat.status)
 
