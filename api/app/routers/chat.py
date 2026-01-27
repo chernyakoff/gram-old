@@ -141,7 +141,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not response:
         return ChatOut(text="AI не вернул ответ", status=chat.status)
 
-    response = normalize_dashes(response)
+    response = normalize_dashes(response)  # type: ignore
 
     if file_message:
         response = f"{'\n'.join(file_message)}\n\n{response}"
