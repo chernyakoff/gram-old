@@ -11,6 +11,7 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.notify import notify_mailing_end
+from app.tasks.accounts.stop_premium import StopPremiumIn
 
 
 class DialogIn(BaseModel):
@@ -22,6 +23,10 @@ class DialogIn(BaseModel):
 dialog_task = hatchet.stubs.task(
     name="dialog",
     input_validator=DialogIn,
+)
+
+stop_premium_task = hatchet.stubs.task(
+    name="stop_premium", input_validator=StopPremiumIn
 )
 
 LEASE_HOURS = 2
@@ -108,7 +113,7 @@ def is_project_in_send_window(project: orm.Project, now) -> bool:
         return current_hour >= start or current_hour <= end
 
 
-async def get_available_accounts(project: orm.Project, now, conn):
+async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Account]:
     params = dict(
         project=project,
         status=enums.AccountStatus.GOOD,
@@ -284,12 +289,32 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
     return info[0] if info else None
 
 
+""" 
+ if acc.premium is True and acc.premium_stopped is False:
+                    
+                    continue
+ """
+
+
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
     await complete_old_dialogs()
     await unmute_accounts()
     await release_recipients()
     await cleanup_stale_locks()
+
+    # убрать после всех изменений
+    premium_accounts_with_auto_renew = await orm.Account.filter(
+        status=enums.AccountStatus.GOOD, busy=False, premium=True, premium_stopped=False
+    ).all()
+    if premium_accounts_with_auto_renew:
+        for a in premium_accounts_with_auto_renew:
+            await stop_premium_task.aio_run_no_wait(
+                input=StopPremiumIn(account_id=a.id)
+            )
+            ctx.log(f"отменяем премиум для {a.id}")
+
+        return
 
     now = tz.now()
     planned_tasks = 0

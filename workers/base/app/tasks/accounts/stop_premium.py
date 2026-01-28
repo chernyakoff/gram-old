@@ -11,6 +11,7 @@ from telethon.tl.types import (
     ReplyInlineMarkup,
     ReplyKeyboardMarkup,
 )
+from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
@@ -130,9 +131,18 @@ async def _stop_premium(
     schedule_timeout=timedelta(minutes=3),
 )
 async def stop_premium(input: StopPremiumIn, ctx: Context):
+    orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
+    if orm_account.busy is True:
+        run_at = tz.now() + timedelta(minutes=10)
+        schedule = stop_premium.schedule(
+            run_at=run_at, input=StopPremiumIn(account_id=input.account_id)
+        )
+        ctx.log(f"scheduled stop-premium: {schedule.id}")
+        return
+
     await asyncio.sleep(2)
     logger = StreamLogger(ctx)
-    orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
+
     account_util = AccountUtil.from_orm(orm_account)
     pool = ProxyPool(orm_account.user_id)
 

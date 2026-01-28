@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import timedelta
 from typing import Literal, Optional, cast
 
 import aiohttp
@@ -14,6 +15,7 @@ from telethon.tl.types import (
     MessageMediaInvoice,
 )
 from telethon.tl.types.payments import PaymentVerificationNeeded
+from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
@@ -21,6 +23,7 @@ from app.common.models import orm
 from app.common.utils.account import AccountUtil
 from app.common.utils.proxy_pool import ProxyPool
 from app.tasks.accounts.exceptions import SessionExpiredError
+from app.tasks.accounts.stop_premium import StopPremiumIn, stop_premium
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -187,3 +190,10 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         orm_account.busy = False
         await orm_account.save()
         await client.disconnect()  # type: ignore
+
+        run_at = tz.now() + timedelta(minutes=10)
+
+        schedule = stop_premium.schedule(
+            run_at=run_at, input=StopPremiumIn(account_id=input.account_id)
+        )
+        ctx.log(f"scheduled stop-premium: {schedule.id}")
