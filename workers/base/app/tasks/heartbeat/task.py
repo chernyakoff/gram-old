@@ -26,7 +26,7 @@ dialog_task = hatchet.stubs.task(
 )
 
 stop_premium_task = hatchet.stubs.task(
-    name="stop_premium", input_validator=StopPremiumIn
+    name="stop-premium", input_validator=StopPremiumIn
 )
 
 LEASE_HOURS = 2
