@@ -17,8 +17,7 @@ class CallbackFormIn(BaseModel):
 router = APIRouter(prefix="/form", tags=["form"])
 
 
-@router.post("/callback")
-async def save_timezone(data: CallbackFormIn):
+async def send_messages(data: CallbackFormIn):
     admins = await User.filter(role=Role.ADMIN).all()
     text = ["Форма обратной связи (тарифы)"]
     text.append("")
@@ -33,3 +32,9 @@ async def save_timezone(data: CallbackFormIn):
             await asyncio.sleep(0.3)
         except:
             pass
+
+
+@router.post("/callback")
+async def save_timezone(data: CallbackFormIn):
+    asyncio.create_task(send_messages(data))
+    return {"success": "ok"}
