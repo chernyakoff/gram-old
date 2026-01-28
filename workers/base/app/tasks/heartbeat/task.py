@@ -304,8 +304,8 @@ async def task(input: EmptyModel, ctx: Context):
     await cleanup_stale_locks()
 
     # убрать после всех изменений
-    """premium_accounts_with_auto_renew = await orm.Account.filter(
-        status=enums.AccountStatus.GOOD, busy=False, premium=True, premium_stopped=False
+    premium_accounts_with_auto_renew = await orm.Account.filter(
+        busy=False, premium=True, premium_stopped=False
     ).all()
     if premium_accounts_with_auto_renew:
         for a in premium_accounts_with_auto_renew:
@@ -314,7 +314,7 @@ async def task(input: EmptyModel, ctx: Context):
             )
             ctx.log(f"отменяем премиум для {a.id}")
 
-        return"""
+        return
 
     now = tz.now()
     planned_tasks = 0
