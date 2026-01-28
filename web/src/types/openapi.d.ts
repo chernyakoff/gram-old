@@ -91,6 +91,11 @@ export interface components {
             message?: string | null;
             verificationUrl?: string | null;
         };
+        CallbackFormIn: {
+            name: string;
+            phone: string;
+            telegram?: string | null;
+        };
         CardDetails: {
             number: string;
             month: number;
@@ -423,6 +428,7 @@ export type BalanceOut = components['schemas']['BalanceOut'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
 export type Brief = components['schemas']['Brief'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
+export type CallbackFormIn = components['schemas']['CallbackFormIn'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];

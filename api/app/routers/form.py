@@ -1,0 +1,35 @@
+import asyncio
+from typing import Optional
+
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from app.common.models.orm import Role, User
+from app.common.utils.notify import send_text_to_user
+
+
+class CallbackFormIn(BaseModel):
+    name: str
+    phone: str
+    telegram: Optional[str] = None
+
+
+router = APIRouter(prefix="/form", tags=["form"])
+
+
+@router.post("/callback")
+async def save_timezone(data: CallbackFormIn):
+    admins = await User.filter(role=Role.ADMIN).all()
+    text = ["Форма обратной связи (тарифы)"]
+    text.append("")
+    text.append(f"<b>Имя:</b> {data.name}")
+    text.append(f"<b>Телефон:</b> {data.phone}")
+    if data.telegram:
+        data.telegram = data.telegram.removeprefix("https://t.me/").removeprefix("@")
+        text.append(f"<b>Телеграм:</b> @{data.telegram}")
+    for user in admins:
+        try:
+            await send_text_to_user(chat_id=user.id, text="\n".join(text))
+            await asyncio.sleep(0.3)
+        except:
+            pass

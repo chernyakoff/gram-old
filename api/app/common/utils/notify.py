@@ -85,6 +85,7 @@ async def send_text_to_user(chat_id: int, text: str):
     data = {
         "chat_id": str(chat_id),
         "text": text,
+        "parse_mode": "HTML",
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(get_api_url("sendMessage"), data=data)
