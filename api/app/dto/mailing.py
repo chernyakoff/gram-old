@@ -16,6 +16,7 @@ class MailingOut(Serializer):
     sent_count: int  # сколько RecipientStatus.SEND
     total_count: int  # всего Recipient
     failed_count: int  # сколько RecipientStatus.FAILED
+    active: bool
 
 
 class MailingListOut(Serializer):

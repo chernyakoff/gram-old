@@ -36,19 +36,35 @@
             />
           </template>
           <template #actions-cell="{ row }">
-            <div class="flex items-center justify-end w-32">
-              <DeleteMailingModal :id="row.original.id" @close="refresh" />
+            <div class="flex items-center justify-end gap-2">
+              <USwitch
+                title="Вкл/Выкл"
+                :modelValue="row.original.active"
+                @update:modelValue="(val: boolean) => toggleActive(row.original, val)"
+              />
+              <UButton
+                variant="ghost"
+                icon="bx:trash"
+                title="Удалить рассылку"
+                @click="openDeleteModal(row.original as MailingOut)"
+              />
             </div>
           </template>
         </UTable>
       </div>
     </template>
   </UDashboardPanel>
+  <ConfirmModal
+    v-model="isConfirmModalOpen"
+    title="Подтверждение удаления"
+    :description="`Вы уверены, что хотите удалить '${selectedItem?.name}'?`"
+    @confirm="handleDelete"
+  />
 </template>
 <script setup lang="ts">
 import { useTitle } from '@vueuse/core'
 import AddMailingModal from '@/components/dashboard/mailings/add-modal.vue'
-import DeleteMailingModal from '@/components/dashboard/mailings/delete-modal.vue'
+import ConfirmModal from '@/components/shared/confirm-modal.vue'
 import { useMailings } from '@/composables/use-mailings'
 import { onMounted, ref } from 'vue'
 import type { MailingOut } from '@/types/openapi'
@@ -56,7 +72,11 @@ import type { TableColumn } from '@nuxt/ui'
 const title = 'Рассылки'
 useTitle(title)
 
-const { mailings, get, loading } = useMailings()
+const isConfirmModalOpen = ref(false)
+
+const selectedItem = ref<MailingOut>()
+
+const { mailings, get, loading, del, toggle } = useMailings()
 
 onMounted(() => get())
 
@@ -67,6 +87,13 @@ const refresh = () => {
   get()
 }
 
+async function handleDelete() {
+  if (selectedItem.value) {
+    await del([selectedItem.value.id])
+    await get()
+  }
+}
+
 const statusMap = {
   draft: { label: 'Создана', color: 'warning' },
   running: { label: 'Запущена', color: 'primary' },
@@ -74,10 +101,20 @@ const statusMap = {
   cancelled: { label: 'Отменёна', color: 'error' },
 } as const
 
+function openDeleteModal(item: MailingOut) {
+  selectedItem.value = item
+  isConfirmModalOpen.value = true
+}
+
 type Status = keyof typeof statusMap
 
 function getStatusInfo(status: string) {
   return statusMap[status as Status] ?? { label: 'Неизвестно', color: 'default' }
+}
+
+const toggleActive = async (mailing: MailingOut, value: boolean) => {
+  mailing.active = value
+  await toggle(mailing.id, value)
 }
 
 const columns: TableColumn<MailingOut>[] = [
@@ -111,11 +148,6 @@ const columns: TableColumn<MailingOut>[] = [
   {
     accessorKey: 'actions',
     header: 'Действия',
-    meta: {
-      class: {
-        th: 'text-right',
-      },
-    },
   },
 ]
 </script>

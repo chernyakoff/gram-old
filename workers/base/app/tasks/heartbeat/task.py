@@ -330,6 +330,7 @@ async def task(input: EmptyModel, ctx: Context):
             m
             for m in project.mailings
             if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+            and m.active is True
         ]
 
         if not active_mailings:

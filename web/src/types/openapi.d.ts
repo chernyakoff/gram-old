@@ -205,8 +205,12 @@ export interface components {
             sentCount: number;
             totalCount: number;
             failedCount: number;
+            active: boolean;
         };
         MailingStatus: "draft" | "running" | "finished" | "cancelled";
+        MailingToggleIn: {
+            active: boolean;
+        };
         MeetingDuration: {
             value: number;
         };
@@ -454,6 +458,7 @@ export type MailingIn = components['schemas']['MailingIn'];
 export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];
 export type MailingStatus = components['schemas']['MailingStatus'];
+export type MailingToggleIn = components['schemas']['MailingToggleIn'];
 export type MeetingDuration = components['schemas']['MeetingDuration'];
 export type MeetingOut = components['schemas']['MeetingOut'];
 export type Message = components['schemas']['Message'];

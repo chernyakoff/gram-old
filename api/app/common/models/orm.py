@@ -376,6 +376,7 @@ class Mailing(Model):
     finished_at = fields.DatetimeField(null=True)
     status = fields.CharEnumField(MailingStatus, default=MailingStatus.DRAFT)
     recipients: fields.ReverseRelation["Recipient"]
+    active = fields.BooleanField(default=False)
 
     class Meta:
         table = "mailings"

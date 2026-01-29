@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from tortoise.expressions import Q
 from tortoise.functions import Count
 
@@ -39,5 +40,21 @@ async def delete_mailings(id: list[int] = Query(...), user=Depends(get_current_u
 
 
 @router.get("/list", response_model=list[MailingListOut])
-async def get_project_list(user=Depends(get_current_user)):
+async def get_mailing_list(user=Depends(get_current_user)):
     return await MailingListOut.from_queryset(orm.Mailing.filter(user_id=user.id))
+
+
+class MailingToggleIn(BaseModel):
+    active: bool
+
+
+@router.patch("/{id}/toggle")
+async def update_project_status(
+    id: int, data: MailingToggleIn, user=Depends(get_current_user)
+):
+    mailing = await orm.Mailing.get_or_none(id=id, user_id=user.id)
+    if not mailing:
+        raise HTTPException(status_code=404, detail="not found")
+
+    mailing.active = data.active
+    await mailing.save(update_fields=["active"])
