@@ -458,3 +458,36 @@ async def delete_document(
         await Tortoise.get_connection("default").execute_query(
             "DELETE FROM knowledge_chunks WHERE document_id = $1", [file_id]
         )
+
+
+# календарь
+
+
+class Calendar(BaseModel):
+    use_calendar: bool
+    morning_reminder: Optional[str] = None
+    meeting_reminder: Optional[str] = None
+
+
+@router.get("/{id}/calendar", response_model=Calendar)
+async def get_calendar(id: int, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+    return Calendar(
+        use_calendar=project.use_calendar,
+        morning_reminder=project.morning_reminder,
+        meeting_reminder=project.meeting_reminder,
+    )
+
+
+@router.post("/{id}/calendar")
+async def save_calendarf(id: int, data: Calendar, user=Depends(get_current_user)):
+    project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="not found")
+
+    project.update_from_dict(data.model_dump())
+    await project.save(
+        update_fields=["use_calendar", "morning_reminder", "meeting_reminder"]
+    )

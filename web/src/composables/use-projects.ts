@@ -16,6 +16,7 @@ import type {
   SynonimizeIn,
   SynonimizeOut,
   WorkflowOut,
+  Calendar,
 } from '@/types/openapi'
 import { ref } from 'vue'
 
@@ -98,6 +99,19 @@ export function useProjects() {
     })
   }
 
+  async function saveCalendar(id: number, body: Calendar) {
+    return await api(`projects/${id}/calendar`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getCalendar(id: number) {
+    return await api<Calendar>(`projects/${id}/calendar`, {
+      method: 'GET',
+    })
+  }
+
   async function generatePrompt(id: number, body: Brief) {
     return await api<WorkflowOut>(`projects/${id}/generate-prompt`, {
       method: 'POST',
@@ -166,7 +180,8 @@ export function useProjects() {
     saveDocuments,
     getDocuments,
     deleteDocument,
-
+    saveCalendar,
+    getCalendar,
     loading,
     error,
     success,

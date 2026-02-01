@@ -91,6 +91,11 @@ export interface components {
             message?: string | null;
             verificationUrl?: string | null;
         };
+        Calendar: {
+            useCalendar: boolean;
+            morningReminder?: string | null;
+            meetingReminder?: string | null;
+        };
         CallbackFormIn: {
             name: string;
             phone: string;
@@ -432,6 +437,7 @@ export type BalanceOut = components['schemas']['BalanceOut'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
 export type Brief = components['schemas']['Brief'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
+export type Calendar = components['schemas']['Calendar'];
 export type CallbackFormIn = components['schemas']['CallbackFormIn'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];

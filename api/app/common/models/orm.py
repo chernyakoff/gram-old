@@ -335,6 +335,9 @@ class Project(Model, TimestampMixin):
         default=21,
     )
     first_message = fields.TextField(null=True)
+    use_calendar = fields.BooleanField(default=False)
+    morning_reminder = fields.TextField(null=True)
+    meeting_reminder = fields.TextField(null=True)
 
     prompt: fields.ReverseRelation["Prompt"]
 
@@ -436,6 +439,7 @@ class Dialog(Model):
     finished_at = fields.DatetimeField(null=True)
 
     messages: fields.ReverseRelation["Message"]
+    meeting: fields.ReverseRelation["Meeting"]
 
     class Meta:
         table = "dialogs"
@@ -812,3 +816,23 @@ class Meeting(Model, TimestampMixin):
             ("user", "start_at"),
             ("user", "end_at"),
         ]
+
+
+class MorningReminderSent(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+    meeting = fields.ForeignKeyField("models.Meeting", related_name="morning_reminders")
+
+    class Meta:
+        table = "morning_reminders_sent"
+        unique_together = ("meeting",)
+
+
+class MeetingReminderSent(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+    meeting = fields.ForeignKeyField(
+        "models.Meeting", related_name="hour_before_reminders"
+    )
+
+    class Meta:
+        table = "meeting_reminders_sent"
+        unique_together = ("meeting",)

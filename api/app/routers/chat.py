@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.common.models import orm
@@ -17,6 +15,7 @@ from app.common.utils.prompt import (
     analyze_dialog_status,
     build_prompt_v2,
     get_active_status,
+    get_calendar_addon,
     get_status_addon,
     validate_prompt,
 )
@@ -85,10 +84,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         first_message = randomize_message(first_message)
         return ChatOut(text=first_message, status=chat.status)
     else:
-        STATUS_ADDON = await get_status_addon()
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
+                STATUS_ADDON = await get_status_addon()
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
+                if project.use_calendar:
+                    CALENDAR_ADDON = await get_calendar_addon(user)
+                    msg.text = f"\n\n{CALENDAR_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
@@ -103,9 +105,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 file_message.append(f.filename)
 
     prompt = build_prompt_v2(orm_prompt.to_dict(), chat.status)  # type: ignore
-
-    prompt = prompt.replace("{CURRENT_DATE}", date.today().isoformat())
-    prompt = prompt.replace("{TIMEZONE}", user.timezone)
 
     chunks = []
     if await orm.ProjectDocument.filter(project_id=chat.project_id).count() > 0:
@@ -125,18 +124,25 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
-    ctx = ToolContext(user, None)
-    tool_handlers = {
-        "get_slots": ctx.get_slots,
-        "book_slot": ctx.book_slot,
-    }
+    if project.use_calendar:
+        ctx = ToolContext(user, None)
+        tool_handlers = {
+            "get_slots": ctx.get_slots,
+            "book_slot": ctx.book_slot,
+            "cancel_meeting": ctx.cancel_meeting,
+        }
 
-    try:
-        response = await openrouter.create_response_with_tools(
-            user, messages, TOOLS, tool_handlers
-        )
-    except Exception as e:
-        return ChatOut(text=str(e), status=chat.status)
+        try:
+            response = await openrouter.create_response_with_tools(
+                user, messages, TOOLS, tool_handlers
+            )
+        except Exception as e:
+            return ChatOut(text=str(e), status=chat.status)
+    else:
+        try:
+            response = await openrouter.create_response(user, messages)
+        except Exception as e:
+            return ChatOut(text=str(e), status=chat.status)
 
     if not response:
         return ChatOut(text="AI не вернул ответ", status=chat.status)

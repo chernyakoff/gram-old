@@ -1,8 +1,9 @@
 import asyncio
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 
+import pytz
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.events import NewMessage
@@ -1114,3 +1115,229 @@ class DialogManager:
             )
 
         return recovered
+
+    # remnders ---------------------------------
+
+    def _get_user_now(self) -> datetime:
+        """Возвращает текущее время в timezone пользователя"""
+        import pytz
+
+        user_tz = pytz.timezone(self.account.user.timezone or "Europe/Moscow")
+        return datetime.now(user_tz)
+
+    def _is_morning_time(self, user_now: datetime) -> bool:
+        """
+        Проверяет что сейчас подходящее время для утреннего напоминания.
+        Должно быть близко к project.send_time_start (±30 минут).
+        """
+        current_hour = user_now.hour
+        current_minute = user_now.minute
+
+        target_hour = self.project.send_time_start
+
+        # Переводим в минуты от начала дня для удобства сравнения
+        current_minutes = current_hour * 60 + current_minute
+        target_minutes = target_hour * 60
+
+        # Проверяем что разница не более 30 минут
+        diff = abs(current_minutes - target_minutes)
+
+        return diff <= 30  # magic number - частота запуска task
+
+    async def _send_reminder_immediately(
+        self, dialog: orm.Dialog, reminder_text: str
+    ) -> bool:
+        """
+        Отправляет напоминание немедленно как сообщение от ACCOUNT (AI).
+        Возвращает True если успешно отправлено.
+        """
+        try:
+            recipient = dialog.recipient
+
+            # Отправляем сразу через telegram
+            msg = await self.telegram_service.send_message(recipient, reminder_text)
+
+            if not msg:
+                self.logger.error(
+                    f"[{recipient.username}] Не удалось отправить напоминание"
+                )
+                return False
+
+            # Сохраняем как обычное сообщение от ACCOUNT (AI)
+            await orm.Message.create(
+                dialog=dialog,
+                sender=enums.MessageSender.ACCOUNT,
+                tg_message_id=msg.id,
+                text=reminder_text,
+            )
+
+            self.logger.info(
+                f"[{recipient.username}] ✅ Напоминание отправлено: {reminder_text[:50]}..."
+            )
+
+            # ВАЖНО: Регистрируем что ждем ответа на это напоминание
+            self.register_session_recipient(recipient.id)
+
+            # Запускаем ожидание ответа
+            asyncio.create_task(self.start_waiting_for_first_reply(dialog, recipient))
+
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                f"[{recipient.username}] Ошибка отправки напоминания: {e}"
+            )
+            return False
+
+    async def _check_morning_reminders(self):
+        """Проверяет и отправляет утренние напоминания"""
+
+        if not self.project.use_calendar or not self.project.morning_reminder:
+            return 0
+
+        # Получаем сегодняшнюю дату в timezone пользователя
+        user_now = self._get_user_now()
+        today = user_now.date()
+
+        # Проверяем что сейчас подходящее время (близко к send_time_start)
+        if not self._is_morning_time(user_now):
+            return 0
+
+        # Находим встречи на сегодня для этого аккаунта
+        meetings = await orm.Meeting.filter(
+            dialog__account_id=self.account.id,
+            start_at__date=today,
+            status=orm.MeetingStatus.SCHEDULED,
+        ).prefetch_related("dialog__recipient")
+
+        sent_count = 0
+
+        for meeting in meetings:
+            # Проверяем что еще не отправляли
+            already_sent = await orm.MorningReminderSent.exists(meeting=meeting)
+            if already_sent:
+                continue
+
+            # Проверяем что это диалог из текущего проекта
+            dialog = meeting.dialog
+            if dialog.project_id != self.project.id:
+                continue
+
+            # Отправляем немедленно
+            success = await self._send_reminder_immediately(
+                dialog, self.project.morning_reminder
+            )
+
+            if success:
+                dialog.status = enums.DialogStatus.CLOSING
+                await dialog.save(update_fields=["status"])
+                # Помечаем как отправленное
+                await orm.MorningReminderSent.create(meeting=meeting)
+                sent_count += 1
+
+                # Задержка между напоминаниями
+                await asyncio.sleep(random.randint(3, 7))
+
+        return sent_count
+
+    async def _check_meeting_reminders(self):
+        """Проверяет и отправляет напоминания за час до встречи"""
+
+        if not self.project.use_calendar or not self.project.meeting_reminder:
+            return 0
+
+        # Текущее время
+        now = tz.now()
+
+        # Ищем встречи которые начнутся через 45-75 минут
+        hour_from_now_min = now + timedelta(minutes=45)
+        hour_from_now_max = now + timedelta(minutes=75)
+
+        meetings = await orm.Meeting.filter(
+            dialog__account_id=self.account.id,
+            start_at__gte=hour_from_now_min,
+            start_at__lte=hour_from_now_max,
+            status=orm.MeetingStatus.SCHEDULED,
+        ).prefetch_related("dialog__recipient")
+
+        sent_count = 0
+
+        for meeting in meetings:
+            # Проверяем что еще не отправляли
+            already_sent = await orm.MeetingReminderSent.exists(meeting=meeting)
+            if already_sent:
+                continue
+
+            # Проверяем что это диалог из текущего проекта
+            dialog = meeting.dialog
+            if dialog.project_id != self.project.id:
+                continue
+
+            # Форматируем текст напоминания с временем встречи
+            reminder_text = self._format_meeting_reminder(
+                self.project.meeting_reminder, meeting
+            )
+
+            # Отправляем немедленно
+            success = await self._send_reminder_immediately(dialog, reminder_text)
+
+            if success:
+                dialog.status = enums.DialogStatus.CLOSING
+                await dialog.save(update_fields=["status"])
+                # Помечаем как отправленное
+                await orm.MeetingReminderSent.create(meeting=meeting)
+                sent_count += 1
+
+                # Задержка между напоминаниями
+                await asyncio.sleep(random.randint(3, 7))
+
+        return sent_count
+
+    def _format_meeting_reminder(self, template: str, meeting: orm.Meeting) -> str:
+        """
+        Форматирует текст напоминания, подставляя время встречи.
+        Можно использовать плейсхолдеры: {time}, {date}
+        """
+        user_tz = pytz.timezone(self.account.user.timezone or "Europe/Moscow")
+        meeting_time = meeting.start_at.astimezone(user_tz)
+
+        return template.format(
+            time=meeting_time.strftime("%H:%M"),
+            TIME=meeting_time.strftime("%H:%M"),
+            date=meeting_time.strftime("%d.%m.%Y"),
+            DATE=meeting_time.strftime("%d.%m.%Y"),
+            datetime=meeting_time.strftime("%d.%m.%Y %H:%M"),
+            DATETIME=meeting_time.strftime("%d.%m.%Y %H:%M"),
+        )
+
+    async def check_and_send_reminders(self):
+        """
+        Проверяет и отправляет все типы напоминаний.
+        Вызывается периодически в dialog_task.
+        """
+        try:
+            morning_sent = await self._check_morning_reminders()
+            meeting_sent = await self._check_meeting_reminders()
+
+            total = morning_sent + meeting_sent
+
+            if total > 0:
+                self.logger.info(
+                    f"📧 Отправлено напоминаний: "
+                    f"утренних={morning_sent}, о встречах={meeting_sent}"
+                )
+
+            return total
+
+        except Exception as e:
+            self.logger.error(f"Ошибка при проверке напоминаний: {e}")
+            import traceback
+
+            self.logger.error(traceback.format_exc())
+            return 0
+
+
+""" 
+заменить плейсхолдеры в сообщениях
+
+"""

@@ -93,7 +93,7 @@ async def create_response_with_tools(
     tools: list,
     tool_handlers: dict[str, Callable],
     max_tokens: int = 3000,
-):
+) -> str:
     message = await create_raw_response(
         user=user,
         messages=history,
@@ -110,7 +110,10 @@ async def create_response_with_tools(
             }
         )
         if not message.tool_calls:
-            return message.content
+            content = message.content
+            if content is None:
+                return ""
+            return str(content)
 
         for call in message.tool_calls:
             if call.TYPE != "function":

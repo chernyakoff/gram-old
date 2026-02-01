@@ -1,6 +1,5 @@
 import asyncio
 import re
-from ctypes import cast
 from datetime import datetime
 from io import BytesIO
 
@@ -295,7 +294,7 @@ class TelegramService:
                 if not peer:
                     raise Exception("PeerId and AccessHash not found")
 
-            async with AsyncS3Client() as s3:
+            async with AsyncS3Client() as s3:  # type: ignore
                 content_bytes = await s3.get(file.storage_path)
 
             buffer = BytesIO(content_bytes)

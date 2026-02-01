@@ -1,4 +1,5 @@
 import re
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -44,6 +45,13 @@ PROMPT_TITLES = {
 
 async def get_status_addon() -> str:
     return await AppSettings.fetch("prompt.system")
+
+
+async def get_calendar_addon(user: User) -> str:
+    prompt = await AppSettings.fetch("prompt.calendar")
+    prompt = prompt.replace("{CURRENT_DATE}", date.today().isoformat())
+    prompt = prompt.replace("{TIMEZONE}", user.timezone)
+    return prompt
 
 
 def get_name_addon(account: Account, recipient: Recipient) -> str:

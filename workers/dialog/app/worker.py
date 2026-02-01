@@ -5,7 +5,7 @@ from tortoise import BaseDBAsyncClient
 
 from app.client import hatchet
 from app.config import init_db, shutdown_db, worker_config
-from app.task.main import dialog_task
+from app.tasks.dialog.task import dialog_task
 
 
 class LifespanContext(BaseModel):

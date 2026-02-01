@@ -40,6 +40,9 @@
               <template #findStatus>
                 <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
               </template>
+              <template #calendar>
+                <AdminPromptForm label="Календарь" path="prompt.calendar" />
+              </template>
             </UTabs>
           </template>
         </UTabs>
@@ -75,6 +78,7 @@ const promptTabs = [
   { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
   { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
   { label: 'Поиск статуса', icon: 'bx:bxs-edit-alt', slot: 'findStatus' as const },
+  { label: 'Календарь', icon: 'bx:bxs-calendar', slot: 'calendar' as const },
 ] satisfies TabsItem[]
 
 useTitle(title)

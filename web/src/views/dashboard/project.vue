@@ -23,6 +23,7 @@
         <template #prompt><ProjectPromptTab :projectId="projectId" /></template>
         <template #files><ProjectFilesTab :projectId="projectId" /></template>
         <template #embed><ProjectDocumentsTab :projectId="projectId" /></template>
+        <template #calendar><ProjectCalendarTab :projectId="projectId" /></template>
       </UTabs>
     </template>
   </UDashboardPanel>
@@ -35,6 +36,7 @@ import ProjectBriefTab from '@/components/dashboard/project/brief-tab.vue'
 import ProjectPromptTab from '@/components/dashboard/project/prompt-tab.vue'
 import ProjectFilesTab from '@/components/dashboard/project/files-tab.vue'
 import ProjectDocumentsTab from '@/components/dashboard/project/documents-tab.vue'
+import ProjectCalendarTab from '@/components/dashboard/project/calendar-tab.vue'
 
 const title = 'Редактирование проекта'
 useTitle(title)
@@ -48,5 +50,6 @@ const tabs = [
   { label: 'Промпт', icon: 'bx:brain', slot: 'prompt' as const },
   { label: 'Файлы', icon: 'lucide:files', slot: 'files' as const },
   { label: 'База знаний', icon: 'bx:bxs-graduation', slot: 'embed' as const },
+  { label: 'Календарь', icon: 'bx:bxs-calendar', slot: 'calendar' as const },
 ] satisfies TabsItem[]
 </script>

@@ -1,6 +1,7 @@
 import asyncio
 import io
 import subprocess
+from datetime import date
 
 from openai import AsyncOpenAI
 
@@ -14,9 +15,11 @@ from app.common.utils.prompt import (
     analyze_dialog_status,
     build_prompt_v2,
     get_active_status,
+    get_calendar_addon,
     get_status_addon,
 )
-from app.task.telegram_service import TelegramService
+from app.common.utils.schedule import TOOLS, ToolContext
+from app.tasks.dialog.telegram_service import TelegramService
 from app.utils.logger import Logger
 
 
@@ -100,19 +103,33 @@ class AIService:
             """
 
         messages = [{"role": "system", "content": system_prompt}] + history
-        status_addon = await get_status_addon()
 
         for msg in reversed(messages):
             if msg["role"] == "user":
                 msg["content"] += f"\n{name_addon}"
+                status_addon = await get_status_addon()
                 msg["content"] += f"\n{status_addon}"
+                if project.use_calendar:
+                    calendar_addon = await get_calendar_addon(self.user)
+                    msg["content"] += f"\n\n{calendar_addon}"
                 if status == enums.DialogStatus.CLOSING:
                     msg["content"] += (
                         "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
                     )
                 break
         try:
-            response = await openrouter.create_response(self.user, messages)
+            if project.use_calendar:
+                ctx = ToolContext(self.user, dialog)
+                tool_handlers = {
+                    "get_slots": ctx.get_slots,
+                    "book_slot": ctx.book_slot,
+                    "cancel_meeting": ctx.cancel_meeting,
+                }
+                response = await openrouter.create_response_with_tools(
+                    self.user, messages, TOOLS, tool_handlers
+                )
+            else:
+                response = await openrouter.create_response(self.user, messages)
 
             if not response:
                 return None, None
