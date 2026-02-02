@@ -945,15 +945,20 @@ class DialogManager:
         )
 
         # 3. КЛЮЧЕВАЯ ПРОВЕРКА: учитываем и active_dialogs_count и processing_replies
-        if (
-            self.active_dialogs_count == 0
-            and len(self.processing_replies) == 0
-            and total_session_dialogs > 0
-        ):
+        has_pending_work = (
+            self.active_dialogs_count > 0
+            or len(self.processing_replies) > 0
+            or len(self.waiting_dialogs) > 0  # ✅ ДОБАВЛЕНО
+            or len(self.message_buffers) > 0  # ✅ ДОБАВЛЕНО
+        )
+
+        if not has_pending_work and total_session_dialogs > 0:
             self.logger.info(
                 f"🛑 Все диалоги завершены "
                 f"(активных={self.active_dialogs_count}, "
-                f"в_обработке={len(self.processing_replies)})"
+                f"в_обработке={len(self.processing_replies)}, "
+                f"ожидающих={len(self.waiting_dialogs)}, "  # ✅ В ЛОГЕ
+                f"буферизованных={len(self.message_buffers)})"  # ✅ В ЛОГЕ
             )
             self.stop_event.set()
             return

@@ -30,12 +30,10 @@ async def proxies_upload(input: ProxiesUploadIn, ctx: Context):
 
             ip = await proxy.check()
             if not ip:
-                await logger.error(f"{line} Ошибка подключения")
-                raise ValueError("")
+                raise ValueError("Ошибка подключения")
 
             country = await proxy.get_country(ip)
             if not country:
-                await logger.error(f"{line} Не определяется страна")
                 raise ValueError("Не определяется страна")
 
             orm_proxy = proxy.to_orm(
