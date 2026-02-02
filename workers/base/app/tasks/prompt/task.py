@@ -10,7 +10,7 @@ from app.client import hatchet
 from app.common.models import orm
 from app.common.utils import openrouter
 from app.common.utils.functions import generate_message, pick, randomize_message
-from app.common.utils.notify import send_file_to_user
+from app.common.utils.notify import send_file_to_user, send_text_to_user
 from app.common.utils.prompt import get_first_touch, get_generator, get_status_addon
 from app.utils.stream_logger import StreamLogger
 
@@ -77,7 +77,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
         return
 
     await send_file_to_user(
-        CHANNEL_ID, f"{user.display_name}.txt", first_message.encode("utf-8"), "промпт"
+        CHANNEL_ID, f"{user.display_name}.txt", response.encode("utf-8"), "промпт"
     )
 
     await logger.success("✅ Генерация завершена.")
@@ -89,6 +89,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
 
     except Exception as e:
         await logger.error(str(e))
+        await send_text_to_user(CHANNEL_ID, f"{user.display_name}\n\nОШИБКА:\n{e}")
         return
 
     await logger.success("Промпт успешно сгенерирован")

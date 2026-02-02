@@ -222,6 +222,7 @@ class Account(Model, TimestampMixin):
     muted_until = fields.DatetimeField(null=True)
     premium = fields.BooleanField(default=False)
     premium_stopped = fields.BooleanField(default=False)
+    premiumed_at = fields.DatetimeField(null=True)
     country = fields.CharField(max_length=2, null=False)
     photos = fields.ReverseRelation["AccountPhoto"]
     dialogs: fields.ReverseRelation["Dialog"]

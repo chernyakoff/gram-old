@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -59,6 +60,13 @@ class ProjectStatusOut(BaseModel):
     errors: list[str]
 
 
+def has_unresolved_template(text: str) -> bool:
+    """
+    Проверяет наличие неразобранных шаблонов вида {a|b}
+    """
+    return bool(re.search(r"\{[^{}]*\|[^{}]*\}", text))
+
+
 @router.patch("/{id}/status", response_model=ProjectStatusOut)
 async def update_project_status(
     id: int, data: ProjectStatusIn, user=Depends(get_current_user)
@@ -74,6 +82,8 @@ async def update_project_status(
             errors.append("В проекте отсутсвует промпт")
         if not project.first_message:
             errors.append("В проекте отсутсвует первое сообщение")
+        if not has_unresolved_template(project.first_message):
+            errors.append("ПЕрвое сообщение не рандомизировано")
         if errors:
             return ProjectStatusOut(result="error", errors=errors)
 
