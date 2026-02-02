@@ -30,6 +30,25 @@ async def get_brief(project_id: int) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+PROMPT = """
+Преобразуй следующее сообщение в вариант с синонимами и альтернативными формулировками, используя конструкцию {вариант1|вариант2|...} для всех возможных замен слов и фраз. 
+- Сохраняй исходную структуру предложений. 
+- Подбирай естественные синонимы, чтобы текст оставался понятным. 
+- При возможности предлагай 2-4 варианта для каждого ключевого слова или фразы.
+
+COOБЩЕНИЕ:
+"""
+
+
+async def synonimize(user: orm.User, text: str):
+    prompt = await orm.AppSettings.fetch("prompt.randomizer")
+    if not prompt:
+        prompt = PROMPT
+    messages = [{"role": "user", "content": f"{prompt}\n\n{text}"}]
+    text = await openrouter.create_response(user, messages)
+    return text
+
+
 @hatchet.task(
     name="generate-prompt",
     input_validator=GeneratePromptIn,
@@ -60,6 +79,13 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     await send_file_to_user(
         CHANNEL_ID, f"{user.display_name}.txt", first_message.encode("utf-8"), "касание"
     )
+
+    try:
+        first_message = await synonimize(user, first_message)
+    except Exception as e:
+        await logger.error(e)
+        return
+
     project.first_message = first_message
     await project.save(update_fields=["first_message"])
 

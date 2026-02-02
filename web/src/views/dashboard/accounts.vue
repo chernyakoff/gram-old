@@ -192,7 +192,7 @@ const sorting = ref([
     }
 ])
 
-const limitSortingFn: SortingFn<AccountOut> = (rowA, rowB, columnId) => {
+const limitSortingFn: SortingFn<AccountOut> = (rowA, rowB) => {
     const getLimit = (row: AccountOut) =>
         row.isDynamicLimit ? row.dynamicDailyLimit : row.outDailyLimit
 
