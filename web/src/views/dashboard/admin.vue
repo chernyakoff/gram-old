@@ -38,6 +38,9 @@
                             <template #generator>
                                 <AdminPromptForm label="Генератор" path="prompt.generator" />
                             </template>
+                            <template #randomizer>
+                                <AdminPromptForm label="Рандомизатор" path="prompt.randomizer" />
+                            </template>
                             <template #firstTouch>
                                 <AdminPromptForm label="Касание" path="prompt.firstTouch" />
                             </template>
