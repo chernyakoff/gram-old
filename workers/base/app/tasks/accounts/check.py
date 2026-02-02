@@ -111,6 +111,9 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
         ["id", "username", "first_name", "last_name", "premium"],
         me.to_dict(),
     )
+    if params["premium"] is False:
+        params["premiumed_at"] = None
+
     response = await app(GetFullUserRequest("me"))  # type: ignore
     response = cast(UserFull, response)
     params["about"] = response.full_user.about

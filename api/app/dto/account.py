@@ -40,6 +40,7 @@ class AccountOut(AccountBase):
     phone: str
     premium: bool
     premium_stopped: bool
+
     twofa: str | None
     country: str
     active: bool
@@ -52,6 +53,7 @@ class AccountOut(AccountBase):
     out_daily_limit: int
     is_dynamic_limit: bool
     dynamic_daily_limit: int | None
+    premiumed_at: Optional[datetime] = None
 
     @classmethod
     async def resolve_photos(

@@ -162,5 +162,5 @@ async def get_user_proxies(user_id: int) -> list[Proxy]:
         return None
 
     orm_proxies = await Proxy.filter(user_id=user_id).all()
-    results = await asyncio.gather(*(check_proxy(p) for p in orm_proxies))
+    results = await asyncio.gather(*(check_proxy(p) for p in orm_proxies))  # type: ignore
     return [p for p in results if p is not None]

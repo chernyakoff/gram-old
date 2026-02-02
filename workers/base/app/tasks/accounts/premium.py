@@ -173,7 +173,8 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         )
 
         orm_account.premium = True
-        await orm_account.save()
+        orm_account.premiumed_at = tz.now()
+        await orm_account.save(update_fields=["premium", "premiumed_at"])
 
         if isinstance(send_data, PaymentVerificationNeeded):
             return BuyPremiumOut(status="success", verification_url=send_data.url)
