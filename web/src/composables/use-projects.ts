@@ -59,7 +59,16 @@ export function useProjects() {
       body,
     })
   }
-
+/* 
+ type ProjectSettings = {
+    name: string;
+    dialogLimit: number;
+    sendTimeStart: number;
+    sendTimeEnd: number;
+    premiumRequired: boolean;
+    firstMessage?: string | null | undefined;
+}
+*/
   async function saveSettings(id: number, body: ProjectSettings) {
     return await api(`projects/${id}/settings`, {
       method: 'POST',

@@ -38,45 +38,34 @@
         </div>
       </div>
 
-      <div class="w-full mb-4">
+      <div v-if="hasFirstMessage" class="w-full mb-4">
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-sm font-medium">Текст первого сообщения</span>
           <div class="flex items-center gap-1 relative">
-            <UModal title="Предпросмотр первого сообщения">
-              <UButton icon="bx:show" color="neutral" variant="subtle" v-if="disableSynonimize" />
+            <UModal v-if="state.firstMessage" title="Предпросмотр первого сообщения">
+              <UButton icon="bx:show" color="neutral" variant="subtle"/>
               <template #body>
                 {{ generateMessage(state.firstMessage) }}
               </template>
             </UModal>
-            <UButton
-              icon="bx:cube-alt"
-              color="neutral"
-              variant="subtle"
-              @click="doSynonimize"
-              v-if="!disableSynonimize"
-            />
+           
           </div>
         </div>
         <UFormField name="firstMessage">
-          <UTextarea :rows="8" v-model="state.firstMessage" placeholder="" class="w-full" />
+          <UTextarea :rows="8" v-model="state.firstMessage" placeholder="Заполните бриф и сгенерируйте промпт. Тут появится первое сообщение" class="w-full" />
         </UFormField>
       </div>
 
       <UButton type="submit">Сохранить</UButton>
     </div>
   </UForm>
-  <BlockingModal
-    title="Рандомизирую"
-    text="Дождитесь окончания рандомизации"
-    :open="isRandomizing"
-  />
+  
 </template>
 <script setup lang="ts">
 import { useProjects } from '@/composables/use-projects'
-import { computed, onMounted } from 'vue'
-import { reactive, ref } from 'vue'
+import {   onMounted, ref } from 'vue'
+import { reactive } from 'vue'
 import { generateMessage } from '@/utils/prompt'
-import BlockingModal from '@/components/shared/blocking-modal.vue'
 
 import * as v from 'valibot'
 import type { FormSubmitEvent } from '@nuxt/ui'
@@ -85,9 +74,11 @@ const { projectId } = defineProps<{
   projectId: number
 }>()
 
-const { synonimize, getSettings, saveSettings } = useProjects()
+const {  getSettings, saveSettings } = useProjects()
 
 const toast = useToast()
+
+const hasFirstMessage = ref(false)
 
 const limitShema = v.pipe(
   v.number(),
@@ -112,7 +103,7 @@ const projectSettingsSchema = v.object({
   dialogLimit: limitShema,
   sendTimeStart: hourSchema,
   sendTimeEnd: hourSchema,
-  firstMessage: textSchema,
+  firstMessage: v.nullish(textSchema),
   premiumRequired: v.boolean(),
 })
 type ProjectSettingsSchema = v.InferOutput<typeof projectSettingsSchema>
@@ -122,11 +113,6 @@ const hours = Array.from({ length: 24 }, (_, i) => ({
   value: i,
 }))
 
-const disableSynonimize = computed(() => {
-  // Ищем текст вида {что-то|что-то}
-  const regex = /\{[^{}|]+\|[^{}]+\}/
-  return regex.test(state.firstMessage)
-})
 
 const state = reactive<ProjectSettingsSchema>({
   name: '',
@@ -137,28 +123,23 @@ const state = reactive<ProjectSettingsSchema>({
   premiumRequired: true,
 })
 
-const isRandomizing = ref(false)
-
-const doSynonimize = async () => {
-  if (state.firstMessage.length < 1) {
-    return
-  }
-  isRandomizing.value = true
-  const { text } = await synonimize({ text: state.firstMessage })
-  state.firstMessage = text
-  isRandomizing.value = false
-}
 
 onMounted(async () => {
   const response = await getSettings(projectId)
   Object.assign(state, response)
+    hasFirstMessage.value =
+    typeof response.firstMessage === 'string' &&
+    response.firstMessage.trim().length > 0
+
+  if (!hasFirstMessage.value) {
+    state.firstMessage = undefined
+  }
 })
 
 const onSubmit = async (event: FormSubmitEvent<ProjectSettingsSchema>) => {
   await saveSettings(projectId, event.data)
   toast.add({
     title: 'Настройки проекта успешно сохранены',
-
     color: 'success',
   })
 }

@@ -219,7 +219,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 break
 
             # Задержка между отправками
-            await asyncio.sleep(random.randint(60, 180))
+            await asyncio.sleep(random.randint(5, 30))
 
         logger.info(f"Новых диалогов начато: {new_dialogs_started}")
 

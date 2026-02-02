@@ -71,6 +71,11 @@ async def get_generator() -> str:
     return await AppSettings.fetch("prompt.generator")
 
 
+async def get_first_touch(brief_json: str) -> str:
+    firstTouch = await AppSettings.fetch("prompt.firstTouch")
+    return f"{firstTouch}\n\n# БРИФ:\n\n```json\n{brief_json}\n```\n"
+
+
 def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
     text = []
     statuses = {s.value for s in DialogStatus}

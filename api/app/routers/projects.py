@@ -112,8 +112,8 @@ class ProjectSettings(BaseModel):
     dialog_limit: int
     send_time_start: int
     send_time_end: int
-    first_message: str
     premium_required: bool
+    first_message: Optional[str] = None
 
 
 @router.get("/{id}/settings", response_model=ProjectSettings)

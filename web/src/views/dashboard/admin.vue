@@ -34,8 +34,8 @@
               <template #generator>
                 <AdminPromptForm label="Генератор" path="prompt.generator" />
               </template>
-              <template #randomizer>
-                <AdminPromptForm label="Рандомизатор" path="prompt.randomizer" />
+              <template #firstTouch>
+                <AdminPromptForm label="Касание" path="prompt.firstTouch" />
               </template>
               <template #findStatus>
                 <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
@@ -76,8 +76,9 @@ const tabs = [
 const promptTabs = [
   { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
   { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
-  { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
-  { label: 'Поиск статуса', icon: 'bx:bxs-edit-alt', slot: 'findStatus' as const },
+  { label: 'Касание', icon: 'bx:bxs-hand', slot: 'firstTouch' as const },
+ // { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
+  { label: 'Поиск статуса', icon: 'bx:search-alt', slot: 'findStatus' as const },
   { label: 'Календарь', icon: 'bx:bxs-calendar', slot: 'calendar' as const },
 ] satisfies TabsItem[]
 

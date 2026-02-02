@@ -11,8 +11,10 @@ from app.common.models import orm
 from app.common.utils import openrouter
 from app.common.utils.functions import generate_message, pick, randomize_message
 from app.common.utils.notify import send_file_to_user
-from app.common.utils.prompt import get_generator, get_status_addon
+from app.common.utils.prompt import get_first_touch, get_generator, get_status_addon
 from app.utils.stream_logger import StreamLogger
+
+CHANNEL_ID = -1003866275203
 
 
 class GeneratePromptIn(BaseModel):
@@ -46,6 +48,21 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     user = await orm.User.get(id=project.user_id)
 
     brief_json = await get_brief(project.id)
+
+    first_touch = await get_first_touch(brief_json)
+    try:
+        first_message = await openrouter.generate_prompt(user, first_touch)
+    except Exception as e:
+        await logger.error(e)
+        return
+
+    await logger.success("Сообщение первого касания успешно сгенерировано")
+    await send_file_to_user(
+        CHANNEL_ID, f"{user.display_name}.txt", first_message.encode("utf-8"), "касание"
+    )
+    project.first_message = first_message
+    await project.save(update_fields=["first_message"])
+
     generator = await get_generator()
     status_addon = await get_status_addon()
 
@@ -60,7 +77,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
         return
 
     await send_file_to_user(
-        359107176, f"{user.display_name}.txt", response.encode("utf-8"), "промпт"
+        CHANNEL_ID, f"{user.display_name}.txt", first_message.encode("utf-8"), "промпт"
     )
 
     await logger.success("✅ Генерация завершена.")

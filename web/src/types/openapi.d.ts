@@ -286,8 +286,8 @@ export interface components {
             dialogLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
-            firstMessage: string;
             premiumRequired: boolean;
+            firstMessage?: string | null;
         };
         ProjectShortOut: {
             id: number;
