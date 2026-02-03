@@ -55,7 +55,7 @@ async def get_account(id: int, user=Depends(get_current_user)):
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 
-    return AccountOut.from_tortoise_orm(account)
+    return await AccountOut.from_tortoise_orm(account)
 
 
 @router.get("/", response_model=list[AccountOut])
