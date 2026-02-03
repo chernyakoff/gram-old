@@ -5,7 +5,7 @@ from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
 from pydantic import BaseModel
 from tortoise import Tortoise
 from tortoise import timezone as tz
-from tortoise.expressions import F, Q
+from tortoise.expressions import Q
 from tortoise.transactions import in_transaction
 
 from app.client import hatchet
@@ -29,9 +29,11 @@ stop_premium_task = hatchet.stubs.task(
     name="stop-premium", input_validator=StopPremiumIn
 )
 
-LEASE_HOURS = 2
+ACCOUNT_LEASE_MINUTES = 45
 MAX_ACCOUNTS_PER_CYCLE = 50
 RECIPIENT_LEASE_MINUTES = 30
+MAX_ACCOUNTS_PER_USER_PER_CYCLE = 5
+
 
 heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
 
@@ -114,81 +116,76 @@ def is_project_in_send_window(project: orm.Project, now) -> bool:
 
 
 async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Account]:
-    params = dict(
-        project=project,
-        status=enums.AccountStatus.GOOD,
-        busy=False,
-    )
-    if project.premium_required:
-        params["premium"] = True
-
-    return (
-        await orm.Account.filter(**params).limit(MAX_ACCOUNTS_PER_CYCLE).using_db(conn)
-    )
-
-
-async def check_daily_limit(account: orm.Account, now, conn) -> int:
-    # Получаем динамический лимит (с запросом к dialogs)
-    daily_limit = await account.get_dynamic_daily_limit()
-
-    counter = (
-        await orm.AccountActionCounter.filter(
-            account=account,
-            action=enums.AccountAction.NEW_DIALOG,
-            date=now.date(),
-        )
-        .using_db(conn)
-        .first()
-    )
-
-    return max(0, daily_limit - (counter.count if counter else 0))
-
-
-async def reserve_daily_limit(
-    account: orm.Account,
-    reserve: int,
-    now,
-    conn,
-) -> int:
     """
-    Резервирует диалоги, НО НЕ увеличивает active_days_count
+    Получить доступные аккаунты с приоритетом у тех, у кого есть дневной лимит,
+    и с равномерным распределением между пользователями (round-robin).
     """
+    query = f"""
+    WITH ranked AS (
+    SELECT
+        a.id,
+        a.user_id,
+        a.daily_limit_left,
+        a.busy,
+        a.status,
+        a.lease_expires_at,
+        a.last_attempt_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY a.user_id
+            ORDER BY 
+                (a.daily_limit_left > 0) DESC,
+                COALESCE(a.last_attempt_at, '1970-01-01') ASC,
+                a.id ASC
+        ) AS user_rank
+    FROM accounts a
+    WHERE 
+        a.project_id = $1
+        AND a.status = 'good'
+        AND a.busy = FALSE
+        AND (a.lease_expires_at IS NULL OR a.lease_expires_at < $2)
+)
+SELECT *
+FROM ranked
+WHERE user_rank <= {MAX_ACCOUNTS_PER_USER_PER_CYCLE}
+ORDER BY (daily_limit_left > 0) DESC, last_attempt_at ASC
+LIMIT {MAX_ACCOUNTS_PER_CYCLE};
+    """
+
+    rows = await conn.execute_query_dict(query, [project.id, now])
+    accounts = [orm.Account(**row) for row in rows]
+    return accounts
+
+
+async def reserve_daily_limit(account_id: int, reserve: int, conn) -> int:
     if reserve <= 0:
         return 0
 
-    # Получаем лимит на основе текущего active_days_count
-    daily_limit = await account.get_dynamic_daily_limit()
-
-    await orm.AccountActionCounter.get_or_create(
-        account=account,
-        action=enums.AccountAction.NEW_DIALOG,
-        date=now.date(),
-        defaults={"count": 0},
-        using_db=conn,
-    )
-
-    # Атомарно резервируем
     rows = await conn.execute_query_dict(
         """
-        UPDATE account_action_counter
-        SET count = count + $1
-        WHERE account_id = $2
-          AND action = $3
-          AND date = $4
-          AND count + $1 <= $5
-        RETURNING count;
+        UPDATE accounts
+        SET daily_limit_left = daily_limit_left - $1
+        WHERE id = $2
+          AND daily_limit_left >= $1
+        RETURNING daily_limit_left;
         """,
-        [
-            reserve,
-            account.id,
-            enums.AccountAction.NEW_DIALOG,
-            now.date(),
-            daily_limit,
-        ],
+        [reserve, account_id],
     )
 
-    # НЕ увеличиваем active_days_count здесь!
-    return reserve if rows else 0
+    if not rows:
+        return 0
+
+    # для аналитики / аудита
+    await conn.execute_query(
+        """
+        INSERT INTO account_action_counter (account_id, action, date, count)
+        VALUES ($1, $2, CURRENT_DATE, $3)
+        ON CONFLICT (account_id, action, date)
+        DO UPDATE SET count = account_action_counter.count + EXCLUDED.count;
+        """,
+        [account_id, enums.AccountAction.NEW_DIALOG, reserve],
+    )
+
+    return reserve
 
 
 async def get_recipients_for_mailings(mailings, max_count, now, conn):
@@ -213,13 +210,15 @@ async def get_recipients_for_mailings(mailings, max_count, now, conn):
     return recipients
 
 
-async def lock_account_and_recipients(account, recipients, now, conn):
-    account_lease = now + timedelta(hours=LEASE_HOURS)
+async def lock_account_and_recipients(
+    account_id: int, recipients: list[orm.Recipient], now, conn
+):
+    account_lease = now + timedelta(minutes=ACCOUNT_LEASE_MINUTES)
     recipient_lease = now + timedelta(minutes=RECIPIENT_LEASE_MINUTES)
     ids = [r.id for r in recipients]
 
     updated = await (
-        orm.Account.filter(id=account.id)
+        orm.Account.filter(id=account_id)
         .filter(Q(busy=False) | Q(lease_expires_at__lt=now))
         .using_db(conn)
         .update(
@@ -359,7 +358,7 @@ async def task(input: EmptyModel, ctx: Context):
 
             for acc in free_accounts:
                 # Получаем доступное количество новых диалогов
-                dialogs_left = await check_daily_limit(acc, now, conn)
+                dialogs_left = acc.daily_limit_left
 
                 # Получаем recipients для новых диалогов ТОЛЬКО если в окне отправки
                 recipients = []
@@ -371,9 +370,7 @@ async def task(input: EmptyModel, ctx: Context):
                 # Резервируем лимит новых диалогов атомарно
                 reserved = 0
                 if recipients:
-                    reserved = await reserve_daily_limit(
-                        acc, len(recipients), now, conn
-                    )
+                    reserved = await reserve_daily_limit(acc.id, len(recipients), conn)
                     if reserved < len(recipients):
                         recipients = recipients[:reserved]
 
@@ -392,7 +389,7 @@ async def task(input: EmptyModel, ctx: Context):
                                 )
 
                 # Лочим аккаунт и recipients
-                if not await lock_account_and_recipients(acc, recipients, now, conn):
+                if not await lock_account_and_recipients(acc.id, recipients, now, conn):
                     continue
 
                 recipients_id = [r.id for r in recipients]  # может быть пусто

@@ -56,6 +56,18 @@ class AccountOut(AccountBase):
     premiumed_at: Optional[datetime] = None
 
     @classmethod
+    async def resolve_is_dynamic_limit(cls, instance, context):
+        return instance.active_days_count < len(instance.PROGREV)
+
+    @classmethod
+    async def resolve_dynamic_daily_limit(cls, instance, context):
+        if instance.active_days_count >= len(instance.PROGREV):
+            return None
+        if not instance.premium:
+            return 1
+        return instance.PROGREV[instance.active_days_count]
+
+    @classmethod
     async def resolve_photos(
         cls, instance: orm.Account, context: ContextType
     ) -> list[AccountPhotoOut]:
@@ -63,27 +75,6 @@ class AccountOut(AccountBase):
             AccountPhotoOut(url=f"{config.s3.public_endpoint_url}/{p.path}", id=p.id)
             for p in instance.photos  # type: ignore
         ]
-
-    @classmethod
-    async def resolve_is_dynamic_limit(
-        cls, instance: orm.Account, context: ContextType
-    ) -> bool:
-        active_days = context["active_days_map"].get(instance.id, 0)  # type: ignore
-        return active_days < len(instance.PROGREV)
-
-    @classmethod
-    async def resolve_dynamic_daily_limit(
-        cls, instance: orm.Account, context: ContextType
-    ) -> int | None:
-        active_days = context["active_days_map"].get(instance.id, 0)  # type: ignore
-
-        if active_days >= len(instance.PROGREV):
-            return None
-
-        if not instance.premium:
-            return 1
-
-        return instance.PROGREV[active_days]
 
 
 class BindProjectIn(BaseModel):

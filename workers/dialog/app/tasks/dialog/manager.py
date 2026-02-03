@@ -964,17 +964,10 @@ class DialogManager:
             return
 
         # 4. Проверяем дневной лимит для аккаунта (только для логирования)
-        counter = await orm.AccountActionCounter.filter(
-            account=self.account,
-            action=enums.AccountAction.NEW_DIALOG,
-            date=tz.now().date(),
-        ).first()
-
-        dialogs_today = counter.count if counter else 0
-
-        if dialogs_today >= self.account.out_daily_limit:
+        dialogs_today_left = self.account.daily_limit_left
+        if dialogs_today_left <= 0:
             self.logger.info(
-                f"ℹ️ Дневной лимит достигнут: {dialogs_today}/{self.account.out_daily_limit}. "
+                f"ℹ️ Дневной лимит достигнут. Осталось: {dialogs_today_left}. "
                 f"Активных: {self.active_dialogs_count}, в обработке: {len(self.processing_replies)}. "
                 f"Завершим после их окончания."
             )

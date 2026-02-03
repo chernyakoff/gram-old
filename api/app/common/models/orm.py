@@ -210,6 +210,7 @@ class Account(Model, TimestampMixin):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="accounts", null=False
     )
+    user_id: int  # для pylance
     project: fields.ForeignKeyNullableRelation["Project"] = fields.ForeignKeyField(
         "models.Project",
         related_name="accounts",
@@ -241,45 +242,17 @@ class Account(Model, TimestampMixin):
     last_attempt_at = fields.DatetimeField(null=True)
 
     out_daily_limit = fields.IntField(
-        description="Исходящих сообщений с одного аккаунта в сутки( deprecated)",
+        description="Исходящих сообщений с одного аккаунта в сутки",
         null=False,
         default=1,
     )
 
-    user_id: int
-
-    async def get_active_days_count(self) -> int:
-        """
-        Подсчитывает количество уникальных дней активности из таблицы dialogs
-        """
-        from tortoise import Tortoise
-
-        conn = Tortoise.get_connection("default")
-
-        result = await conn.execute_query_dict(
-            """
-            SELECT COUNT(DISTINCT DATE(started_at)) as days_count
-            FROM dialogs
-            WHERE account_id = $1
-            """,
-            [self.id],
-        )
-
-        return result[0]["days_count"] if result else 0
-
-    async def get_dynamic_daily_limit(self) -> int:
-        """
-        Лимит основан на количестве АКТИВНЫХ дней
-        """
-        active_days = await self.get_active_days_count()
-
-        if active_days >= len(self.PROGREV):
-            return self.out_daily_limit
-
-        if not self.premium:
-            return 1
-
-        return self.PROGREV[active_days]
+    active_days_count = fields.IntField(
+        default=0, description="количество уникальных дней активности"
+    )
+    daily_limit_left = fields.IntField(
+        default=0, description="остаток на текущие сутки"
+    )
 
     @property
     def display_username(self) -> str:

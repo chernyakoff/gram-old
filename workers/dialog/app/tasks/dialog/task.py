@@ -142,8 +142,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
         if not prompt:
             raise Exception(f"У юзера [{account.user_id}] отсутствует промпт")
 
-        # limiter = AccountLimiter(account)
-
         # Создаём менеджер диалогов
         manager = DialogManager(
             client=client,
