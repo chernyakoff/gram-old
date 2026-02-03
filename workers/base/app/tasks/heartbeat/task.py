@@ -30,9 +30,9 @@ stop_premium_task = hatchet.stubs.task(
 )
 
 ACCOUNT_LEASE_MINUTES = 45
-MAX_ACCOUNTS_PER_CYCLE = 50
+MAX_ACCOUNTS_PER_CYCLE = 100
 RECIPIENT_LEASE_MINUTES = 30
-MAX_ACCOUNTS_PER_USER_PER_CYCLE = 5
+MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
 
 
 heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
