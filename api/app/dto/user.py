@@ -13,6 +13,7 @@ class UserLoginIn(BaseModel):
     last_name: str | None
     username: str | None
     photo_url: str | None
+    ref_code: str | None = None
 
 
 class UserLoginOut(BaseModel):
@@ -28,6 +29,7 @@ class UserOut(Serializer):
     role: str
     balance: int
     has_license: bool
+    ref_code: str
 
     @classmethod
     async def resolve_role(cls, instance: orm.User, context: ContextType):

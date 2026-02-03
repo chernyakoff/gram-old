@@ -16,7 +16,7 @@ from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import F
 from tortoise.transactions import in_transaction
 
-from app.common.models.orm import AiModel, Dialog, User
+from app.common.models.orm import AiModel, User
 from app.common.utils.usd_rate import get_usd_rate
 from app.config import config
 

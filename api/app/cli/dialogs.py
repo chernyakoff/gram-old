@@ -1,13 +1,11 @@
-import os
 from datetime import datetime
 from typing import Any, Dict, List
 
 from cyclopts import App
 from rich import print
-from tortoise.expressions import Q
 
 from app.common.models import orm
-from app.common.models.enums import DialogStatus, MessageSender
+from app.common.models.enums import MessageSender
 
 app = App(name="dialogs")
 

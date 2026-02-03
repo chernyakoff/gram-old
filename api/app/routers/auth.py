@@ -1,5 +1,7 @@
 import hashlib
 import hmac
+import random
+import string
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -8,7 +10,6 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response,
 from jose import ExpiredSignatureError, JWTError, jwt
 
 from app.common.models import enums, orm
-from app.common.utils.functions import pick
 from app.config import config
 from app.dto.user import UserLoginIn, UserLoginOut, UserMeOut, UserOut
 
@@ -130,6 +131,20 @@ def admin_required(user=Depends(get_current_user)):
     return user
 
 
+def generate_ref_code(length=8):
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(random.choice(alphabet) for _ in range(length))
+
+
+async def create_unique_ref_code():
+    for _ in range(10):
+        code = generate_ref_code()
+        exists = await orm.User.filter(ref_code=code).exists()
+        if not exists:
+            return code
+    raise RuntimeError("Failed to generate unique ref_code")
+
+
 # ----------------- Auth endpoints -----------------
 
 
@@ -137,18 +152,61 @@ def admin_required(user=Depends(get_current_user)):
 async def login(data: UserLoginIn, response: Response):
     data_dict = data.model_dump()
 
+    # mock
     if data_dict["hash"] == "mock" and data_dict["id"] == 359107176:
         access_token = create_access_token({"sub": str(359107176)})
         set_refresh_cookie(response, 359107176)
         return {"access_token": access_token}
 
     validate_telegram_data(data_dict)
-    user, _ = await orm.User.update_or_create(
-        id=data.id,
-        defaults=pick(["username", "first_name", "last_name", "photo_url"], data),
-    )
+
+    # 1. Ищем пользователя
+    user = await orm.User.get_or_none(id=data.id)
+
+    # 2. Пытаемся найти реферера (если пришёл код)
+    referrer = None
+    if data.ref_code:
+        referrer = await orm.User.get_or_none(ref_code=data.ref_code)
+
+        # защита от self-ref
+        if referrer and referrer.id == data.id:
+            referrer = None
+
+    # 3. Пользователь новый
+    if not user:
+        user = await orm.User.create(
+            id=data.id,
+            username=data.username,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            photo_url=data.photo_url,
+            ref_code=await create_unique_ref_code(),
+            referred_by=referrer,
+        )
+
+    # 4. Пользователь уже есть → можно ДОзаписать рефера
+    else:
+        await orm.User.filter(id=user.id).update(
+            username=data.username,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            photo_url=data.photo_url,
+        )
+
+        # проверяем: нет ли уже referred_by и нет ли лицензии
+        if (
+            not user.referred_by
+            and referrer
+            and not user.license_end_date
+            and referrer.id != user.id
+        ):
+            user.referred_by = referrer
+            await user.save(update_fields=["referred_by"])
+
+    # 5. Авторизация
     access_token = create_access_token({"sub": str(user.id)})
     set_refresh_cookie(response, user.id)
+
     return {"access_token": access_token}
 
 

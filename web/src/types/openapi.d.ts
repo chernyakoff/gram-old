@@ -389,6 +389,7 @@ export interface components {
             lastName: string | null;
             username: string | null;
             photoUrl: string | null;
+            refCode?: string | null;
         };
         UserLoginOut: {
             accessToken: string;
@@ -402,6 +403,7 @@ export interface components {
             role: string;
             balance: number;
             hasLicense: boolean;
+            refCode: string;
             impersonated?: boolean | null;
             realUserId?: number | null;
         };

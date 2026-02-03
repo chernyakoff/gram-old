@@ -119,36 +119,40 @@ async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Ac
     """
     Получить доступные аккаунты с приоритетом у тех, у кого есть дневной лимит,
     и с равномерным распределением между пользователями (round-robin).
+    Если проект требует премиум, берём только премиум-аккаунты.
     """
+    premium_filter = "AND a.premium = TRUE" if project.premium_required else ""
+
     query = f"""
     WITH ranked AS (
-    SELECT
-        a.id,
-        a.user_id,
-        a.daily_limit_left,
-        a.busy,
-        a.status,
-        a.lease_expires_at,
-        a.last_attempt_at,
-        ROW_NUMBER() OVER (
-            PARTITION BY a.user_id
-            ORDER BY 
-                (a.daily_limit_left > 0) DESC,
-                COALESCE(a.last_attempt_at, '1970-01-01') ASC,
-                a.id ASC
-        ) AS user_rank
-    FROM accounts a
-    WHERE 
-        a.project_id = $1
-        AND a.status = 'good'
-        AND a.busy = FALSE
-        AND (a.lease_expires_at IS NULL OR a.lease_expires_at < $2)
-)
-SELECT *
-FROM ranked
-WHERE user_rank <= {MAX_ACCOUNTS_PER_USER_PER_CYCLE}
-ORDER BY (daily_limit_left > 0) DESC, last_attempt_at ASC
-LIMIT {MAX_ACCOUNTS_PER_CYCLE};
+        SELECT
+            a.id,
+            a.user_id,
+            a.daily_limit_left,
+            a.busy,
+            a.status,
+            a.lease_expires_at,
+            a.last_attempt_at,
+            ROW_NUMBER() OVER (
+                PARTITION BY a.user_id
+                ORDER BY 
+                    (a.daily_limit_left > 0) DESC,
+                    COALESCE(a.last_attempt_at, '1970-01-01') ASC,
+                    a.id ASC
+            ) AS user_rank
+        FROM accounts a
+        WHERE 
+            a.project_id = $1
+            AND a.status = 'good'
+            AND a.busy = FALSE
+            AND (a.lease_expires_at IS NULL OR a.lease_expires_at < $2)
+            {premium_filter}
+    )
+    SELECT *
+    FROM ranked
+    WHERE user_rank <= {MAX_ACCOUNTS_PER_USER_PER_CYCLE}
+    ORDER BY (daily_limit_left > 0) DESC, last_attempt_at ASC
+    LIMIT {MAX_ACCOUNTS_PER_CYCLE};
     """
 
     rows = await conn.execute_query_dict(query, [project.id, now])

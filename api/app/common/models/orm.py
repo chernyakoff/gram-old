@@ -54,7 +54,13 @@ class User(Model, TimestampMixin):
     or_model = fields.CharField(max_length=256, null=True)
     timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
     meeting_duration = fields.IntField(default=30)
-
+    ref_code = fields.CharField(max_length=6, null=True, unique=True)
+    referred_by: fields.ForeignKeyNullableRelation["User"] = fields.ForeignKeyField(
+        "models.User",
+        related_name="referrals",
+        null=True,
+        on_delete=fields.SET_NULL,
+    )
     work_days: fields.ReverseRelation["UserWorkDay"]
     intervals: fields.ReverseRelation["UserWorkInterval"]
     disabled_month_days: fields.ReverseRelation["UserDisabledMonthDay"]

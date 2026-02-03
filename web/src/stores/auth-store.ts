@@ -9,19 +9,30 @@ import type {
   UserMeOut,
 } from '@/types/openapi'
 
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserMeOut | null>(null)
   const accessToken = ref<string | null>(localStorage.getItem('accessToken'))
   const isAuthenticated = computed(() => !!accessToken.value)
   const isImpersonated = computed(() => user.value?.impersonated ?? false)
+  const inviteRefCode = ref<string | null>(localStorage.getItem('inviteRefCode') || null)
+
+  
   const { api } = useApi()
   async function login(user: UserLoginIn) {
+
+    if (inviteRefCode.value && !user.refCode) {
+        user.refCode = inviteRefCode.value
+    }
     const data = await api<UserLoginOut>('auth', {
       method: 'POST',
       body: user,
     })
+    
     accessToken.value = data.accessToken
     localStorage.setItem('accessToken', data.accessToken)
+    inviteRefCode.value = null
+    localStorage.removeItem('inviteRefCode')
     await fetchUser()
     startBalancePolling()
   }
@@ -102,6 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken,
     isAuthenticated,
     isImpersonated,
+    inviteRefCode,
     login,
     logout,
     refreshTokens,
