@@ -243,7 +243,7 @@ const columns: TableColumn<AccountOut>[] = [
         ...columnCentered,
     },
     {
-        accessorKey: 'premiumed_at',
+        accessorKey: 'premiumedAt',
         header: 'Прем. куплен',
         cell: ({ row }) => {
             if (row.original.premiumedAt) {
@@ -257,10 +257,15 @@ const columns: TableColumn<AccountOut>[] = [
     },
     {
         accessorKey: 'outDailyLimit',
-
         header: ({ column }) => getHeader(column, 'Лимит'),
         ...columnCentered,
         sortingFn: limitSortingFn,
+
+    },
+    {
+        accessorKey: 'dialogsCount',
+        header: ({ column }) => getHeader(column, '💬'),
+        ...columnCentered,
 
     },
     /*  {

@@ -36,6 +36,7 @@ export interface components {
             isDynamicLimit: boolean;
             dynamicDailyLimit: number | null;
             premiumedAt?: string | null;
+            dialogsCount: number;
         };
         AccountPhotoOut: {
             id: number;

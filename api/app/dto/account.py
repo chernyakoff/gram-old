@@ -54,6 +54,7 @@ class AccountOut(AccountBase):
     is_dynamic_limit: bool
     dynamic_daily_limit: int | None
     premiumed_at: Optional[datetime] = None
+    dialogs_count: int
 
     @classmethod
     async def resolve_is_dynamic_limit(cls, instance, context):

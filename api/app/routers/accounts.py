@@ -1,8 +1,8 @@
 import asyncio
 
-from aerich import Tortoise
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from tortoise.functions import Count
 from tortoise.query_utils import Prefetch
 
 from app.common.models import enums, orm
@@ -45,49 +45,30 @@ async def get_account_list(user=Depends(get_current_user)):
     return await AccountListOut.from_queryset(orm.Account.filter(user_id=user.id))
 
 
-async def get_active_days_map(account_ids: list[int]):
-    rows = await Tortoise.get_connection("default").execute_query_dict(
-        """
-        SELECT account_id, COUNT(DISTINCT DATE(started_at)) AS active_days
-        FROM dialogs
-        WHERE account_id = ANY($1)
-        GROUP BY account_id
-        """,
-        [account_ids],
-    )
-
-    return {r["account_id"]: r["active_days"] for r in rows}
-
-
 @router.get("/{id}", response_model=AccountOut)
 async def get_account(id: int, user=Depends(get_current_user)):
-    account = await orm.Account.get(id=id).prefetch_related("photos")
+    account = (
+        await orm.Account.get(id=id)
+        .prefetch_related("photos", "project")
+        .annotate(dialogs_count=Count("dialogs"))
+    )
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 
-    active_days_map = await get_active_days_map([id])
-    return await AccountOut.from_tortoise_orm(
-        account, context={"active_days_map": active_days_map}
-    )
+    return AccountOut.from_tortoise_orm(account)
 
 
 @router.get("/", response_model=list[AccountOut])
 async def get_accounts(user=Depends(get_current_user)):
-    qs = orm.Account.filter(user_id=user.id).prefetch_related(
-        Prefetch(
-            "photos",
-            queryset=orm.AccountPhoto.filter(main=True),
-        ),
-        "project",
+    qs = (
+        orm.Account.filter(user_id=user.id)
+        .prefetch_related(
+            Prefetch("photos", queryset=orm.AccountPhoto.filter(main=True)),
+            "project",
+        )
+        .annotate(dialogs_count=Count("dialogs"))
     )
-
-    account_ids = await qs.values_list("id", flat=True)
-    active_days_map = await get_active_days_map(account_ids)  # type: ignore
-
-    return await AccountOut.from_queryset(
-        qs,
-        context={"active_days_map": active_days_map},
-    )
+    return await AccountOut.from_queryset(qs)
 
 
 async def delete_accounts_photos(paths: list[str]):
@@ -132,9 +113,9 @@ async def bind_project(data: BindProjectIn, user=Depends(get_current_user)):
     if not project:
         raise HTTPException(status_code=404, detail="not found")
 
-    await orm.Account.filter(
-        id__in=data.account_ids, user_id=user.id
-    ).update(project_id=data.project_id)
+    await orm.Account.filter(id__in=data.account_ids, user_id=user.id).update(
+        project_id=data.project_id
+    )
 
 
 @router.post("/{id}/premium", response_model=models.BuyPremiumOut)
