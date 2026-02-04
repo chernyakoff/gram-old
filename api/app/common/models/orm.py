@@ -436,7 +436,10 @@ class Message(Model):
     sender = fields.CharEnumField(MessageSender, null=False)
     tg_message_id = fields.BigIntField(null=True)  # ID сообщения в Telegram
     text = fields.TextField(null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
+    created_at = fields.DatetimeField(
+        null=False,
+        default=lambda: tz.now(),
+    )
     ack = fields.BooleanField(default=False)
     ui_only = fields.BooleanField(default=False)
 

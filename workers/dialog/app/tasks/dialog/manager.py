@@ -21,8 +21,8 @@ from .telegram_service import TelegramService
 
 # Константы
 WAIT_FOR_REPLY_MINUTES = 5
-WAIT_BEFORE_REPLY_MIN_SEC = 30
-WAIT_BEFORE_REPLY_MAX_SEC = 60
+WAIT_BEFORE_REPLY_MIN_SEC = 5
+WAIT_BEFORE_REPLY_MAX_SEC = 30
 
 
 async def get_last_active_dialog(username: str, account_id: int) -> orm.Dialog | None:
@@ -127,6 +127,7 @@ class DialogManager:
                         sender=enums.MessageSender.RECIPIENT,
                         tg_message_id=msg.id,
                         text=msg.text or "",
+                        created_at=msg.date,
                     )
 
                 dialogs_with_replies += 1
