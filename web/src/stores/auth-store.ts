@@ -21,12 +21,17 @@ export const useAuthStore = defineStore('auth', () => {
   const { api } = useApi()
   async function login(user: UserLoginIn) {
 
+    const payload = {
+      ...user,
+      ...(inviteRefCode.value && !user.refCode ? { refCode: inviteRefCode.value } : {})
+    }
+
     if (inviteRefCode.value && !user.refCode) {
         user.refCode = inviteRefCode.value
     }
     const data = await api<UserLoginOut>('auth', {
       method: 'POST',
-      body: user,
+      body: payload,
     })
     
     accessToken.value = data.accessToken
