@@ -234,6 +234,15 @@ export interface components {
         };
         MessageRole: "user" | "assistant" | "system";
         MessageSender: "account" | "recipient" | "system";
+        PartnerOut: {
+            id: number;
+            username?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+            photoUrl?: string | null;
+            referredBy?: components["schemas"]["UserBasicOut"] | null;
+            referrals: components["schemas"]["UserBasicOut"][];
+        };
         PresignedIn: {
             path: string;
             filename: string;
@@ -381,6 +390,13 @@ export interface components {
         ToggleDayIn: {
             day: number;
         };
+        UserBasicOut: {
+            id: number;
+            username?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+            photoUrl?: string | null;
+        };
         UserLoginIn: {
             id: number;
             authDate: number;
@@ -474,6 +490,7 @@ export type MeetingOut = components['schemas']['MeetingOut'];
 export type Message = components['schemas']['Message'];
 export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
+export type PartnerOut = components['schemas']['PartnerOut'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
@@ -502,6 +519,7 @@ export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type ToggleDayIn = components['schemas']['ToggleDayIn'];
+export type UserBasicOut = components['schemas']['UserBasicOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserMeOut = components['schemas']['UserMeOut'];

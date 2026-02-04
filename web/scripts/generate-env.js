@@ -27,6 +27,9 @@ if (config.api?.url) {
 if (config.api?.bot?.name) {
   envContent += `BOT_NAME=${config.api.bot.name}\n`
 }
+if (config.web?.url) {
+  envContent += `WEB_URL=${config.web.url}\n`
+}
 
 fs.writeFileSync(envFile, envContent)
 console.log(envContent)
