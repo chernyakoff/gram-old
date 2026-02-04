@@ -158,15 +158,19 @@ async def login(data: UserLoginIn, response: Response):
         set_refresh_cookie(response, 359107176)
         return {"access_token": access_token}
 
+    invite_ref_code = data_dict.pop("invite_ref_code", None)
+
     validate_telegram_data(data_dict)
 
     # 1. Ищем пользователя
     user = await orm.User.get_or_none(id=data.id)
 
+    print(data.model_dump())
+
     # 2. Пытаемся найти реферера (если пришёл код)
     referrer = None
     if data.invite_ref_code:
-        referrer = await orm.User.get_or_none(ref_code=data.invite_ref_code)
+        referrer = await orm.User.get_or_none(ref_code=invite_ref_code)
 
         # защита от self-ref
         if referrer and referrer.id == data.id:

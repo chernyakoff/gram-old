@@ -22,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const inviteRefCode = localStorage.getItem('inviteRefCode')
     
-    if (inviteRefCode && !user.inviteRefCode) {
+    if (inviteRefCode) {
       user.inviteRefCode = inviteRefCode
     }
     
