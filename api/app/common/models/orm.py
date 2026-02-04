@@ -54,7 +54,7 @@ class User(Model, TimestampMixin):
     or_model = fields.CharField(max_length=256, null=True)
     timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
     meeting_duration = fields.IntField(default=30)
-    ref_code = fields.CharField(max_length=6, null=True, unique=True)
+    ref_code = fields.CharField(max_length=8, null=True, unique=True)
     referred_by: fields.ForeignKeyNullableRelation["User"] = fields.ForeignKeyField(
         "models.User",
         related_name="referrals",
