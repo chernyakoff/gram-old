@@ -41,6 +41,7 @@ const routes: RouteRecordRaw[] = [
     beforeEnter: (to) => {
       const code = to.params.code as string
 
+
       // Сохраняем напрямую в localStorage (синхронно)
       localStorage.setItem('inviteRefCode', code)
 
@@ -57,6 +58,10 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
+
+  if (to.name === 'ref') {
+    return next()
+  }
 
   // --------------------------
   // 2️⃣ ПОДТЯГИВАЕМ ПОЛЬЗОВАТЕЛЯ
