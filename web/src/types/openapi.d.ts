@@ -405,7 +405,7 @@ export interface components {
             lastName: string | null;
             username: string | null;
             photoUrl: string | null;
-            refCode?: string | null;
+            inviteRefCode?: string | null;
         };
         UserLoginOut: {
             accessToken: string;

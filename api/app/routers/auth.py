@@ -165,8 +165,8 @@ async def login(data: UserLoginIn, response: Response):
 
     # 2. Пытаемся найти реферера (если пришёл код)
     referrer = None
-    if data.ref_code:
-        referrer = await orm.User.get_or_none(ref_code=data.ref_code)
+    if data.invite_ref_code:
+        referrer = await orm.User.get_or_none(ref_code=data.invite_ref_code)
 
         # защита от self-ref
         if referrer and referrer.id == data.id:
