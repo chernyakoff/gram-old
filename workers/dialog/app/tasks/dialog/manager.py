@@ -106,6 +106,9 @@ class DialogManager:
                 # ШАГ 2: Проверяем новые сообщения от юзера в Telegram
                 new_messages = await self._get_new_messages_from_telegram(dialog)
 
+                if not new_messages:
+                    continue
+
                 # ШАГ 3: Сохраняем новые сообщения в БД
                 for msg in new_messages:
                     await orm.Message.create(
