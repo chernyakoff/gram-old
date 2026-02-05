@@ -99,6 +99,44 @@ def generate_message(template: str) -> str:
     return result
 
 
+def generate_message_v1(template: str) -> str:
+    ESCAPES = {r"\{": "\ue000", r"\}": "\ue001", r"\|": "\ue002", r"\\": "\ue003"}
+    for k, v in ESCAPES.items():
+        template = template.replace(k, v)
+
+    def expand(text: str) -> str:
+        i = 0
+        result = ""
+        while i < len(text):
+            if text[i] == "{":
+                # находим соответствующую закрывающую скобку
+                depth = 1
+                j = i + 1
+                while j < len(text) and depth > 0:
+                    if text[j] == "{":
+                        depth += 1
+                    elif text[j] == "}":
+                        depth -= 1
+                    j += 1
+                inner = text[i + 1 : j - 1]
+                # делим на варианты, выбираем случайный, разворачиваем рекурсивно
+                options = inner.split("|")
+                choice = random.choice(options)
+                result += expand(choice)
+                i = j
+            else:
+                result += text[i]
+                i += 1
+        return result
+
+    result = expand(template)
+
+    for k, v in ESCAPES.items():
+        result = result.replace(v, k[-1])  # восстанавливаем оригинальные символы
+
+    return result
+
+
 cyrillic_homoglyphs = {
     "а": ["а", "a"],
     "е": ["е", "e"],

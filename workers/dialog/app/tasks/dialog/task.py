@@ -11,7 +11,12 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.account import AccountUtil
-from app.common.utils.functions import generate_message, pick, randomize_message
+from app.common.utils.functions import (
+    generate_message,
+    normalize_dashes,
+    pick,
+    randomize_message,
+)
 from app.common.utils.notify import BotNotify
 from app.common.utils.proxy_pool import ProxyPool
 from app.tasks.dialog.manager import DialogManager
@@ -168,8 +173,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         # Отправляем первые сообщения новым получателям
         new_dialogs_started = 0
-        first_message = generate_message(project.first_message)
-        first_message = randomize_message(first_message)
 
         for recipient_id in input.recipients_id:
             recipient = await orm.Recipient.get_or_none(id=recipient_id)
@@ -187,6 +190,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
             dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
             if dialog_exists:
                 continue
+
+            first_message = generate_message(project.first_message)
+            first_message = randomize_message(first_message)
+            first_message = normalize_dashes(first_message)
 
             # Отправляем первое сообщение
             msg = await manager.telegram_service.send_message(recipient, first_message)
