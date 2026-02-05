@@ -83,7 +83,8 @@ class AIService:
             enums.DialogStatus.NEGATIVE,
             enums.DialogStatus.OPERATOR,
         ]:
-            return "", status
+            logger.info(f"Терминальный статус {status.value} - ответ не требуется")
+            return "__TERMINAL_STATUS__", status
 
         system_prompt = build_prompt_v2(project_prompt, status)
 

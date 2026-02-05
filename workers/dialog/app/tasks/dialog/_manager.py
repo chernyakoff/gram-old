@@ -59,7 +59,7 @@ class DialogManager:
         self.logger = logger
         self.stop_event = stop_event
 
-        self.message_buffers: dict[int, list] = {}
+        self.message_buffers: dict[int, list] = {}  # Оставляем только буфер
 
         # Создаём таймер сессии
         self.session_timer = SessionTimer(
@@ -100,7 +100,7 @@ class DialogManager:
                 has_system = await self._process_system_messages_for_dialog(dialog)
                 if has_system:
                     dialogs_with_system += 1
-                    self.session_timer.reset(5)
+                    self.session_timer.reset(5)  # ДОБАВИТЬ ЭТУ СТРОКУ
                     await asyncio.sleep(random.randint(5, 10))
 
                 # ШАГ 2: Проверяем новые сообщения от юзера в Telegram
@@ -194,6 +194,7 @@ class DialogManager:
                     await asyncio.sleep(random.randint(2, 5))
             except Exception as e:
                 self.logger.error(f"Ошибка отправки system-сообщения {sys_msg.id}: {e}")
+                # Не прерываем, пытаемся отправить следующее
                 continue
 
         return True
@@ -263,6 +264,16 @@ class DialogManager:
                     f"[{dialog.recipient.username}] Ошибка при получении сообщений: {e}"
                 )
                 return []
+
+        """ 
+        async for msg in self.client.iter_messages(
+            peer, min_id=last_db_message.tg_message_id
+        ):
+            if msg.id == last_db_message.tg_message_id:
+                continue
+            if msg.out:  # Пропускаем исходящие
+                continue
+            new_messages.append(msg) """
 
         if new_messages:
             new_messages.sort(key=lambda m: m.date)
@@ -496,6 +507,8 @@ class DialogManager:
 
             self.logger.info(f"[{recipient.username}] Получено новое сообщение")
 
+            # Если уже есть задача ожидания для этого диалога - отменяем её
+
             self.session_timer.reset(5)
 
             # Добавляем сообщение в буфер
@@ -556,7 +569,7 @@ class DialogManager:
             )
             return
 
-        # НОВОЕ: Помечаем что стот диалог в обработке
+        # НОВОЕ: Помечаем что этот диалог в обработке
         self.session_timer.add(3)
 
         try:
@@ -580,6 +593,8 @@ class DialogManager:
                     f"[{recipient.username}] Диалог в режиме MANUAL, "
                     f"ожидаем SYSTEM сообщения от оператора"
                 )
+                # Запускаем ожидание следующего ответа
+
                 return
 
             # ИЗМЕНЕНО: Получаем булевый результат - продолжать ли диалог
@@ -599,6 +614,10 @@ class DialogManager:
     ):
         """
         Генерирует ответ от AI и отправляет его.
+
+        Returns:
+            bool: True если нужно продолжить ожидание ответа,
+                False если диалог завершён
         """
 
         fresh_messages = await orm.Message.filter(
@@ -644,6 +663,7 @@ class DialogManager:
             self.logger.info(
                 f"[{recipient.username}] Режим MANUAL активен, пропускаем AI генерацию"
             )
+            # ВАЖНО: Возвращаем True, т.к. диалог продолжается в MANUAL режиме
             return
 
         # НОВОЕ: Дополнительная проверка статуса перед генерацией
@@ -651,10 +671,12 @@ class DialogManager:
             self.logger.info(
                 f"[{recipient.username}] Диалог в MANUAL режиме, AI ответ не генерируется"
             )
+            # ВАЖНО: Возвращаем True, т.к. диалог продолжается в MANUAL режиме
             return
 
-        # ИСПРАВЛЕНИЕ: Умная система повторных попыток
+        # Далее идет существующий код генерации AI ответа
         MAX_RETRIES = 3
+
         name_addon = get_name_addon(self.account, recipient)
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -672,8 +694,6 @@ class DialogManager:
                     ),
                     timeout=60,
                 )
-
-                # ИСПРАВЛЕНИЕ: Обрабатываем специальный маркер терминального статуса
                 if ai_response == "__TERMINAL_STATUS__":
                     self.logger.info(
                         f"[{recipient.username}] AI вернул терминальный статус: {new_status.value}"  # type: ignore
@@ -705,9 +725,13 @@ class DialogManager:
                         f"[{recipient.username}] AI не вернул ответ (attempt {attempt})"
                     )
                     if attempt == MAX_RETRIES:
+                        # Останавливаем диалог при критической ошибке AI
                         self.logger.error(
                             f"[{recipient.username}] Критическая ошибка AI"
                         )
+                        # ВАЖНО: Уменьшаем счётчик
+
+                        # ВАЖНО: Возвращаем False = диалог завершён
                         return
                     else:
                         await asyncio.sleep(2)
@@ -720,12 +744,15 @@ class DialogManager:
                     f"[{recipient.username}] OpenAI timeout (attempt {attempt})"
                 )
                 if attempt == MAX_RETRIES:
+                    # Останавливаем диалог при критической ошибке AI
                     self.logger.error(f"[{recipient.username}] AI timeout")
+                    # ВАЖНО: Возвращаем False = диалог завершён
                     return
                 else:
                     await asyncio.sleep(2)
 
         if not ai_response:
+            # ВАЖНО: Возвращаем False = диалог завершён
             return
 
         if (
@@ -741,6 +768,7 @@ class DialogManager:
         if dialog.status == enums.DialogStatus.COMPLETE or ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
+            # ВАЖНО: Уменьшаем счётчик активных диалогов
             return
 
         # НОВОЕ: Проверяем терминальный статус NEGATIVE
@@ -748,6 +776,7 @@ class DialogManager:
             self.logger.info(
                 f"[{recipient.username}] AI установил статус NEGATIVE - диалог завершён"
             )
+
             return
 
         # НОВОЕ: Проверяем терминальный статус OPERATOR
@@ -803,7 +832,7 @@ class DialogManager:
             old_status = dialog.status
             dialog.status = new_status
 
-            # Только AI может установить статус COMPLETE
+            # Только AI может установить статус COMPLEPTE
             if new_status in [
                 enums.DialogStatus.COMPLETE,
                 enums.DialogStatus.NEGATIVE,
@@ -873,12 +902,11 @@ class DialogManager:
     async def _find_stuck_dialogs(self, min_age_minutes: int = 10) -> list[orm.Dialog]:
         """
         Находит зависшие диалоги по критериям:
-        - Статус в (INIT, ENGAGE, OFFER, CLOSING) - НЕ терминальные
+        - Статус в (INIT, ENGAGE, OFFER, CLOSING)
         - finished_at IS NULL
         - Последнее сообщение от RECIPIENT
         - Это сообщение старше min_age_minutes
         """
-        # ИСПРАВЛЕНИЕ: Не включаем терминальные статусы
         active_statuses = [
             enums.DialogStatus.INIT,
             enums.DialogStatus.ENGAGE,
