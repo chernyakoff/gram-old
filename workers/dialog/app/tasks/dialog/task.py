@@ -61,6 +61,9 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
     await account.save(update_fields=keys)
 
 
+# TODO _monitor_read_receipts !!! вернуть
+
+
 @hatchet.task(
     name="dialog",
     input_validator=DialogIn,
@@ -184,8 +187,6 @@ async def dialog_task(input: DialogIn, ctx: Context):
             if not entity:
                 continue
 
-            manager.register_session_recipient(recipient.id)
-
             # Проверяем, не существует ли уже диалог
             dialog_exists = await orm.Dialog.get_or_none(recipient=recipient)
             if dialog_exists:
@@ -216,11 +217,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
             )
 
             new_dialogs_started += 1
+            manager.session_timer.reset(5)
 
             # Запускаем ожидание ответа на первое сообщение
-            asyncio.create_task(
-                manager.start_waiting_for_first_reply(dialog, recipient)
-            )
 
             if stop_event.is_set() or tz.now() > end_time:
                 break
@@ -247,42 +246,33 @@ async def dialog_task(input: DialogIn, ctx: Context):
             f"   - Новых диалогов: {new_dialogs_started}\n"
             f"   - Ответов: {dialogs_replied}\n"
             f"   - System-сообщений: {system_sent}\n"
-            f"   - Активных диалогов ожидающих ответа: {manager.active_dialogs_count}\n"
-            f"   - Диалогов в обработке: {len(manager.processing_replies)}"
+            f"   - Таймер: {int(manager.session_timer.get_remaining_seconds())}с"
         )
 
         # Основной цикл - держим соединение пока есть активные диалоги
         logger.info(
             f"Account {account.id} вошёл в режим ожидания. "
-            f"Активных диалогов: {manager.active_dialogs_count}, "
-            f"в обработке: {len(manager.processing_replies)}"
+            f"Таймер: {int(manager.session_timer.get_remaining_seconds())}с"
         )
 
         # Периодически проверяем состояние
         last_check = tz.now()
-        last_full_check = tz.now()
         CHECK_INTERVAL_SEC = 30
-        FULL_CHECK_INTERVAL_SEC = 60
+
+        last_check = tz.now()
+        CHECK_INTERVAL_SEC = 30
 
         while tz.now() < end_time and not stop_event.is_set():
             if not client.is_connected():
                 logger.error("Потеряно соединение, завершаем задачу")
                 await release_account(account, error="Connection lost")
-                return  # finally сработает
+                return
 
             # Каждые 30 секунд логируем состояние
             if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
-                logger.info(
-                    f"Статус: активных_диалогов={manager.active_dialogs_count}, "
-                    f"в_обработке={len(manager.processing_replies)}, "
-                    f"ожидающих_обработки={len(manager.waiting_dialogs)}"
-                )
+                remaining = int(manager.session_timer.get_remaining_seconds())
+                logger.info(f"⏱️  Таймер: {remaining}с до отключения")
                 last_check = tz.now()
-
-            # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Каждую минуту делаем полную проверку
-            if (tz.now() - last_full_check).total_seconds() >= FULL_CHECK_INTERVAL_SEC:
-                await manager._check_and_stop_if_needed()
-                last_full_check = tz.now()
 
             await asyncio.sleep(10)
 
@@ -323,15 +313,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
         raise
 
     finally:
-        if manager and manager.monitor_task:
-            logger.info("Остановка задачи мониторинга read receipts")
-            manager.monitor_task.cancel()
-            try:
-                await manager.monitor_task
-            except asyncio.CancelledError:
-                logger.info("Задача мониторинга read receipts успешно остановлена")
-            except Exception as e:
-                logger.error(f"Ошибка при остановке monitor_task: {e}")
+        # Останавливаем таймер
+        if manager:
+            manager.session_timer.cancel()
 
         # КРИТИЧЕСКИ ВАЖНО: всегда отключаем клиента
         if client is not None:
