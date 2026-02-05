@@ -560,6 +560,12 @@ class DialogManager:
         self, dialog: orm.Dialog, recipient: orm.Recipient, events: list
     ):
         """Обрабатывает диалог и отправляет ответ"""
+        if not events:
+            self.logger.warning(
+                f"[{recipient.username}] _process_dialog_reply вызван с пустыми events"
+            )
+            return
+
         # НОВОЕ: Помечаем что этот диалог в обработке
         self.session_timer.add(3)
 
@@ -1172,9 +1178,3 @@ class DialogManager:
 
             self.logger.error(traceback.format_exc())
             return 0
-
-
-""" 
-заменить плейсхолдеры в сообщениях
-
-"""
