@@ -168,6 +168,8 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         manager.setup_event_handlers()
 
+        read_receipts_task = asyncio.create_task(manager._monitor_read_receipts())
+
         system_sent, dialogs_replied = await manager.check_and_process_dialogs()
         logger.info(
             f"System-сообщений отправлено: {system_sent}, "
@@ -316,6 +318,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
         # Останавливаем таймер
         if manager:
             manager.session_timer.cancel()
+
+        if "read_receipts_task" in locals() and not read_receipts_task.done():
+            read_receipts_task.cancel()
+            try:
+                await read_receipts_task  # type: ignore
+            except asyncio.CancelledError:
+                pass
 
         # КРИТИЧЕСКИ ВАЖНО: всегда отключаем клиента
         if client is not None:

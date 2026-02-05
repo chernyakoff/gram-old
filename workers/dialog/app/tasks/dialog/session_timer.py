@@ -76,8 +76,9 @@ class SessionTimer:
         if self._task and not self._task.done():
             self._task.cancel()
 
-        # Создаём новую
-        self._task = asyncio.create_task(self._countdown())
+        # Создаём новую (только если не отменён таймер)
+        if not self._cancelled:
+            self._task = asyncio.create_task(self._countdown())
 
     async def _countdown(self):
         """Основная задача отсчёта времени"""
@@ -91,6 +92,7 @@ class SessionTimer:
 
                 if remaining <= 0:
                     self.logger.info("⏱️  Таймер истёк - вызываем callback")
+                    self._cancelled = True  # ✅ ИСПРАВЛЕНО
                     self.on_timeout()
                     break
 

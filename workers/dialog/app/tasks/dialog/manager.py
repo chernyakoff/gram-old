@@ -746,6 +746,7 @@ class DialogManager:
             self.logger.info(
                 f"[{recipient.username}] AI установил статус NEGATIVE - диалог завершён"
             )
+
             return
 
         # НОВОЕ: Проверяем терминальный статус OPERATOR
