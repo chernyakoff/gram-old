@@ -1,5 +1,5 @@
 import asyncio
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
 from pydantic import BaseModel
@@ -33,7 +33,7 @@ ACCOUNT_LEASE_MINUTES = 45
 MAX_ACCOUNTS_PER_CYCLE = 100
 RECIPIENT_LEASE_MINUTES = 30
 MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
-
+HEARTBEAT_MINUTES = 30
 
 heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
 
@@ -292,11 +292,30 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
     return info[0] if info else None
 
 
-""" 
- if acc.premium is True and acc.premium_stopped is False:
-                    
-                    continue
- """
+def minutes_left_in_send_window(project: orm.Project, now) -> int:
+    start_h = project.send_time_start
+    end_h = project.send_time_end
+    today = now.date()
+
+    if start_h <= end_h:
+        # окно внутри суток
+        end_dt = datetime.combine(today, time(end_h))
+    else:
+        # окно через полночь
+        if now.hour >= start_h:
+            end_dt = datetime.combine(today + timedelta(days=1), time(end_h))
+        else:
+            end_dt = datetime.combine(today, time(end_h))
+
+    if now >= end_dt:
+        return 0
+
+    return int((end_dt - now).total_seconds() // 60)
+
+
+def ticks_left_in_send_window(project: orm.Project, now) -> int:
+    minutes_left = minutes_left_in_send_window(project, now)
+    return max(1, minutes_left // HEARTBEAT_MINUTES)
 
 
 @heartbeat.task()
@@ -361,8 +380,16 @@ async def task(input: EmptyModel, ctx: Context):
                 continue
 
             for acc in free_accounts:
-                # Получаем доступное количество новых диалогов
-                dialogs_left = acc.daily_limit_left
+                if in_send_window and acc.daily_limit_left > 0:
+                    ticks_left = ticks_left_in_send_window(project, now)
+
+                    dialogs_left = acc.daily_limit_left // ticks_left
+                    if dialogs_left <= 0:
+                        dialogs_left = 1
+
+                    dialogs_left = min(dialogs_left, acc.daily_limit_left)
+                else:
+                    dialogs_left = 0
 
                 # Получаем recipients для новых диалогов ТОЛЬКО если в окне отправки
                 recipients = []
