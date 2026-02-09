@@ -673,32 +673,7 @@ class DialogManager:
                     timeout=60,
                 )
 
-                # ИСПРАВЛЕНИЕ: Обрабатываем специальный маркер терминального статуса
-                if ai_response == "__TERMINAL_STATUS__":
-                    self.logger.info(
-                        f"[{recipient.username}] AI вернул терминальный статус: {new_status.value}"  # type: ignore
-                    )
-
-                    # Обновляем статус диалога
-                    await self._update_dialog_status(
-                        dialog, recipient, new_status, messages
-                    )
-
-                    # Для терминальных статусов не нужно отправлять сообщение
-                    if new_status == enums.DialogStatus.NEGATIVE:
-                        self.logger.info(
-                            f"[{recipient.username}] Диалог завершён со статусом NEGATIVE"
-                        )
-                    elif new_status == enums.DialogStatus.OPERATOR:
-                        self.logger.info(f"[{recipient.username}] Требуется оператор")
-                        asyncio.create_task(
-                            BotNotify.warning(
-                                self.account.user_id,
-                                f"@{recipient.username} требует оператора",
-                            )
-                        )
-
-                    return
+                # Старый маркер терминального статуса больше не используется.
 
                 if not ai_response:
                     self.logger.warning(
@@ -737,29 +712,10 @@ class DialogManager:
         # Обновляем статус диалога
         await self._update_dialog_status(dialog, recipient, new_status, messages)
 
-        # Если AI вернул COMPLETE - диалог завершён
-        if dialog.status == enums.DialogStatus.COMPLETE or ai_response == "COMPLETE":
+        # Если AI вернул COMPLETE как текст — сообщение не отправляем
+        if ai_response == "COMPLETE":
             self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
             asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
-            return
-
-        # НОВОЕ: Проверяем терминальный статус NEGATIVE
-        if dialog.status == enums.DialogStatus.NEGATIVE:
-            self.logger.info(
-                f"[{recipient.username}] AI установил статус NEGATIVE - диалог завершён"
-            )
-            return
-
-        # НОВОЕ: Проверяем терминальный статус OPERATOR
-        if dialog.status == enums.DialogStatus.OPERATOR:
-            self.logger.info(
-                f"[{recipient.username}] AI установил статус OPERATOR - требуется оператор"
-            )
-            asyncio.create_task(
-                BotNotify.warning(
-                    self.account.user_id, f"@{recipient.username} требует оператора"
-                )
-            )
             return
 
         if event:
@@ -784,6 +740,29 @@ class DialogManager:
             )
             self.logger.info(f"[{recipient.username}] Отправлен ответ")
             self.session_timer.reset(5)
+
+        # После отправки — если статус терминальный, завершаем диалог
+        if dialog.status == enums.DialogStatus.COMPLETE:
+            self.logger.info(f"[{recipient.username}] AI завершил диалог (COMPLETE)")
+            asyncio.create_task(notify_complete_dialog(dialog, self.account))  # type: ignore
+            return
+
+        if dialog.status == enums.DialogStatus.NEGATIVE:
+            self.logger.info(
+                f"[{recipient.username}] AI установил статус NEGATIVE - диалог завершён"
+            )
+            return
+
+        if dialog.status == enums.DialogStatus.OPERATOR:
+            self.logger.info(
+                f"[{recipient.username}] AI установил статус OPERATOR - требуется оператор"
+            )
+            asyncio.create_task(
+                BotNotify.warning(
+                    self.account.user_id, f"@{recipient.username} требует оператора"
+                )
+            )
+            return
 
         return
 

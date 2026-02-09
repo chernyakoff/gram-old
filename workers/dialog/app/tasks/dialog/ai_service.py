@@ -1,7 +1,6 @@
 import asyncio
 import io
 import subprocess
-from datetime import date
 
 from openai import AsyncOpenAI
 
@@ -83,8 +82,9 @@ class AIService:
             enums.DialogStatus.NEGATIVE,
             enums.DialogStatus.OPERATOR,
         ]:
-            logger.info(f"Терминальный статус {status.value} - ответ не требуется")
-            return "__TERMINAL_STATUS__", status
+            logger.info(
+                f"Терминальный статус {status.value} - формируем финальный ответ"
+            )
 
         system_prompt = build_prompt_v2(project_prompt, status)
 
@@ -113,10 +113,6 @@ class AIService:
                 if project.use_calendar:
                     calendar_addon = await get_calendar_addon(self.user)
                     msg["content"] += f"\n\n{calendar_addon}"
-                if status == enums.DialogStatus.CLOSING:
-                    msg["content"] += (
-                        "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
-                    )
                 break
         try:
             if project.use_calendar:
