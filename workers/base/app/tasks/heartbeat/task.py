@@ -1,4 +1,5 @@
 import asyncio
+import math
 from datetime import datetime, time, timedelta
 
 from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
@@ -295,17 +296,21 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
 def minutes_left_in_send_window(project: orm.Project, now) -> int:
     start_h = project.send_time_start
     end_h = project.send_time_end
+
     today = now.date()
+    tzinfo = now.tzinfo
 
     if start_h <= end_h:
         # окно внутри суток
-        end_dt = datetime.combine(today, time(end_h))
+        end_dt = datetime.combine(today, time(end_h), tzinfo=tzinfo)
     else:
         # окно через полночь
         if now.hour >= start_h:
-            end_dt = datetime.combine(today + timedelta(days=1), time(end_h))
+            end_dt = datetime.combine(
+                today + timedelta(days=1), time(end_h), tzinfo=tzinfo
+            )
         else:
-            end_dt = datetime.combine(today, time(end_h))
+            end_dt = datetime.combine(today, time(end_h), tzinfo=tzinfo)
 
     if now >= end_dt:
         return 0
@@ -315,7 +320,7 @@ def minutes_left_in_send_window(project: orm.Project, now) -> int:
 
 def ticks_left_in_send_window(project: orm.Project, now) -> int:
     minutes_left = minutes_left_in_send_window(project, now)
-    return max(1, minutes_left // HEARTBEAT_MINUTES)
+    return max(1, math.ceil(minutes_left / HEARTBEAT_MINUTES))
 
 
 @heartbeat.task()
