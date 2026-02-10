@@ -301,6 +301,59 @@ async def get_accounts_with_due_reminders(project: orm.Project, now, conn) -> li
     return [row["id"] for row in rows]
 
 
+async def get_accounts_with_pending_manual_system(
+    project: orm.Project, now, conn
+) -> list[int]:
+    """
+    Возвращает свободные аккаунты проекта, у которых есть активный MANUAL диалог
+    с необработанными system-сообщениями (tg_message_id IS NULL).
+    Применяются те же базовые фильтры доступности аккаунта, что и в get_available_accounts.
+    """
+    premium_filter = "AND a.premium = TRUE" if project.premium_required else ""
+
+    query = f"""
+    WITH ranked AS (
+        SELECT
+            a.id,
+            a.user_id,
+            a.daily_limit_left,
+            a.last_attempt_at,
+            ROW_NUMBER() OVER (
+                PARTITION BY a.user_id
+                ORDER BY
+                    (a.daily_limit_left > 0) DESC,
+                    COALESCE(a.last_attempt_at, '1970-01-01') ASC,
+                    a.id ASC
+            ) AS user_rank
+        FROM accounts a
+        WHERE
+            a.project_id = $1
+            AND a.status = 'good'
+            AND a.busy = FALSE
+            AND (a.lease_expires_at IS NULL OR a.lease_expires_at < $2)
+            {premium_filter}
+            AND EXISTS (
+                SELECT 1
+                FROM dialogs d
+                JOIN messages m ON m.dialog_id = d.id
+                WHERE d.account_id = a.id
+                  AND d.finished_at IS NULL
+                  AND d.status = 'manual'
+                  AND m.sender = 'system'
+                  AND m.tg_message_id IS NULL
+            )
+    )
+    SELECT id
+    FROM ranked
+    WHERE user_rank <= {MAX_ACCOUNTS_PER_USER_PER_CYCLE}
+    ORDER BY (daily_limit_left > 0) DESC, last_attempt_at ASC
+    LIMIT {MAX_ACCOUNTS_PER_CYCLE};
+    """
+
+    rows = await conn.execute_query_dict(query, [project.id, now])
+    return [row["id"] for row in rows]
+
+
 async def reserve_daily_limit(account_id: int, reserve: int, conn) -> int:
     if reserve <= 0:
         return 0
@@ -505,8 +558,11 @@ async def task(input: EmptyModel, ctx: Context):
             reminder_account_ids = await get_accounts_with_due_reminders(
                 project, now, conn
             )
+            manual_account_ids = await get_accounts_with_pending_manual_system(
+                project, now, conn
+            )
 
-            if not active_mailings and not reminder_account_ids:
+            if not active_mailings and not reminder_account_ids and not manual_account_ids:
                 continue
 
             free_accounts = await get_available_accounts(project, now, conn)
@@ -514,9 +570,17 @@ async def task(input: EmptyModel, ctx: Context):
                 continue
 
             accounts_by_id = {acc.id: acc for acc in free_accounts}
+            priority_ids_ordered = []
+            seen_ids: set[int] = set()
+            for acc_id in reminder_account_ids + manual_account_ids:
+                if acc_id in seen_ids:
+                    continue
+                seen_ids.add(acc_id)
+                priority_ids_ordered.append(acc_id)
+
             prioritized_accounts = [
                 accounts_by_id[acc_id]
-                for acc_id in reminder_account_ids
+                for acc_id in priority_ids_ordered
                 if acc_id in accounts_by_id
             ]
             prioritized_ids = {acc.id for acc in prioritized_accounts}

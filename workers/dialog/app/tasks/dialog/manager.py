@@ -141,7 +141,7 @@ class DialogManager:
     async def _process_system_messages_for_dialog(self, dialog: orm.Dialog) -> bool:
         """
         Проверяет и отправляет system-сообщения для конкретного диалога.
-        Возвращает True если были отправлены system-сообщения.
+        Возвращает True если хотя бы одно system-сообщение было отправлено.
         """
         messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
             "created_at"
@@ -153,11 +153,15 @@ class DialogManager:
         # Ищем неотправленные system-сообщения в конце
         system_messages = []
         for msg in reversed(messages):
-            if msg.sender == enums.MessageSender.SYSTEM and msg.tg_message_id is None:
+            if (
+                msg.sender == enums.MessageSender.SYSTEM
+                and msg.tg_message_id is None
+                and not msg.ack
+            ):
                 system_messages.insert(0, msg)
             elif (
                 msg.sender == enums.MessageSender.SYSTEM
-                and msg.tg_message_id is not None
+                and (msg.tg_message_id is not None or msg.ack)
             ):
                 # Встретили отправленное system - продолжаем искать
                 continue
@@ -178,26 +182,51 @@ class DialogManager:
             await dialog.save(update_fields=["status"])
 
         # Отправляем все накопленные system-сообщения
+        sent_count = 0
         for sys_msg in system_messages:
-            try:
-                msg = await self.telegram_service.send_message(
-                    dialog.recipient, sys_msg.text
+            sent = await self._deliver_manual_system_message(dialog.recipient, sys_msg)
+            if sent:
+                sent_count += 1
+                await asyncio.sleep(random.randint(2, 5))
+
+        return sent_count > 0
+
+    async def _deliver_manual_system_message(
+        self, recipient: orm.Recipient, sys_msg: orm.Message
+    ) -> bool:
+        """
+        Отправляет system-сообщение и помечает его обработанным.
+        ack=True:
+        - успех: сообщение отправлено в TG;
+        - ошибка: сообщение помечено как не требующее повторной отправки.
+        """
+        try:
+            msg = await self.telegram_service.send_message(recipient, sys_msg.text)
+            if not msg:
+                sys_msg.ack = True
+                await sys_msg.save(update_fields=["ack"])
+                self.logger.warning(
+                    f"[{recipient.username}] MANUAL system {sys_msg.id} не отправлен "
+                    "(`send_message` вернул None), повтор отключён"
                 )
+                return False
 
-                if msg:
-                    sys_msg.tg_message_id = msg.id
-                    await sys_msg.save(update_fields=["tg_message_id"])
-                    self.session_timer.reset(5)
-                    self.logger.info(
-                        f"[{dialog.recipient.username}] Отправлено MANUAL system: {sys_msg.text[:50]}"
-                    )
-
-                    await asyncio.sleep(random.randint(2, 5))
-            except Exception as e:
-                self.logger.error(f"Ошибка отправки system-сообщения {sys_msg.id}: {e}")
-                continue
-
-        return True
+            sys_msg.tg_message_id = msg.id
+            sys_msg.ack = True
+            await sys_msg.save(update_fields=["tg_message_id", "ack"])
+            self.session_timer.reset(5)
+            self.logger.info(
+                f"[{recipient.username}] Отправлено MANUAL system: {sys_msg.text[:50]}"
+            )
+            return True
+        except Exception as e:
+            sys_msg.ack = True
+            await sys_msg.save(update_fields=["ack"])
+            self.logger.error(
+                f"[{recipient.username}] Ошибка отправки system-сообщения {sys_msg.id}: {e}. "
+                "Повтор отключён"
+            )
+            return False
 
     async def _get_new_messages_from_telegram(self, dialog: orm.Dialog) -> list:
         """
@@ -648,11 +677,15 @@ class DialogManager:
         # Ищем неотправленные system-сообщения в конце
         unsent_system = []
         for msg in reversed(fresh_messages):
-            if msg.sender == enums.MessageSender.SYSTEM and msg.tg_message_id is None:
+            if (
+                msg.sender == enums.MessageSender.SYSTEM
+                and msg.tg_message_id is None
+                and not msg.ack
+            ):
                 unsent_system.insert(0, msg)
             elif (
                 msg.sender == enums.MessageSender.SYSTEM
-                and msg.tg_message_id is not None
+                and (msg.tg_message_id is not None or msg.ack)
             ):
                 continue  # Пропускаем отправленные SYSTEM
             else:
@@ -673,11 +706,8 @@ class DialogManager:
                 await dialog.save(update_fields=["status"])
 
             for sys_msg in unsent_system:
-                msg = await self.telegram_service.send_message(recipient, sys_msg.text)
-                if msg:
-                    sys_msg.tg_message_id = msg.id
-                    await sys_msg.save(update_fields=["tg_message_id"])
-                    self.session_timer.reset(5)
+                sent = await self._deliver_manual_system_message(recipient, sys_msg)
+                if sent:
                     await asyncio.sleep(random.randint(2, 5))
 
             # НОВОЕ: Если режим MANUAL - не генерируем AI ответ, возвращаемся
