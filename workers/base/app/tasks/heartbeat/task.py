@@ -58,6 +58,29 @@ WHERE lease_expires_at <= NOW()
 """)
 
 
+async def ensure_reminder_tables():
+    """
+    Гарантирует существование таблиц логов отправленных напоминаний.
+    Нужна для совместимости окружений, где схема еще не была обновлена.
+    """
+    await execute_query("""
+CREATE TABLE IF NOT EXISTS morning_reminders_sent (
+    id SERIAL PRIMARY KEY,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    meeting_id INT NOT NULL UNIQUE REFERENCES meetings(id) ON DELETE CASCADE
+);
+""")
+    await execute_query("""
+CREATE TABLE IF NOT EXISTS meeting_reminders_sent (
+    id SERIAL PRIMARY KEY,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    meeting_id INT NOT NULL UNIQUE REFERENCES meetings(id) ON DELETE CASCADE
+);
+""")
+
+
 async def complete_old_dialogs():
     await execute_query("""
 UPDATE dialogs d
@@ -428,6 +451,7 @@ def ticks_left_in_send_window(project: orm.Project, now) -> int:
 
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
+    await ensure_reminder_tables()
     await complete_old_dialogs()
     await unmute_accounts()
     await release_recipients()
