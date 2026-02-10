@@ -305,7 +305,7 @@ async def get_accounts_with_pending_manual_system(
     project: orm.Project, now, conn
 ) -> list[int]:
     """
-    Возвращает свободные аккаунты проекта, у которых есть активный MANUAL диалог
+    Возвращает свободные аккаунты проекта, у которых есть MANUAL диалог
     с необработанными system-сообщениями (tg_message_id IS NULL).
     Применяются те же базовые фильтры доступности аккаунта, что и в get_available_accounts.
     """
@@ -337,7 +337,6 @@ async def get_accounts_with_pending_manual_system(
                 FROM dialogs d
                 JOIN messages m ON m.dialog_id = d.id
                 WHERE d.account_id = a.id
-                  AND d.finished_at IS NULL
                   AND d.status = 'manual'
                   AND m.sender = 'system'
                   AND m.tg_message_id IS NULL
