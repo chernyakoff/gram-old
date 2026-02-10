@@ -58,7 +58,7 @@ modules = ["common"]
 
 [tool.worker]
 name = "dialog"
-slots = 10
+slots = 20
 
 [dependency-groups]
 dev = ["taskipy>=1.14.1"]
