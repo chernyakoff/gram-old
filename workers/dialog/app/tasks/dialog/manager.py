@@ -101,13 +101,6 @@ class DialogManager:
             messages__tg_message_id__isnull=True,
             messages__ack=False,
         ).prefetch_related("recipient", "messages")
-        finished_with_pending_recipient = await orm.Dialog.filter(
-            account_id=self.account.id,
-            finished_at__isnull=False,
-            messages__ui_only=False,
-            messages__sender=enums.MessageSender.RECIPIENT,
-            messages__tg_message_id__isnull=True,
-        ).prefetch_related("recipient", "messages")
         finished_with_pending_system_ids = {d.id for d in finished_with_pending_system}
 
         dialogs_with_system = 0
@@ -120,12 +113,6 @@ class DialogManager:
                 for dialog in finished_with_pending_system
                 if dialog.id not in active_dialog_ids
             ]
-            + [
-                dialog
-                for dialog in finished_with_pending_recipient
-                if dialog.id not in active_dialog_ids
-                and dialog.id not in finished_with_pending_system_ids
-            ]
         )
 
         for dialog in dialogs_for_processing:
@@ -137,19 +124,12 @@ class DialogManager:
                     self.session_timer.reset(5)
                     await asyncio.sleep(random.randint(5, 10))
 
-                # Для завершённых диалогов по умолчанию выполняем только отправку
-                # SYSTEM-сообщений. Если есть новое "неотправленное" сообщение
-                # RECIPIENT (tg_message_id is NULL), переоткрываем диалог.
+                # Для завершённых диалогов выполняем отправку SYSTEM-сообщений.
+                # Переоткрываем только если появилось новое SYSTEM-сообщение.
                 if dialog.finished_at is not None:
-                    has_pending_recipient = await orm.Message.filter(
-                        dialog=dialog,
-                        ui_only=False,
-                        sender=enums.MessageSender.RECIPIENT,
-                        tg_message_id__isnull=True,
-                    ).exists()
-                    if has_pending_recipient:
+                    if dialog.id in finished_with_pending_system_ids:
                         self.logger.info(
-                            f"[{dialog.recipient.username}] Найдено pending RECIPIENT "
+                            f"[{dialog.recipient.username}] Найдено новое pending SYSTEM "
                             "сообщение в завершённом диалоге, сбрасываем finished_at"
                         )
                         dialog.finished_at = None  # type: ignore
