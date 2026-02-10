@@ -116,6 +116,16 @@ def is_project_in_send_window(project: orm.Project, now) -> bool:
         return current_hour >= start or current_hour <= end
 
 
+def is_project_morning_time(project: orm.Project, now) -> bool:
+    """
+    Проверяет, что сейчас подходящее время для утреннего напоминания:
+    близко к project.send_time_start (±30 минут).
+    """
+    current_minutes = now.hour * 60 + now.minute
+    target_minutes = project.send_time_start * 60
+    return abs(current_minutes - target_minutes) <= 30
+
+
 async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Account]:
     """
     Получить доступные аккаунты с приоритетом у тех, у кого есть дневной лимит,
@@ -159,6 +169,99 @@ async def get_available_accounts(project: orm.Project, now, conn) -> list[orm.Ac
     rows = await conn.execute_query_dict(query, [project.id, now])
     accounts = [orm.Account(**row) for row in rows]
     return accounts
+
+
+async def get_accounts_with_due_reminders(project: orm.Project, now, conn) -> list[int]:
+    """
+    Возвращает свободные аккаунты проекта, которым нужно срочно отправить напоминания.
+    Приоритет:
+      1) напоминание о встрече (за час)
+      2) утреннее напоминание
+    """
+    if not project.use_calendar:
+        return []
+
+    meeting_enabled = bool(project.meeting_reminder)
+    morning_enabled = bool(project.morning_reminder) and is_project_morning_time(
+        project, now
+    )
+
+    if not meeting_enabled and not morning_enabled:
+        return []
+
+    params = [project.id, now]
+
+    meeting_due_sql = "FALSE"
+    if meeting_enabled:
+        hour_from_now_min = now + timedelta(minutes=45)
+        hour_from_now_max = now + timedelta(minutes=75)
+        params.extend([hour_from_now_min, hour_from_now_max])
+        meeting_due_sql = """
+        EXISTS (
+            SELECT 1
+            FROM meetings m
+            JOIN dialogs d ON d.id = m.dialog_id
+            JOIN recipients r ON r.id = d.recipient_id
+            JOIN mailings ml ON ml.id = r.mailing_id
+            LEFT JOIN meeting_reminders_sent mrs ON mrs.meeting_id = m.id
+            WHERE d.account_id = a.id
+              AND m.status = 'scheduled'
+              AND m.start_at >= $3
+              AND m.start_at <= $4
+              AND mrs.id IS NULL
+        )
+        """
+
+    morning_due_sql = "FALSE"
+    if morning_enabled:
+        params.append(now.date())
+        date_param = "$5" if meeting_enabled else "$3"
+        morning_due_sql = f"""
+        EXISTS (
+            SELECT 1
+            FROM meetings m
+            JOIN dialogs d ON d.id = m.dialog_id
+            JOIN recipients r ON r.id = d.recipient_id
+            JOIN mailings ml ON ml.id = r.mailing_id
+            LEFT JOIN morning_reminders_sent mrs ON mrs.meeting_id = m.id
+            WHERE d.account_id = a.id
+              AND m.status = 'scheduled'
+              AND m.start_at::date = {date_param}
+              AND mrs.id IS NULL
+        )
+        """
+
+    query = f"""
+    WITH due AS (
+        SELECT
+            a.id,
+            {meeting_due_sql} AS meeting_due,
+            {morning_due_sql} AS morning_due,
+            (
+                SELECT MIN(m2.start_at)
+                FROM meetings m2
+                JOIN dialogs d2 ON d2.id = m2.dialog_id
+                LEFT JOIN meeting_reminders_sent m2rs ON m2rs.meeting_id = m2.id
+                WHERE d2.account_id = a.id
+                  AND m2.status = 'scheduled'
+                  AND m2.start_at >= $2
+                  AND m2rs.id IS NULL
+            ) AS next_meeting_at
+        FROM accounts a
+        WHERE a.project_id = $1
+          AND a.status = 'good'
+          AND a.busy = FALSE
+          AND (a.lease_expires_at IS NULL OR a.lease_expires_at < $2)
+    )
+    SELECT id
+    FROM due
+    WHERE meeting_due OR morning_due
+    ORDER BY meeting_due DESC, next_meeting_at ASC NULLS LAST, id ASC
+    LIMIT {MAX_ACCOUNTS_PER_CYCLE};
+    """
+
+    rows = await conn.execute_query_dict(query, params)
+    return [row["id"] for row in rows]
 
 
 async def reserve_daily_limit(account_id: int, reserve: int, conn) -> int:
@@ -360,32 +463,45 @@ async def task(input: EmptyModel, ctx: Context):
             and m.active is True
         ]
 
-        if not active_mailings:
-            continue
-
         async with in_transaction() as conn:
+            reminder_account_ids = await get_accounts_with_due_reminders(project, now, conn)
+
+            if not active_mailings and not reminder_account_ids:
+                continue
+
             free_accounts = await get_available_accounts(project, now, conn)
             if not free_accounts:
                 continue
 
-            # Проверяем закрытие рассылок прямо здесь
-            for mailing in active_mailings:
-                info = await check_and_close_mailing(mailing, now, conn)
-                if info:
-                    notify_queue.append(info)
-
-            # Аккаунты могли закрыть mailings → фильтруем
-            active_mailings = [
-                m
-                for m in active_mailings
-                if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+            accounts_by_id = {acc.id: acc for acc in free_accounts}
+            prioritized_accounts = [
+                accounts_by_id[acc_id]
+                for acc_id in reminder_account_ids
+                if acc_id in accounts_by_id
             ]
+            prioritized_ids = {acc.id for acc in prioritized_accounts}
+            regular_accounts = [acc for acc in free_accounts if acc.id not in prioritized_ids]
+            accounts_queue = prioritized_accounts + regular_accounts
 
-            if not active_mailings:
-                continue
+            # Проверяем закрытие рассылок только если они есть
+            if active_mailings:
+                for mailing in active_mailings:
+                    info = await check_and_close_mailing(mailing, now, conn)
+                    if info:
+                        notify_queue.append(info)
 
-            for acc in free_accounts:
-                if in_send_window and acc.daily_limit_left > 0:
+                # Аккаунты могли закрыть mailings → фильтруем
+                active_mailings = [
+                    m
+                    for m in active_mailings
+                    if m.status
+                    in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+                ]
+
+            has_active_mailings = bool(active_mailings)
+
+            for acc in accounts_queue:
+                if in_send_window and has_active_mailings and acc.daily_limit_left > 0:
                     ticks_left = ticks_left_in_send_window(project, now)
 
                     dialogs_left = acc.daily_limit_left // ticks_left
@@ -398,7 +514,7 @@ async def task(input: EmptyModel, ctx: Context):
 
                 # Получаем recipients для новых диалогов ТОЛЬКО если в окне отправки
                 recipients = []
-                if in_send_window:
+                if in_send_window and has_active_mailings:
                     recipients = await get_recipients_for_mailings(
                         active_mailings, dialogs_left, now, conn
                     )
@@ -411,7 +527,7 @@ async def task(input: EmptyModel, ctx: Context):
                         recipients = recipients[:reserved]
 
                 # Статус DRAFT → RUNNING, если есть recipients (только в окне отправки)
-                if in_send_window:
+                if in_send_window and has_active_mailings:
                     for mailing in active_mailings:
                         if mailing.status == enums.MailingStatus.DRAFT:
                             if any(r.mailing_id == mailing.id for r in recipients):
