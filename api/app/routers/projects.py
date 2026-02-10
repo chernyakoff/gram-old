@@ -82,7 +82,7 @@ async def update_project_status(
             errors.append("В проекте отсутсвует промпт")
         if not project.first_message:
             errors.append("В проекте отсутсвует первое сообщение")
-        if not has_unresolved_template(project.first_message):
+        if project.first_message and not has_unresolved_template(project.first_message):
             errors.append("Пeрвое сообщение не рандомизировано")
         if errors:
             return ProjectStatusOut(result="error", errors=errors)

@@ -289,9 +289,8 @@ async def dialog_task(input: DialogIn, ctx: Context):
         # Периодически проверяем состояние
         last_check = tz.now()
         CHECK_INTERVAL_SEC = 30
-
-        last_check = tz.now()
-        CHECK_INTERVAL_SEC = 30
+        PERIODIC_SCAN_SEC = 60
+        last_periodic_scan = tz.now()
 
         while tz.now() < end_time and not stop_event.is_set():
             if not client.is_connected():
@@ -305,6 +304,18 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 remaining = int(manager.session_timer.get_remaining_seconds())
                 logger.info(f"⏱️  Таймер: {remaining}с до отключения")
                 last_check = tz.now()
+
+            if (tz.now() - last_periodic_scan).total_seconds() >= PERIODIC_SCAN_SEC:
+                reminders_sent = await manager.check_and_send_reminders()
+                system_sent, dialogs_replied = await manager.check_and_process_dialogs()
+                if reminders_sent > 0 or system_sent > 0 or dialogs_replied > 0:
+                    logger.info(
+                        "Периодический скан:\n"
+                        f"   - Напоминаний: {reminders_sent}\n"
+                        f"   - System-сообщений: {system_sent}\n"
+                        f"   - Ответов: {dialogs_replied}"
+                    )
+                last_periodic_scan = tz.now()
 
             await asyncio.sleep(10)
 

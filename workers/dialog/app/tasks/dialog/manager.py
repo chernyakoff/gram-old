@@ -91,11 +91,44 @@ class DialogManager:
         dialogs = await orm.Dialog.filter(
             account_id=self.account.id, finished_at__isnull=True
         ).prefetch_related("recipient", "messages")
+        active_dialog_ids = {dialog.id for dialog in dialogs}
+
+        finished_with_pending_system = await orm.Dialog.filter(
+            account_id=self.account.id,
+            finished_at__isnull=False,
+            messages__ui_only=False,
+            messages__sender=enums.MessageSender.SYSTEM,
+            messages__tg_message_id__isnull=True,
+            messages__ack=False,
+        ).prefetch_related("recipient", "messages")
+        finished_with_pending_recipient = await orm.Dialog.filter(
+            account_id=self.account.id,
+            finished_at__isnull=False,
+            messages__ui_only=False,
+            messages__sender=enums.MessageSender.RECIPIENT,
+            messages__tg_message_id__isnull=True,
+        ).prefetch_related("recipient", "messages")
+        finished_with_pending_system_ids = {d.id for d in finished_with_pending_system}
 
         dialogs_with_system = 0
         dialogs_with_replies = 0
 
-        for dialog in dialogs:
+        dialogs_for_processing = (
+            dialogs
+            + [
+                dialog
+                for dialog in finished_with_pending_system
+                if dialog.id not in active_dialog_ids
+            ]
+            + [
+                dialog
+                for dialog in finished_with_pending_recipient
+                if dialog.id not in active_dialog_ids
+                and dialog.id not in finished_with_pending_system_ids
+            ]
+        )
+
+        for dialog in dialogs_for_processing:
             try:
                 # ШАГ 1: Проверяем и отправляем system-сообщения
                 has_system = await self._process_system_messages_for_dialog(dialog)
@@ -103,6 +136,26 @@ class DialogManager:
                     dialogs_with_system += 1
                     self.session_timer.reset(5)
                     await asyncio.sleep(random.randint(5, 10))
+
+                # Для завершённых диалогов по умолчанию выполняем только отправку
+                # SYSTEM-сообщений. Если есть новое "неотправленное" сообщение
+                # RECIPIENT (tg_message_id is NULL), переоткрываем диалог.
+                if dialog.finished_at is not None:
+                    has_pending_recipient = await orm.Message.filter(
+                        dialog=dialog,
+                        ui_only=False,
+                        sender=enums.MessageSender.RECIPIENT,
+                        tg_message_id__isnull=True,
+                    ).exists()
+                    if has_pending_recipient:
+                        self.logger.info(
+                            f"[{dialog.recipient.username}] Найдено pending RECIPIENT "
+                            "сообщение в завершённом диалоге, сбрасываем finished_at"
+                        )
+                        dialog.finished_at = None  # type: ignore
+                        await dialog.save(update_fields=["finished_at"])
+                    else:
+                        continue
 
                 # ШАГ 2: Проверяем новые сообщения от юзера в Telegram
                 new_messages = await self._get_new_messages_from_telegram(dialog)
@@ -143,31 +196,13 @@ class DialogManager:
         Проверяет и отправляет system-сообщения для конкретного диалога.
         Возвращает True если хотя бы одно system-сообщение было отправлено.
         """
-        messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
-            "created_at"
-        )
-
-        if not messages:
-            return False
-
-        # Ищем неотправленные system-сообщения в конце
-        system_messages = []
-        for msg in reversed(messages):
-            if (
-                msg.sender == enums.MessageSender.SYSTEM
-                and msg.tg_message_id is None
-                and not msg.ack
-            ):
-                system_messages.insert(0, msg)
-            elif (
-                msg.sender == enums.MessageSender.SYSTEM
-                and (msg.tg_message_id is not None or msg.ack)
-            ):
-                # Встретили отправленное system - продолжаем искать
-                continue
-            else:
-                # Встретили не-system - прерываем
-                break
+        system_messages = await orm.Message.filter(
+            dialog=dialog,
+            ui_only=False,
+            sender=enums.MessageSender.SYSTEM,
+            tg_message_id__isnull=True,
+            ack=False,
+        ).order_by("created_at")
 
         if not system_messages:
             return False
@@ -604,6 +639,11 @@ class DialogManager:
                 )
                 return
 
+            # Если есть SYSTEM-сообщения от оператора, отправляем их в приоритете
+            # и не генерируем AI-ответ в этом проходе.
+            if await self._process_system_messages_for_dialog(dialog):
+                return
+
             # НОВОЕ: Если диалог в статусе MANUAL - не генерируем AI ответ
             if dialog.status == enums.DialogStatus.MANUAL:
                 self.logger.info(
@@ -636,7 +676,11 @@ class DialogManager:
                 return
 
             last_recipient_message = next(
-                (m for m in reversed(messages) if m.sender == enums.MessageSender.RECIPIENT),
+                (
+                    m
+                    for m in reversed(messages)
+                    if m.sender == enums.MessageSender.RECIPIENT
+                ),
                 None,
             )
             if not last_recipient_message:
@@ -674,22 +718,13 @@ class DialogManager:
             dialog=dialog, ui_only=False
         ).order_by("created_at")
 
-        # Ищем неотправленные system-сообщения в конце
-        unsent_system = []
-        for msg in reversed(fresh_messages):
-            if (
-                msg.sender == enums.MessageSender.SYSTEM
-                and msg.tg_message_id is None
-                and not msg.ack
-            ):
-                unsent_system.insert(0, msg)
-            elif (
-                msg.sender == enums.MessageSender.SYSTEM
-                and (msg.tg_message_id is not None or msg.ack)
-            ):
-                continue  # Пропускаем отправленные SYSTEM
-            else:
-                break  # Прерываемся на первом не-SYSTEM
+        unsent_system = [
+            msg
+            for msg in fresh_messages
+            if msg.sender == enums.MessageSender.SYSTEM
+            and msg.tg_message_id is None
+            and not msg.ack
+        ]
 
         # Если есть - отправляем ДО генерации AI-ответа
         if unsent_system:
