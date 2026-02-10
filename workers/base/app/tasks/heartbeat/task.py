@@ -30,13 +30,27 @@ stop_premium_task = hatchet.stubs.task(
     name="stop-premium", input_validator=StopPremiumIn
 )
 
-ACCOUNT_LEASE_MINUTES = 45
+ACCOUNT_LEASE_MINUTES = 30
 MAX_ACCOUNTS_PER_CYCLE = 100
 RECIPIENT_LEASE_MINUTES = 30
 MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
-HEARTBEAT_MINUTES = 30
+HEARTBEAT_MINUTES = 15
 
-heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
+
+def build_heartbeat_minutes_field(interval_minutes: int, start_minute: int = 5) -> str:
+    if interval_minutes <= 0 or interval_minutes >= 60:
+        raise ValueError("HEARTBEAT_MINUTES must be in range 1..59")
+    if start_minute < 0 or start_minute > 59:
+        raise ValueError("start_minute must be in range 0..59")
+
+    minutes = list(range(start_minute, 60, interval_minutes))
+    return ",".join(str(m) for m in minutes)
+
+
+heartbeat = hatchet.workflow(
+    name="heartbeat",
+    on_crons=[f"{build_heartbeat_minutes_field(HEARTBEAT_MINUTES)} * * * *"],
+)
 
 
 async def execute_query(query: str):
@@ -488,7 +502,9 @@ async def task(input: EmptyModel, ctx: Context):
         ]
 
         async with in_transaction() as conn:
-            reminder_account_ids = await get_accounts_with_due_reminders(project, now, conn)
+            reminder_account_ids = await get_accounts_with_due_reminders(
+                project, now, conn
+            )
 
             if not active_mailings and not reminder_account_ids:
                 continue
@@ -504,7 +520,9 @@ async def task(input: EmptyModel, ctx: Context):
                 if acc_id in accounts_by_id
             ]
             prioritized_ids = {acc.id for acc in prioritized_accounts}
-            regular_accounts = [acc for acc in free_accounts if acc.id not in prioritized_ids]
+            regular_accounts = [
+                acc for acc in free_accounts if acc.id not in prioritized_ids
+            ]
             accounts_queue = prioritized_accounts + regular_accounts
 
             # Проверяем закрытие рассылок только если они есть

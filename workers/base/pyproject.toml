@@ -2,9 +2,7 @@
 name = "worker"
 version = "0.1.0"
 description = "Default template for PDM package"
-authors = [
-    {name = "Michael Chernyakoff", email = "chernyakoff@gmail.com"},
-]
+authors = [{ name = "Michael Chernyakoff", email = "chernyakoff@gmail.com" }]
 dependencies = [
     "tortoise-orm[accel,asyncpg]>=0.25.1",
     "python-dotenv>=1.1.1",
@@ -32,7 +30,7 @@ dependencies = [
 ]
 requires-python = "==3.13.*"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 
 
 [tool.taskipy.tasks]
@@ -61,9 +59,7 @@ modules = ["common"]
 
 [tool.worker]
 name = "base"
-slots = 10
+slots = 20
 
 [dependency-groups]
-dev = [
-    "taskipy>=1.14.1",
-]
+dev = ["taskipy>=1.14.1"]

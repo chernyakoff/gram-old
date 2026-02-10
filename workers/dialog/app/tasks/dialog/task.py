@@ -193,6 +193,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         read_receipts_task = asyncio.create_task(manager._monitor_read_receipts())
 
+        reminders_sent = await manager.check_and_send_reminders()
+        if reminders_sent > 0:
+            logger.info(f"Напоминаний отправлено: {reminders_sent}")
+
         system_sent, dialogs_replied = await manager.check_and_process_dialogs()
         logger.info(
             f"System-сообщений отправлено: {system_sent}, "
@@ -254,7 +258,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         logger.info(f"Новых диалогов начато: {new_dialogs_started}")
 
-        total_activity = new_dialogs_started + dialogs_replied + system_sent
+        total_activity = new_dialogs_started + dialogs_replied + system_sent + reminders_sent
 
         if total_activity == 0:
             logger.info(
@@ -262,6 +266,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 "   - Новых диалогов: 0\n"
                 "   - Ответов в старых: 0\n"
                 "   - System-сообщений: 0\n"
+                "   - Напоминаний: 0\n"
                 "   → Завершаем работу"
             )
             return  # finally сработает
@@ -271,6 +276,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
             f"   - Новых диалогов: {new_dialogs_started}\n"
             f"   - Ответов: {dialogs_replied}\n"
             f"   - System-сообщений: {system_sent}\n"
+            f"   - Напоминаний: {reminders_sent}\n"
             f"   - Таймер: {int(manager.session_timer.get_remaining_seconds())}с"
         )
 
