@@ -87,7 +87,7 @@ async def generate_prompt(input: GeneratePromptIn, ctx: Context):
         return
 
     project.first_message = first_message
-    await project.save(update_fields=["first_message"])
+    await project.save(update_fields=["first_message", "updated_at"])
 
     generator = await get_generator()
     status_addon = await get_status_addon()

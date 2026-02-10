@@ -22,12 +22,16 @@ async def _check(proxy: orm.Proxy, logger: StreamLogger):
         async with in_transaction() as conn:
             proxy.failures = 0
             proxy.active = True
-            await proxy.save(update_fields=["failures", "active"], using_db=conn)
+            await proxy.save(
+                update_fields=["failures", "active", "updated_at"], using_db=conn
+            )
     else:
         async with in_transaction() as conn:
             proxy.failures = 5
             proxy.active = False
-            await proxy.save(update_fields=["failures", "active"], using_db=conn)
+            await proxy.save(
+                update_fields=["failures", "active", "updated_at"], using_db=conn
+            )
         await logger.error(util.line)
 
 

@@ -113,7 +113,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     account = AccountUtil.from_orm(orm_account)
     orm_account.busy = True
     async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
+        await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
     client = account.create_client(proxy)
     try:
@@ -174,7 +174,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
         orm_account.premium = True
         orm_account.premiumed_at = tz.now()
-        await orm_account.save(update_fields=["premium", "premiumed_at"])
+        await orm_account.save(update_fields=["premium", "premiumed_at", "updated_at"])
 
         if isinstance(send_data, PaymentVerificationNeeded):
             return BuyPremiumOut(status="success", verification_url=send_data.url)

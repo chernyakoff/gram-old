@@ -45,6 +45,7 @@ async def release_account(account: orm.Account, error: str | None = None):
     account.update_from_dict(update_data)
     update_fields = list(update_data.keys())
     update_fields.append("status")
+    update_fields.append("updated_at")
     async with in_transaction():
         await account.save(update_fields=update_fields)
 
@@ -58,6 +59,7 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
         account.premiumed_at = None  # type: ignore
         keys.append("premium_stopped")
         keys.append("premiumed_at")
+    keys.append("updated_at")
     await account.save(update_fields=keys)
 
 
@@ -138,7 +140,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 )
 
                 account.status = enums.AccountStatus.EXITED
-                await account.save(update_fields=["status"])
+                await account.save(update_fields=["status", "updated_at"])
             await release_account(account, error=f"Connection error: {e}")
             return
 
@@ -315,7 +317,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
         logger.warning("Аккаунт заморожен")
         account.active = False
         account.status = enums.AccountStatus.FROZEN
-        await account.save(update_fields=["status", "active"])
+        await account.save(update_fields=["status", "active", "updated_at"])
         raise
 
     except SpamBlockedError as e:
@@ -324,7 +326,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
         account.active = False
         account.muted_until = e.muted_until
         account.status = enums.AccountStatus.MUTED
-        await account.save(update_fields=["status", "muted_until", "active"])
+        await account.save(
+            update_fields=["status", "muted_until", "active", "updated_at"]
+        )
         raise
 
     except Exception as e:

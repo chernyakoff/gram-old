@@ -209,7 +209,7 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
 
     client = account.create_client(proxy)
     async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
+        await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
     try:
         await client.connect()
@@ -227,4 +227,6 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
         await client.disconnect()  # type: ignore
         orm_account.busy = False
         async with in_transaction() as conn:
-            await orm_account.save(using_db=conn, update_fields=["busy"])
+            await orm_account.save(
+                using_db=conn, update_fields=["busy", "updated_at"]
+            )

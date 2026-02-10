@@ -154,7 +154,7 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     client = account_util.create_client(proxy)
     orm_account.busy = True
     async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
+        await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
     status = await _stop_premium(client, logger)
     if status == "error":
@@ -167,4 +167,6 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     orm_account.busy = False
     orm_account.premium_stopped = True
     async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy", "premium_stopped"])
+        await orm_account.save(
+            using_db=conn, update_fields=["busy", "premium_stopped", "updated_at"]
+        )

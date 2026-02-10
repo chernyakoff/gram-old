@@ -136,7 +136,7 @@ async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger
 
     orm_account.busy = True
     async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy"])
+        await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
     account = AccountUtil.from_orm(orm_account)
 

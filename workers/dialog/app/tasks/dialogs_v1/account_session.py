@@ -48,7 +48,7 @@ class AccountSession:
                     "⚠️ КРИТИЧНО: Сессия использована с другого IP! Деактивируем аккаунт."
                 )
                 self.account.status = enums.AccountStatus.EXITED
-                await self.account.save(update_fields=["status"])
+                await self.account.save(update_fields=["status", "updated_at"])
             await self.release(error=f"Connection error: {e}")
             return False
 
@@ -92,4 +92,5 @@ class AccountSession:
         self.account.update_from_dict(update_data)
         update_fields = list(update_data.keys())
         update_fields.append("status")
+        update_fields.append("updated_at")
         await self.account.save(update_fields=update_fields)
