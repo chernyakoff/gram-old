@@ -100,6 +100,19 @@ async def dialog_task(input: DialogIn, ctx: Context):
     end_time = start_time + timedelta(hours=MAX_SESSION_HOURS)
     stop_event = asyncio.Event()
 
+    def _is_disconnect_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        markers = (
+            "cannot send requests while disconnected",
+            "server closed the connection",
+            "connection refused",
+            "proxyerror",
+            "connection reset",
+            "network is unreachable",
+            "timed out",
+        )
+        return any(marker in text for marker in markers)
+
     async def _reconnect_client() -> bool:
         max_attempts = 5
         for attempt in range(1, max_attempts + 1):
@@ -306,15 +319,35 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 last_check = tz.now()
 
             if (tz.now() - last_periodic_scan).total_seconds() >= PERIODIC_SCAN_SEC:
-                reminders_sent = await manager.check_and_send_reminders()
-                system_sent, dialogs_replied = await manager.check_and_process_dialogs()
-                if reminders_sent > 0 or system_sent > 0 or dialogs_replied > 0:
-                    logger.info(
-                        "Периодический скан:\n"
-                        f"   - Напоминаний: {reminders_sent}\n"
-                        f"   - System-сообщений: {system_sent}\n"
-                        f"   - Ответов: {dialogs_replied}"
+                try:
+                    reminders_sent = await manager.check_and_send_reminders()
+                    system_sent, dialogs_replied = (
+                        await manager.check_and_process_dialogs()
                     )
+                    if reminders_sent > 0 or system_sent > 0 or dialogs_replied > 0:
+                        logger.info(
+                            "Периодический скан:\n"
+                            f"   - Напоминаний: {reminders_sent}\n"
+                            f"   - System-сообщений: {system_sent}\n"
+                            f"   - Ответов: {dialogs_replied}"
+                        )
+                except Exception as e:
+                    if _is_disconnect_error(e):
+                        logger.warning(
+                            "Потеря соединения во время периодического скана, "
+                            "попытка переподключения"
+                        )
+                        if not await _reconnect_client():
+                            logger.error(
+                                "Потеряно соединение в периодическом скане, "
+                                "не удалось переподключиться"
+                            )
+                            await release_account(account, error="Connection lost")
+                            return
+                    else:
+                        logger.error(
+                            f"Ошибка периодического скана: {type(e).__name__}: {e}"
+                        )
                 last_periodic_scan = tz.now()
 
             await asyncio.sleep(10)

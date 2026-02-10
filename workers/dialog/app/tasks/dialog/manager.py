@@ -72,6 +72,20 @@ class DialogManager:
         self.ai_service = AIService(self.account.user)
         self.telegram_service = TelegramService(client, logger)
 
+    @staticmethod
+    def _is_client_disconnected_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        markers = (
+            "cannot send requests while disconnected",
+            "server closed the connection",
+            "connection refused",
+            "proxyerror",
+            "connection reset",
+            "network is unreachable",
+            "timed out",
+        )
+        return any(marker in text for marker in markers)
+
     async def check_and_process_dialogs(self) -> tuple[int, int]:
         """
         Проверяет диалоги в правильном порядке:
@@ -81,6 +95,12 @@ class DialogManager:
 
         Возвращает: (dialogs_with_system, dialogs_with_replies)
         """
+        if not self.client.is_connected():
+            self.logger.warning(
+                "Пропуск обработки диалогов: клиент Telegram отключён"
+            )
+            return 0, 0
+
         try:
             recovered = await self._recover_stuck_dialogs(min_age_minutes=10)
             if recovered > 0:
@@ -116,6 +136,11 @@ class DialogManager:
         )
 
         for dialog in dialogs_for_processing:
+            if not self.client.is_connected():
+                self.logger.warning(
+                    "Остановка цикла обработки диалогов: клиент Telegram отключён"
+                )
+                break
             try:
                 # ШАГ 1: Проверяем и отправляем system-сообщения
                 has_system = await self._process_system_messages_for_dialog(dialog)
@@ -327,6 +352,15 @@ class DialogManager:
             while not self.stop_event.is_set():
                 await asyncio.sleep(30)  # Проверяем каждые 30 секунд
 
+                if self.stop_event.is_set():
+                    break
+
+                if not self.client.is_connected():
+                    self.logger.warning(
+                        "Мониторинг read receipts: клиент отключён, ждём переподключение"
+                    )
+                    continue
+
                 try:
                     # Получаем все активные диалоги
                     dialogs = await orm.Dialog.filter(
@@ -334,9 +368,16 @@ class DialogManager:
                     ).prefetch_related("recipient")
 
                     for dialog in dialogs:
+                        if not self.client.is_connected():
+                            break
                         try:
                             await self._check_read_status_for_dialog(dialog)
                         except Exception as e:
+                            if self._is_client_disconnected_error(e):
+                                self.logger.warning(
+                                    "Read receipts остановлен: клиент отключён"
+                                )
+                                break
                             self.logger.warning(
                                 f"Ошибка при проверке read status для диалога {dialog.id}: {e}"
                             )
@@ -396,6 +437,8 @@ class DialogManager:
                 )
 
         except Exception as e:
+            if self._is_client_disconnected_error(e):
+                return
             # Fallback: используем альтернативный метод
             try:
                 # Получаем последнее входящее сообщение и проверяем его ID
