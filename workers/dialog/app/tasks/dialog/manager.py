@@ -1,4 +1,5 @@
 import asyncio
+import html
 import random
 from datetime import datetime, timedelta
 from functools import partial
@@ -12,7 +13,7 @@ from telethon.tl.types import InputDialogPeer
 from tortoise import timezone as tz
 
 from app.common.models import enums, orm
-from app.common.utils.notify import BotNotify, notify_complete_dialog
+from app.common.utils.notify import BotNotify, notify_complete_dialog, send_text_to_user
 from app.common.utils.prompt import get_name_addon
 from app.tasks.dialog.session_timer import SessionTimer
 from app.utils.logger import Logger
@@ -580,6 +581,9 @@ class DialogManager:
                     f"[{recipient.username}] Диалог в режиме MANUAL, "
                     f"ожидаем SYSTEM сообщения от оператора"
                 )
+                asyncio.create_task(
+                    self._notify_manual_dialog_reply(recipient, messages)
+                )
                 return
 
             # ИЗМЕНЕНО: Получаем булевый результат - продолжать ли диалог
@@ -589,6 +593,42 @@ class DialogManager:
 
         except Exception as e:
             self.logger.error(f"Ошибка в _process_dialog_reply: {e}")
+
+    async def _notify_manual_dialog_reply(
+        self, recipient: orm.Recipient, messages: list[orm.Message]
+    ) -> None:
+        """Уведомляет владельца, что в MANUAL-диалоге пришёл ответ от получателя."""
+        try:
+            chat_id = self.account.user_id or self.project.user_id
+            if not chat_id:
+                self.logger.warning(
+                    f"[{recipient.username}] Не найден chat_id для MANUAL уведомления"
+                )
+                return
+
+            last_recipient_message = next(
+                (m for m in reversed(messages) if m.sender == enums.MessageSender.RECIPIENT),
+                None,
+            )
+            if not last_recipient_message:
+                return
+
+            username = recipient.username or "unknown"
+            message_text = (last_recipient_message.text or "").strip() or "(без текста)"
+
+            text = (
+                "<b>Вам ответили в диалоге</b>\n\n"
+                f"Получатель: @{html.escape(username)}\n"
+                f"Сообщение:\n{html.escape(message_text)}"
+            )
+            await send_text_to_user(chat_id=chat_id, text=text)
+            self.logger.info(
+                f"[{recipient.username}] Отправлено MANUAL уведомление пользователю {chat_id}"
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"[{recipient.username}] Ошибка отправки MANUAL уведомления: {e}"
+            )
 
     async def _generate_and_send_response(
         self,

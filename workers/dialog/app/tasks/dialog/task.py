@@ -98,6 +98,27 @@ async def dialog_task(input: DialogIn, ctx: Context):
     end_time = start_time + timedelta(hours=MAX_SESSION_HOURS)
     stop_event = asyncio.Event()
 
+    async def _reconnect_client() -> bool:
+        max_attempts = 5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.warning(
+                    f"Соединение потеряно, попытка переподключения {attempt}/{max_attempts}"
+                )
+                await asyncio.wait_for(client.connect(), timeout=30)  # type: ignore
+                is_authorized = await asyncio.wait_for(
+                    client.is_user_authorized(), timeout=10  # type: ignore
+                )
+                if not is_authorized:
+                    logger.error("После переподключения клиент не авторизован")
+                    return False
+                logger.info("✅ Переподключение к Telegram успешно")
+                return True
+            except Exception as e:
+                logger.warning(f"Ошибка переподключения: {type(e).__name__}: {e}")
+                await asyncio.sleep(min(2**attempt, 30))
+        return False
+
     try:
         client = account_util.create_client(proxy)
         manager = None
@@ -266,9 +287,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         while tz.now() < end_time and not stop_event.is_set():
             if not client.is_connected():
-                logger.error("Потеряно соединение, завершаем задачу")
-                await release_account(account, error="Connection lost")
-                return
+                if not await _reconnect_client():
+                    logger.error("Потеряно соединение, не удалось переподключиться")
+                    await release_account(account, error="Connection lost")
+                    return
 
             # Каждые 30 секунд логируем состояние
             if (tz.now() - last_check).total_seconds() >= CHECK_INTERVAL_SEC:
