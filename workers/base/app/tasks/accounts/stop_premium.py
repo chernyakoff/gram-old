@@ -156,17 +156,20 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     async with in_transaction() as conn:
         await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
-    status = await _stop_premium(client, logger)
-    if status == "error":
-        await logger.error("Не удалось отключить подписку")
+    try:
+        status = await _stop_premium(client, logger)
+        if status == "error":
+            await logger.error("Не удалось отключить подписку")
+            orm_account.premium_stopped = False
+        else:
+            await logger.success("Подписка успешно отключена")
+            orm_account.premium_stopped = True
+    except Exception as e:
         orm_account.premium_stopped = False
-    else:
-        await logger.success("Подписка успешно отключена")
-        orm_account.premium_stopped = True
-
-    orm_account.busy = False
-    orm_account.premium_stopped = True
-    async with in_transaction() as conn:
-        await orm_account.save(
-            using_db=conn, update_fields=["busy", "premium_stopped", "updated_at"]
-        )
+        await logger.error(f"Ошибка stop-premium: {e}")
+    finally:
+        orm_account.busy = False
+        async with in_transaction() as conn:
+            await orm_account.save(
+                using_db=conn, update_fields=["busy", "premium_stopped", "updated_at"]
+            )
