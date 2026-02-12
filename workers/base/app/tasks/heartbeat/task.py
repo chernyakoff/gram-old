@@ -385,6 +385,31 @@ async def reserve_daily_limit(account_id: int, reserve: int, conn) -> int:
     return reserve
 
 
+async def rollback_reserved_daily_limit(account_id: int, reserved: int, conn) -> None:
+    if reserved <= 0:
+        return
+
+    await conn.execute_query(
+        """
+        UPDATE accounts
+        SET daily_limit_left = daily_limit_left + $1
+        WHERE id = $2;
+        """,
+        [reserved, account_id],
+    )
+
+    await conn.execute_query(
+        """
+        INSERT INTO account_action_counter (account_id, action, date, count)
+        VALUES ($1, $2, CURRENT_DATE, $3)
+        ON CONFLICT (account_id, action, date)
+        DO UPDATE
+        SET count = GREATEST(account_action_counter.count + EXCLUDED.count, 0);
+        """,
+        [account_id, enums.AccountAction.NEW_DIALOG, -reserved],
+    )
+
+
 async def get_recipients_for_mailings(mailings, max_count, now, conn):
     recipients = []
 
@@ -523,19 +548,6 @@ async def task(input: EmptyModel, ctx: Context):
     await release_recipients()
     await cleanup_stale_locks()
 
-    # убрать после всех изменений
-    """premium_accounts_with_auto_renew = await orm.Account.filter(
-        busy=False, premium=True, premium_stopped=False
-    ).all()
-    if premium_accounts_with_auto_renew:
-        for a in premium_accounts_with_auto_renew:
-            await stop_premium_task.aio_run_no_wait(
-                input=StopPremiumIn(account_id=a.id)
-            )
-            ctx.log(f"отменяем премиум для {a.id}")
-
-        return"""
-
     now = tz.now()
     planned_tasks = 0
     notify_queue = []
@@ -561,7 +573,11 @@ async def task(input: EmptyModel, ctx: Context):
                 project, now, conn
             )
 
-            if not active_mailings and not reminder_account_ids and not manual_account_ids:
+            if (
+                not active_mailings
+                and not reminder_account_ids
+                and not manual_account_ids
+            ):
                 continue
 
             free_accounts = await get_available_accounts(project, now, conn)
@@ -647,6 +663,8 @@ async def task(input: EmptyModel, ctx: Context):
 
                 # Лочим аккаунт и recipients
                 if not await lock_account_and_recipients(acc.id, recipients, now, conn):
+                    if reserved > 0:
+                        await rollback_reserved_daily_limit(acc.id, reserved, conn)
                     continue
 
                 recipients_id = [r.id for r in recipients]  # может быть пусто

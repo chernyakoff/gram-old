@@ -20,6 +20,7 @@ async def task(input: EmptyModel, ctx: Context):
     PROGREV = orm.Account.PROGREV
     # Генерируем CASE для PROGREV динамически
     case_lines = "\n".join(f"WHEN {i} THEN {v}" for i, v in enumerate(PROGREV))
+    progrev_len = len(PROGREV)
     case_sql = f"""
     CASE ad.days_count
         {case_lines}
@@ -42,7 +43,8 @@ async def task(input: EmptyModel, ctx: Context):
         active_days_count = ad.days_count,
         daily_limit_left = CASE
             WHEN a.premium THEN {case_sql}
-            ELSE 1
+            WHEN ad.days_count < {progrev_len} THEN 1
+            ELSE a.out_daily_limit
         END
     FROM active_days AS ad
     WHERE a.id = ad.account_id;
