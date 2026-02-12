@@ -52,8 +52,6 @@ class User(Model, TimestampMixin):
     or_api_key = fields.CharField(max_length=256, null=True)
     or_api_hash = fields.CharField(max_length=256, null=True)
     or_model = fields.CharField(max_length=256, null=True)
-    timezone = fields.CharField(max_length=64, null=True, default="Europe/Moscow")
-    meeting_duration = fields.IntField(default=30)
     ref_code = fields.CharField(max_length=8, null=True, unique=True)
     referred_by: fields.ForeignKeyNullableRelation["User"] = fields.ForeignKeyField(
         "models.User",
@@ -61,9 +59,7 @@ class User(Model, TimestampMixin):
         null=True,
         on_delete=fields.SET_NULL,
     )
-    work_days: fields.ReverseRelation["UserWorkDay"]
-    intervals: fields.ReverseRelation["UserWorkInterval"]
-    disabled_month_days: fields.ReverseRelation["UserDisabledMonthDay"]
+    schedules: fields.ReverseRelation["UserSchedule"]
 
     async def extend_license(self, days: int) -> None:
         """Продлевает лицензию на указанное число дней."""
@@ -575,11 +571,54 @@ class AiModel(Model, TimestampMixin):
         table = "ai_models"
 
 
+class UserSchedule(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="schedules",
+        on_delete=fields.CASCADE,
+    )
+    name = fields.CharField(max_length=128, default="Основное")
+    timezone = fields.CharField(max_length=64, default="Europe/Moscow")
+    meeting_duration = fields.IntField(default=30)
+    is_default = fields.BooleanField(default=False)
+
+    work_days: fields.ReverseRelation["UserWorkDay"]
+    disabled_month_days: fields.ReverseRelation["UserDisabledMonthDay"]
+    meetings: fields.ReverseRelation["Meeting"]
+
+    @classmethod
+    async def get_default_for_user(cls, user: User) -> "UserSchedule":
+        schedule = await cls.filter(user_id=user.id, is_default=True).first()
+        if schedule:
+            return schedule
+
+        schedule = await cls.filter(user_id=user.id).order_by("id").first()
+        if schedule:
+            if not schedule.is_default:
+                schedule.is_default = True
+                await schedule.save(update_fields=["is_default"])
+            return schedule
+
+        return await cls.create(
+            user=user,
+            name="Основное",
+            timezone="Europe/Moscow",
+            meeting_duration=30,
+            is_default=True,
+        )
+
+    class Meta:
+        table = "user_schedules"
+        unique_together = ("user", "name")
+        indexes = [("user", "is_default")]
+
+
 class UserWorkDay(Model):
     id = fields.IntField(pk=True)
 
-    user = fields.ForeignKeyField(
-        "models.User",
+    schedule = fields.ForeignKeyField(
+        "models.UserSchedule",
         related_name="work_days",
         on_delete=fields.CASCADE,
     )
@@ -591,7 +630,7 @@ class UserWorkDay(Model):
 
     class Meta:
         table = "user_work_days"
-        unique_together = ("user", "weekday")
+        unique_together = ("schedule", "weekday")
 
 
 class UserWorkInterval(Model):
@@ -612,15 +651,15 @@ class UserWorkInterval(Model):
 
 class UserDisabledMonthDay(Model):
     id = fields.IntField(pk=True)
-    user = fields.ForeignKeyField(
-        "models.User",
+    schedule = fields.ForeignKeyField(
+        "models.UserSchedule",
         related_name="disabled_month_days",
         on_delete=fields.CASCADE,
     )
     day = fields.IntField()
 
     class Meta:
-        unique_together = ("user", "day")
+        unique_together = ("schedule", "day")
         table = "user_disabled_month_day"
 
 
@@ -770,6 +809,11 @@ class Meeting(Model, TimestampMixin):
         related_name="meetings",
         on_delete=fields.CASCADE,
     )
+    schedule = fields.ForeignKeyField(
+        "models.UserSchedule",
+        related_name="meetings",
+        on_delete=fields.CASCADE,
+    )
 
     start_at = fields.DatetimeField()
     end_at = fields.DatetimeField()
@@ -798,6 +842,8 @@ class Meeting(Model, TimestampMixin):
         indexes = [
             ("user", "start_at"),
             ("user", "end_at"),
+            ("schedule", "start_at"),
+            ("schedule", "end_at"),
         ]
 
 

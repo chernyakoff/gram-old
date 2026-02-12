@@ -49,7 +49,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     if not project.first_message:
         return ChatOut(
-            text="В проекте отсутсвует первое сообщениет", status=chat.status
+            text="В проекте отсутсвует первое сообщение", status=chat.status
         )
 
     status_changed = False

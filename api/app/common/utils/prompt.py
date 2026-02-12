@@ -11,6 +11,7 @@ from app.common.models.orm import (
     Prompt,
     Recipient,
     User,
+    UserSchedule,
 )
 from app.common.utils import openrouter
 
@@ -49,8 +50,9 @@ async def get_status_addon() -> str:
 
 async def get_calendar_addon(user: User) -> str:
     prompt = await AppSettings.fetch("prompt.calendar")
+    schedule = await UserSchedule.get_default_for_user(user)
     prompt = prompt.replace("{CURRENT_DATE}", date.today().isoformat())
-    prompt = prompt.replace("{TIMEZONE}", user.timezone)
+    prompt = prompt.replace("{TIMEZONE}", schedule.timezone)
     return prompt
 
 

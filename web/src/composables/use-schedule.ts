@@ -1,4 +1,11 @@
-import type { ScheduleIn, ScheduleOut, ToggleDayIn } from '@/types/openapi'
+import type {
+  ScheduleCreateIn,
+  ScheduleIn,
+  ScheduleMetaOut,
+  ScheduleOut,
+  ScheduleUpdateIn,
+  ToggleDayIn,
+} from '@/types/openapi'
 import { ref } from 'vue'
 import { useApi } from './use-api'
 /*
@@ -210,6 +217,9 @@ export function formatMinutesToTime(minutes: number) {
 export const useSchedule = () => {
   const schedule = ref<DaySchedule[]>(structuredClone(DEFAULT_SCHEDULE))
   const { api, loading, error, success } = useApi()
+  const calendars = ref<ScheduleMetaOut[]>([])
+  const selectedScheduleId = ref<number>()
+  const currentScheduleName = ref<string>()
   const meetingDuration = ref<number>()
   const timezone = ref<string>()
   const disabledMonthDays = ref<number[]>([])
@@ -238,9 +248,33 @@ export const useSchedule = () => {
     } as ScheduleIn
   }
 
-  async function load() {
+  const withScheduleQuery = (path: string, scheduleId = selectedScheduleId.value) => {
+    if (!scheduleId) return path
+    const delimiter = path.includes('?') ? '&' : '?'
+    return `${path}${delimiter}schedule_id=${scheduleId}`
+  }
+
+  async function loadCalendars() {
+    const list = await api<ScheduleMetaOut[]>('schedule/list')
+    calendars.value = list
+    if (!selectedScheduleId.value && list.length > 0) {
+      const defaultCalendar = list.find((item) => item.isDefault)
+      selectedScheduleId.value = defaultCalendar?.id ?? list[0]?.id
+    }
+    return list
+  }
+
+  async function load(scheduleId?: number) {
     try {
-      const data = await api<ScheduleOut>('schedule')
+      if (scheduleId) {
+        selectedScheduleId.value = scheduleId
+      }
+
+      if (!calendars.value.length) {
+        await loadCalendars()
+      }
+
+      const data = await api<ScheduleOut>(withScheduleQuery('schedule'))
 
       // Если data пустое или schedule отсутствует — берем DEFAULT_SCHEDULE
       if (!data || !Array.isArray(data.schedule) || data.schedule.length === 0) {
@@ -248,6 +282,8 @@ export const useSchedule = () => {
         await save()
         return
       }
+      selectedScheduleId.value = data.scheduleId
+      currentScheduleName.value = data.name
       timezone.value = data.timezone
       meetingDuration.value = data.meetingDuration
       schedule.value = fromApi(data)
@@ -263,7 +299,7 @@ export const useSchedule = () => {
     if (!validateAll()) return
     try {
       const payload = toApi()
-      await api('schedule/working-hours', { method: 'POST', body: payload })
+      await api(withScheduleQuery('schedule/working-hours'), { method: 'POST', body: payload })
     } catch (e) {
       console.error('Ошибка сохранения', e)
     }
@@ -350,7 +386,50 @@ export const useSchedule = () => {
   }
 
   async function toggleMonthDay(body: ToggleDayIn): Promise<void> {
-    return await api('schedule/toggle-day', { method: 'POST', body })
+    return await api(withScheduleQuery('schedule/toggle-day'), { method: 'POST', body })
+  }
+
+  async function createCalendar(body: ScheduleCreateIn) {
+    const created = await api<ScheduleMetaOut>('schedule', { method: 'POST', body })
+    await loadCalendars()
+    await load(created.id)
+    return created
+  }
+
+  async function updateCalendar(body: ScheduleUpdateIn, scheduleId = selectedScheduleId.value) {
+    if (!scheduleId) return
+
+    const updated = await api<ScheduleMetaOut>(`schedule/${scheduleId}`, {
+      method: 'PATCH',
+      body,
+    })
+
+    await loadCalendars()
+    const targetId = body.isDefault ? updated.id : selectedScheduleId.value
+    await load(targetId)
+    return updated
+  }
+
+  async function deleteCalendar(scheduleId: number) {
+    await api<void>(`schedule/${scheduleId}`, { method: 'DELETE' })
+    await loadCalendars()
+
+    if (selectedScheduleId.value === scheduleId) {
+      const nextId = calendars.value.find((item) => item.isDefault)?.id ?? calendars.value[0]?.id
+      if (nextId) {
+        await load(nextId)
+      } else {
+        selectedScheduleId.value = undefined
+        currentScheduleName.value = undefined
+        schedule.value = structuredClone(DEFAULT_SCHEDULE)
+        disabledMonthDays.value = []
+      }
+    }
+  }
+
+  async function selectCalendar(scheduleId: number) {
+    if (selectedScheduleId.value === scheduleId) return
+    await load(scheduleId)
   }
 
   return {
@@ -359,7 +438,11 @@ export const useSchedule = () => {
     success,
     load,
     save,
+    loadCalendars,
     schedule,
+    calendars,
+    selectedScheduleId,
+    currentScheduleName,
     timezone,
     meetingDuration,
     disabledMonthDays,
@@ -371,5 +454,9 @@ export const useSchedule = () => {
     copyIntervals,
     validateAll,
     toggleMonthDay,
+    createCalendar,
+    updateCalendar,
+    deleteCalendar,
+    selectCalendar,
   }
 }

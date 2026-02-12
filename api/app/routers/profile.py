@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_validator
 
+from app.common.models import orm
 from app.routers.auth import get_current_user
 
 
@@ -31,16 +32,19 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 @router.get("/timezone")
 async def get_timezone(user=Depends(get_current_user)) -> str:
-    return user.timezone
+    schedule = await orm.UserSchedule.get_default_for_user(user)
+    return schedule.timezone
 
 
 @router.post("/timezone")
 async def save_timezone(data: UserTimezone, user=Depends(get_current_user)):
-    user.timezone = data.timezone
-    await user.save(update_fields=["timezone"])
+    schedule = await orm.UserSchedule.get_default_for_user(user)
+    schedule.timezone = data.timezone
+    await schedule.save(update_fields=["timezone"])
 
 
 @router.post("/meeting-duration")
 async def save_meeting_duration(data: MeetingDuration, user=Depends(get_current_user)):
-    user.meeting_duration = data.value
-    await user.save(update_fields=["meeting_duration"])
+    schedule = await orm.UserSchedule.get_default_for_user(user)
+    schedule.meeting_duration = data.value
+    await schedule.save(update_fields=["meeting_duration"])

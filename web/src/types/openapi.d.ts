@@ -355,14 +355,35 @@ export interface components {
             failures: number;
             account?: components["schemas"]["EmbedAccountOut"] | null;
         };
+        ScheduleCreateIn: {
+            name: string;
+            timezone: string;
+            meetingDuration: number;
+        };
         ScheduleIn: {
             schedule: components["schemas"]["DayIn"][];
         };
+        ScheduleMetaOut: {
+            id: number;
+            name: string;
+            timezone: string;
+            meetingDuration: number;
+            isDefault: boolean;
+        };
         ScheduleOut: {
+            scheduleId: number;
+            name: string;
             schedule: components["schemas"]["DayOut"][];
             timezone: string;
             disabledMonthDays: number[];
             meetingDuration: number;
+            isDefault: boolean;
+        };
+        ScheduleUpdateIn: {
+            name?: string | null;
+            timezone?: string | null;
+            meetingDuration?: number | null;
+            isDefault?: boolean | null;
         };
         SetLimitIn: {
             outDailyLimit: number;
@@ -517,8 +538,11 @@ export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
+export type ScheduleCreateIn = components['schemas']['ScheduleCreateIn'];
 export type ScheduleIn = components['schemas']['ScheduleIn'];
+export type ScheduleMetaOut = components['schemas']['ScheduleMetaOut'];
 export type ScheduleOut = components['schemas']['ScheduleOut'];
+export type ScheduleUpdateIn = components['schemas']['ScheduleUpdateIn'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];

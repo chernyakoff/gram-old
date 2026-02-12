@@ -1,7 +1,20 @@
 <template>
-  <UModal v-model:open="open" :ui="{ content: 'h-screen w-1/3 max-w-none min-w-160 p-6' }">
+  <UModal
+    v-model:open="open"
+    :dismissible="false"
+    :ui="{ content: 'h-screen w-1/3 max-w-none min-w-160 p-6' }">
     <UButton variant="ghost" icon="bx:message-detail" title="Протестировать промпт" />
     <template #content>
+      <div class="mb-4 flex items-center justify-between border-b border-default pb-3">
+        <h3 class="text-base font-semibold">Тестируем промпт</h3>
+        <button
+          type="button"
+          title="Закрыть"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-default transition-colors"
+          @click="open = false">
+          <UIcon name="i-lucide-x" class="h-4 w-4" />
+        </button>
+      </div>
       <UChatPalette>
         <UChatMessages
           :messages="chat.messages.value"
@@ -15,8 +28,7 @@
             side: 'left',
             variant: 'soft',
             icon: 'i-lucide-bot',
-          }"
-        >
+          }">
           <template #content="{ message }">
             <div class="min-w-20 p-2">
               <p class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
@@ -24,15 +36,13 @@
                 <UBadge
                   :style="{
                     backgroundColor: statusColor[(message as UIMessageWithStatus).status],
-                  }"
-                >
+                  }">
                   {{ (message as UIMessageWithStatus).status }}
                 </UBadge>
               </small>
             </div>
           </template>
         </UChatMessages>
-
         <template #prompt>
           <UChatPrompt
             ref="promptRef"
@@ -42,8 +52,7 @@
             variant="naked"
             :error="chat.error.value ? new Error(chat.error.value) : undefined"
             :disabled="chat.status.value === 'submitted'"
-            @submit="handleSubmit"
-          >
+            @submit="handleSubmit">
             <UChatPromptSubmit :status="chat.status.value" />
           </UChatPrompt>
         </template>
@@ -51,7 +60,6 @@
     </template>
   </UModal>
 </template>
-
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
@@ -71,7 +79,7 @@ const { id } = defineProps<{
 const { user } = useAuth()
 const chat = useChat()
 
-async function handleSubmit(e: Event) {
+async function handleSubmit (e: Event) {
   e.preventDefault()
   if (input.value.trim() && id) {
     await chat.sendMessage(id, input.value)
