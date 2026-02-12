@@ -1078,12 +1078,12 @@ class DialogManager:
 
     # remnders ---------------------------------
 
-    def _get_user_now(self) -> datetime:
-        """Возвращает текущее время в timezone пользователя"""
-        import pytz
-
-        user_tz = pytz.timezone(self.account.user.timezone or "Europe/Moscow")
-        return datetime.now(user_tz)
+    @staticmethod
+    def _get_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
+        try:
+            return pytz.timezone(timezone_name or "Europe/Moscow")
+        except Exception:
+            return pytz.timezone("Europe/Moscow")
 
     def _is_morning_time(self, user_now: datetime) -> bool:
         """
@@ -1151,24 +1151,35 @@ class DialogManager:
         if not self.project.use_calendar or not self.project.morning_reminder:
             return 0
 
-        # Получаем сегодняшнюю дату в timezone пользователя
-        user_now = self._get_user_now()
-        today = user_now.date()
+        now = tz.now()
+        # Берем "широкое" окно, затем валидируем по local-time конкретного расписания встречи
+        day_ago = now - timedelta(days=1)
+        day_ahead = now + timedelta(days=1)
 
-        # Проверяем что сейчас подходящее время (близко к send_time_start)
-        if not self._is_morning_time(user_now):
-            return 0
-
-        # Находим встречи на сегодня для этого аккаунта
         meetings = await orm.Meeting.filter(
             dialog__account_id=self.account.id,
-            start_at__date=today,
+            start_at__gte=day_ago,
+            start_at__lt=day_ahead,
             status=orm.MeetingStatus.SCHEDULED,
-        ).prefetch_related("dialog__recipient")
+        ).prefetch_related("dialog__recipient", "schedule")
 
         sent_count = 0
 
         for meeting in meetings:
+            meeting_tz = self._get_timezone(
+                meeting.schedule.timezone if meeting.schedule else None
+            )
+            local_now = now.astimezone(meeting_tz)
+            local_meeting = meeting.start_at.astimezone(meeting_tz)
+
+            # Отправляем утреннее напоминание только в день встречи по локальному времени расписания
+            if local_meeting.date() != local_now.date():
+                continue
+
+            # Проверяем, что сейчас подходящее время (близко к send_time_start)
+            if not self._is_morning_time(local_now):
+                continue
+
             # Проверяем что еще не отправляли
             already_sent = await orm.MorningReminderSent.exists(meeting=meeting)
             if already_sent:
@@ -1214,7 +1225,7 @@ class DialogManager:
             start_at__gte=hour_from_now_min,
             start_at__lte=hour_from_now_max,
             status=orm.MeetingStatus.SCHEDULED,
-        ).prefetch_related("dialog__recipient")
+        ).prefetch_related("dialog__recipient", "schedule")
 
         sent_count = 0
 
@@ -1254,8 +1265,10 @@ class DialogManager:
         Форматирует текст напоминания, подставляя время встречи.
         Можно использовать плейсхолдеры: {time}, {date}
         """
-        user_tz = pytz.timezone(self.account.user.timezone or "Europe/Moscow")
-        meeting_time = meeting.start_at.astimezone(user_tz)
+        meeting_tz = self._get_timezone(
+            meeting.schedule.timezone if meeting.schedule else None
+        )
+        meeting_time = meeting.start_at.astimezone(meeting_tz)
 
         return template.format(
             time=meeting_time.strftime("%H:%M"),
