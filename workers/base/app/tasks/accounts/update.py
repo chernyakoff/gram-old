@@ -195,38 +195,56 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
 
     logger = StreamLogger(ctx)
-
-    orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
-    orm_account.busy = True
-
-    pool = ProxyPool(input.user_id)
-    account = AccountUtil.from_orm(orm_account)
-
-    proxy = await pool.verify_proxy(orm_account)
-    if not proxy:
-        await logger.from_proxy_pool(pool)
-        return
-
-    client = account.create_client(proxy)
-    async with in_transaction() as conn:
-        await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
-
+    client: TelegramClient | None = None
+    orm_account: orm.Account | None = None
     try:
+        await logger.info(
+            "начинаем обновление аккаунта", payload={"account_id": input.id}
+        )
+
+        orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
+        orm_account.busy = True
+
+        pool = ProxyPool(input.user_id)
+        account = AccountUtil.from_orm(orm_account)
+
+        await logger.info("проверяем прокси")
+        proxy = await pool.verify_proxy(orm_account)
+        if not proxy:
+            await logger.from_proxy_pool(pool)
+            await logger.error("прокси не прошел проверку, обновление остановлено")
+            return
+
+        client = account.create_client(proxy)
+        async with in_transaction() as conn:
+            await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
+
+        await logger.info("подключаем клиент telegram")
         await client.connect()
 
+        await logger.info("проверяем авторизацию аккаунта")
         if not await client.is_user_authorized():
             raise SessionExpiredError(account.phone)
 
+        await logger.info("запускаем обновление полей аккаунта")
         await update(client, input, orm_account, logger)
+        await logger.success("обновление аккаунта завершено")
 
     except SessionExpiredError as e:
         await logger.error(str(e))
     except Exception as e:
-        await logger.error(f"неизвестная ошибка обновления: {e}")
+        await logger.error(
+            "обновление аккаунта завершилось с ошибкой. "
+            f"Проверьте прокси, сессию и корректность данных. "
+            f"Детали: {type(e).__name__}: {e}"
+        )
+        raise
     finally:
-        await client.disconnect()  # type: ignore
-        orm_account.busy = False
-        async with in_transaction() as conn:
-            await orm_account.save(
-                using_db=conn, update_fields=["busy", "updated_at"]
-            )
+        if client and client.is_connected():
+            await client.disconnect()  # type: ignore
+        if orm_account:
+            orm_account.busy = False
+            async with in_transaction() as conn:
+                await orm_account.save(
+                    using_db=conn, update_fields=["busy", "updated_at"]
+                )
