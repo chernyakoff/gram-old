@@ -6,6 +6,7 @@ import type {
   AccountIn,
   AccountListOut,
   AccountOut,
+  AccountStateOut,
   AccountsCheckIn,
   BindProjectIn,
   BuyPremiumOut,
@@ -78,10 +79,15 @@ export function useAccounts() {
     return await api<AccountListOut[]>('accounts/list', { method: 'GET' })
   }
 
+  async function state() {
+    return await api<AccountStateOut[]>('accounts/state', { method: 'GET' })
+  }
+
   return {
     upload,
     premium,
     list,
+    state,
     update,
     check,
     get,

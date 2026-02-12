@@ -98,5 +98,11 @@ class AccountListOut(Serializer):
         return instance.display_username
 
 
+class AccountStateOut(Serializer):
+    id: int
+    busy: bool
+    status: enums.AccountStatus
+
+
 class AccountsCheckIn(BaseModel):
     account_ids: list[int]

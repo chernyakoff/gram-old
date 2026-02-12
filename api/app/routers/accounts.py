@@ -11,6 +11,7 @@ from app.dto.account import (
     AccountIn,
     AccountListOut,
     AccountOut,
+    AccountStateOut,
     AccountsBulkCreateIn,
     AccountsCheckIn,
     BindProjectIn,
@@ -43,6 +44,11 @@ async def upload_accounts(
 @router.get("/list", response_model=list[AccountListOut])
 async def get_account_list(user=Depends(get_current_user)):
     return await AccountListOut.from_queryset(orm.Account.filter(user_id=user.id))
+
+
+@router.get("/state", response_model=list[AccountStateOut])
+async def get_accounts_state(user=Depends(get_current_user)):
+    return await AccountStateOut.from_queryset(orm.Account.filter(user_id=user.id))
 
 
 @router.get("/{id}", response_model=AccountOut)
@@ -133,7 +139,9 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
 
 @router.post("/check", response_model=WorkflowOut)
 async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
-    accounts = await orm.Account.filter(id__in=data.account_ids, user_id=user.id).all()
+    accounts = await orm.Account.filter(
+        id__in=data.account_ids, user_id=user.id, busy=False
+    ).all()
     ids = [a.id for a in accounts]
     ref = await tasks.accounts_check.aio_run_no_wait(
         input=models.AccountsCheckIn(ids=ids)
@@ -151,7 +159,7 @@ async def set_limit(data: SetLimitIn, user=Depends(get_current_user)):
 
 @router.get("/{id}/stop-premium", response_model=WorkflowOut)
 async def stop_premium(id: int, user=Depends(get_current_user)):
-    account = await orm.Account.get_or_none(user_id=user.id, id=id)
+    account = await orm.Account.get_or_none(user_id=user.id, id=id, busy=False)
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 

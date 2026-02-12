@@ -108,17 +108,16 @@ import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useDateFormat } from '@vueuse/core'
 
 import type { TableColumn } from '@nuxt/ui'
-import { ref, onMounted, h, resolveComponent } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, h, resolveComponent } from 'vue'
 
 import { useTableSelection } from '@/composables/table/use-selection'
-import type { AccountOut } from '@/types/openapi'
+import type { AccountOut, AccountStateOut } from '@/types/openapi'
 import type { Column, SortingFn } from '@tanstack/vue-table'
 
 const title = 'Аккаунты'
 useTitle(title)
-const { get, accounts, loading } = useAccounts()
+const { get, state, accounts, loading } = useAccounts()
 const toast = useToast()
-onMounted(() => get())
 
 // Drawer управление
 const drawerOpen = ref(false)
@@ -143,16 +142,105 @@ function openPremiumDrawer (account: AccountOut) {
     premiumDrawerOpen.value = true
 }
 
-const refresh = () => {
-    tableApi.value?.setRowSelection({})
-    get()
-}
-
 const columnFilters = ref([{ id: 'phone', value: '' }])
 const columnVisibility = ref()
+const UIcon = resolveComponent('UIcon')
 const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table', 'id', {
     isSelectable: (row) => !row.busy,
+    renderNonSelectable: () => h('div', { class: 'flex items-center justify-center w-full' }, [
+        h(UIcon, {
+            name: 'i-lucide-loader-circle',
+            class: 'h-4 w-4 animate-spin text-warning',
+            title: 'Аккаунт в работе',
+            'aria-label': 'Аккаунт в работе',
+        }),
+    ]),
 })
+
+const STATE_POLL_INTERVAL = 5000
+const stateSyncInFlight = ref(false)
+let statePollTimer: ReturnType<typeof setInterval> | null = null
+
+function cleanupBusySelection () {
+    if (!tableApi.value) return
+    tableApi.value.getSelectedRowModel().rows.forEach((row) => {
+        if (row.original.busy) {
+            row.toggleSelected(false)
+        }
+    })
+}
+
+function applyStateUpdates (states: AccountStateOut[]) {
+    const stateById = new Map(states.map((item) => [item.id, item]))
+    let changed = false
+
+    accounts.value.forEach((account) => {
+        const next = stateById.get(account.id)
+        if (!next) return
+
+        if (account.busy !== next.busy || account.status !== next.status) {
+            account.busy = next.busy
+            account.status = next.status
+            changed = true
+        }
+    })
+
+    if (changed) {
+        cleanupBusySelection()
+    }
+}
+
+async function syncState () {
+    if (stateSyncInFlight.value || !accounts.value.length) return
+
+    stateSyncInFlight.value = true
+    try {
+        const states = await state()
+        applyStateUpdates(states)
+    } catch (e) {
+        console.error('accounts state sync failed', e)
+    } finally {
+        stateSyncInFlight.value = false
+    }
+}
+
+function startStatePolling () {
+    if (statePollTimer) return
+    statePollTimer = setInterval(() => {
+        void syncState()
+    }, STATE_POLL_INTERVAL)
+}
+
+function stopStatePolling () {
+    if (!statePollTimer) return
+    clearInterval(statePollTimer)
+    statePollTimer = null
+}
+
+onMounted(async () => {
+    await get()
+    void syncState()
+    startStatePolling()
+})
+
+onActivated(() => {
+    startStatePolling()
+    void syncState()
+})
+
+onDeactivated(() => {
+    stopStatePolling()
+})
+
+onUnmounted(() => {
+    stopStatePolling()
+})
+
+const refresh = async () => {
+    tableApi.value?.setRowSelection({})
+    await get()
+    void syncState()
+}
 
 const columnCentered = {
     meta: {

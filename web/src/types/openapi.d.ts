@@ -46,6 +46,11 @@ export interface components {
             delete: number[];
             upload: string[];
         };
+        AccountStateOut: {
+            id: number;
+            busy: boolean;
+            status: components["schemas"]["AccountStatus"];
+        };
         AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited" | "noproxy";
         AccountsBulkCreateIn: {
             s3path: string;
@@ -446,6 +451,7 @@ export type AccountListOut = components['schemas']['AccountListOut'];
 export type AccountOut = components['schemas']['AccountOut'];
 export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
+export type AccountStateOut = components['schemas']['AccountStateOut'];
 export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
