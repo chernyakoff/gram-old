@@ -281,21 +281,41 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     await asyncio.sleep(2)
 
     logger = StreamLogger(ctx)
+    tmp_dir: AsyncPath | None = None
 
     try:
         tmp_dir = await unzip_from_s3(input.s3path)
-
-        files = await get_account_files(tmp_dir)
-        if not files:
-            raise ValueError("Аккаунтов не найдено")
-
+    except zipfile.BadZipFile:
+        await logger.error(
+            "Не удалось распаковать файл: загруженный файл не является ZIP-архивом."
+        )
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(input.s3path)
+        return
     except Exception as e:
-        await logger.error(str(e))
+        await logger.error(f"Не удалось распаковать архив аккаунтов: {e}")
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         if tmp_dir:
             await clear_dir(tmp_dir)
+        return
 
+    try:
+        files = await get_account_files(tmp_dir)
+    except Exception as e:
+        await logger.error(f"Не удалось прочитать файлы аккаунтов из архива: {e}")
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(input.s3path)
+        await clear_dir(tmp_dir)
+        return
+
+    if not files:
+        await logger.error(
+            "Аккаунты не найдены: в архиве должны быть пары файлов .session и .json."
+        )
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(input.s3path)
+        await clear_dir(tmp_dir)
         return
 
     await logger.info(f"Найдено {len(files)} аккаунтов")
@@ -306,16 +326,26 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
             account = await AccountUtil.instance(file)
             accounts.append(account)
         except Exception as e:
-            await logger.error(e)
+            await logger.error(
+                f"Не удалось прочитать аккаунт из файлов {file.session.name} и {file.json.name}: {e}"
+            )
 
     proxy_pool = ProxyPool(input.user_id)
 
     tasks = [
         save_account(input.user_id, account, proxy_pool, logger) for account in accounts
     ]
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    saved_ids = [r for r in results if r]
+    saved_ids = []
+    for result in results:
+        if isinstance(result, Exception):
+            await logger.error(f"Ошибка при сохранении аккаунта: {result}")
+            continue
+        if result:
+            saved_ids.append(result)
+
+    await logger.info(f"Сохранено аккаунтов: {len(saved_ids)}")
 
     async with AsyncS3Client() as s3:  # type: ignore
         await s3.delete(input.s3path)
