@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from io import BytesIO
 
 from hatchet_sdk import Context
@@ -215,7 +216,12 @@ async def update(
         await upload_photos(client, input.photos.upload, orm_account.id, logger)
 
 
-@hatchet.task(name="accounts-update", input_validator=AccountsUpdateIn)
+@hatchet.task(
+    name="accounts-update",
+    input_validator=AccountsUpdateIn,
+    execution_timeout=timedelta(minutes=10),
+    schedule_timeout=timedelta(minutes=10),
+)
 async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
 
@@ -265,13 +271,33 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
 
     except SessionExpiredError as e:
         await logger.error(
-            str(e), payload={"account_id": input.id, "user_id": input.user_id, "stage": stage}
+            str(e),
+            payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
         )
         await logger.tech(
             "accounts_update session expired",
             payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
             exc=e,
         )
+    except asyncio.CancelledError as e:
+        # Cancellation (timeouts, orchestrator stop) is not an Exception in modern Python.
+        # If we don't log it explicitly, the run looks like a "silent failed".
+        await logger.error(
+            "обновление аккаунта было отменено (timeout/stop)",
+            payload={
+                "account_id": input.id,
+                "user_id": input.user_id,
+                "stage": stage,
+                "exception": type(e).__name__,
+                "exception_message": str(e),
+            },
+        )
+        await logger.tech(
+            "accounts_update cancelled",
+            payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+            exc=e,
+        )
+        raise
     except Exception as e:
         await logger.error(
             "обновление аккаунта завершилось с ошибкой. "
@@ -290,6 +316,24 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
             exc=e,
         )
         raise
+    except BaseException as e:
+        # Last-resort: ensure we log something even for non-Exception failures.
+        await logger.error(
+            "обновление аккаунта завершилось критической ошибкой",
+            payload={
+                "account_id": input.id,
+                "user_id": input.user_id,
+                "stage": stage,
+                "exception": type(e).__name__,
+                "exception_message": str(e),
+            },
+        )
+        await logger.tech(
+            "accounts_update baseexception",
+            payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+            exc=e,
+        )
+        raise
     finally:
         if client:
             try:
@@ -298,7 +342,11 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
             except Exception as e:
                 await logger.tech(
                     "disconnect failed",
-                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                    payload={
+                        "account_id": input.id,
+                        "user_id": input.user_id,
+                        "stage": stage,
+                    },
                     exc=e,
                 )
         if orm_account:
@@ -313,10 +361,18 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
             except Exception as e:
                 await logger.warning(
                     "не удалось сохранить статус busy=false при завершении задачи",
-                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                    payload={
+                        "account_id": input.id,
+                        "user_id": input.user_id,
+                        "stage": stage,
+                    },
                 )
                 await logger.tech(
                     "accounts_update cleanup failed",
-                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                    payload={
+                        "account_id": input.id,
+                        "user_id": input.user_id,
+                        "stage": stage,
+                    },
                     exc=e,
                 )

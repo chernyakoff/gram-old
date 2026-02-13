@@ -95,7 +95,12 @@ async def tokenize_card(public_token: str, card: CardDetails):
             return True, payment_json
 
 
-@hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
+@hatchet.task(
+    name="buy-premium",
+    input_validator=BuyPremiumIn,
+    execution_timeout=timedelta(minutes=10),
+    schedule_timeout=timedelta(minutes=10),
+)
 async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
     return BuyPremiumOut(status="error", message="Покупка премиум временно закрыта")
