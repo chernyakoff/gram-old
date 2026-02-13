@@ -62,7 +62,12 @@ async def update_username(
         await orm_account.save()
         await logger.success("username обновлен")
     except Exception as e:
-        await logger.error(f"ошибка обновления username: {e}")
+        await logger.error("ошибка обновления username")
+        await logger.tech(
+            "update_username failed",
+            payload={"account_id": orm_account.id, "username": username},
+            exc=e,
+        )
 
 
 async def update_profile(
@@ -77,7 +82,12 @@ async def update_profile(
         await orm_account.save()
         await logger.success("профиль обновлен")
     except Exception as e:
-        await logger.error(f"ошибка обновления профиля: {e}")
+        await logger.error("ошибка обновления профиля")
+        await logger.tech(
+            "update_profile failed",
+            payload={"account_id": orm_account.id, "update": update},
+            exc=e,
+        )
 
 
 async def update_channel(
@@ -92,7 +102,12 @@ async def update_channel(
         await orm_account.save()
         await logger.success("канал обновлен")
     except Exception as e:
-        await logger.error(f"ошибка обновления канала: {e}")
+        await logger.error("ошибка обновления канала")
+        await logger.tech(
+            "update_channel failed",
+            payload={"account_id": orm_account.id, "channel": channel},
+            exc=e,
+        )
 
 
 async def delete_photos(
@@ -123,7 +138,12 @@ async def delete_photos(
             await s3.delete_many(paths)
         await set_main_photo(account_id)
     except Exception as e:
-        await logger.error(f"ошибка удаления фото: {e}")
+        await logger.error("ошибка удаления фото")
+        await logger.tech(
+            "delete_photos failed",
+            payload={"to_delete": to_delete, "paths": paths, "account_id": account_id},
+            exc=e,
+        )
 
 
 async def upload_photos(
@@ -154,7 +174,12 @@ async def upload_photos(
                         f"не удалось получить фото для {path}, результат: {type(result)}"
                     )
             except Exception as e:
-                await logger.error(f"ошибка загрузки фото: {e}")
+                await logger.error(f"ошибка загрузки фото: {path.split('/')[-1]}")
+                await logger.tech(
+                    "upload_photos failed",
+                    payload={"path": path, "account_id": account_id},
+                    exc=e,
+                )
     await set_main_photo(account_id)
 
 
@@ -197,17 +222,21 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     logger = StreamLogger(ctx)
     client: TelegramClient | None = None
     orm_account: orm.Account | None = None
+    stage = "init"
     try:
+        stage = "start"
         await logger.info(
             "начинаем обновление аккаунта", payload={"account_id": input.id}
         )
 
+        stage = "load_account"
         orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
         orm_account.busy = True
 
         pool = ProxyPool(input.user_id)
         account = AccountUtil.from_orm(orm_account)
 
+        stage = "verify_proxy"
         await logger.info("проверяем прокси")
         proxy = await pool.verify_proxy(orm_account)
         if not proxy:
@@ -215,33 +244,56 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
             await logger.error("прокси не прошел проверку, обновление остановлено")
             return
 
+        stage = "create_client"
         client = account.create_client(proxy)
         async with in_transaction() as conn:
             await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
+        stage = "connect"
         await logger.info("подключаем клиент telegram")
         await client.connect()
 
+        stage = "auth_check"
         await logger.info("проверяем авторизацию аккаунта")
         if not await client.is_user_authorized():
             raise SessionExpiredError(account.phone)
 
+        stage = "update_fields"
         await logger.info("запускаем обновление полей аккаунта")
         await update(client, input, orm_account, logger)
         await logger.success("обновление аккаунта завершено")
 
     except SessionExpiredError as e:
-        await logger.error(str(e))
+        await logger.error(
+            str(e), payload={"account_id": input.id, "user_id": input.user_id, "stage": stage}
+        )
+        await logger.tech(
+            "accounts_update session expired",
+            payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+            exc=e,
+        )
     except Exception as e:
         await logger.error(
             "обновление аккаунта завершилось с ошибкой. "
-            f"Проверьте прокси, сессию и корректность данных. "
-            f"Детали: {type(e).__name__}: {e}"
+            "Проверьте прокси, сессию и корректность данных."
+        )
+        await logger.tech(
+            "accounts_update failed",
+            payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+            exc=e,
         )
         raise
     finally:
-        if client and client.is_connected():
-            await client.disconnect()  # type: ignore
+        if client:
+            try:
+                if client.is_connected():
+                    await client.disconnect()  # type: ignore
+            except Exception as e:
+                await logger.tech(
+                    "disconnect failed",
+                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                    exc=e,
+                )
         if orm_account:
             orm_account.busy = False
             async with in_transaction() as conn:

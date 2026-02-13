@@ -158,9 +158,15 @@
               <div
                 class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
               >
-                <p class="text-sm text-blue-600 dark:text-blue-400">
-                  Для завершения покупки необходимо пройти верификацию
-                </p>
+                <div class="space-y-2">
+                  <p class="text-sm text-blue-600 dark:text-blue-400">
+                    Для завершения покупки необходимо пройти верификацию.
+                  </p>
+                  <p class="text-sm text-blue-600 dark:text-blue-400">
+                    После прохождения верификации система автоматически проверит покупку и попытается
+                    отключить автосписание. Обычно это занимает до часа, не запускайте «Отмена подписки» вручную.
+                  </p>
+                </div>
               </div>
               <UButton
                 label="Перейти к верификации"
@@ -182,9 +188,15 @@
               <div
                 class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
               >
-                <p class="text-sm text-green-600 dark:text-green-400">
-                  Premium успешно приобретен!
-                </p>
+                <div class="space-y-2">
+                  <p class="text-sm text-green-600 dark:text-green-400">
+                    Premium успешно оформлен.
+                  </p>
+                  <p class="text-sm text-green-600 dark:text-green-400">
+                    В течение примерно 10 минут система автоматически проверит покупку и отключит автосписание.
+                    Не нажимайте «Отмена подписки» вручную.
+                  </p>
+                </div>
               </div>
               <UButton
                 label="Закрыть"
@@ -219,6 +231,7 @@
 import { reactive, watch, ref, computed } from 'vue'
 import { safeParse } from 'valibot'
 import { useAccounts } from '@/composables/use-accounts'
+import { usePremiumPending } from '@/composables/use-premium-pending'
 import type { AccountOut, BuyPremiumOut } from '@/types/openapi'
 import { cardDetailsSchema } from '@/schemas/card'
 
@@ -230,6 +243,7 @@ const emit = defineEmits<{
 }>()
 
 const { get, premium } = useAccounts()
+const { setPending } = usePremiumPending()
 
 const account = ref<AccountOut | undefined>()
 const purchaseResponse = ref<BuyPremiumOut | null>(null)
@@ -468,6 +482,15 @@ const onSubmit = async () => {
 
   try {
     purchaseResponse.value = await premium(props.accountId, result.output)
+    if (purchaseResponse.value?.status === 'success') {
+      // UI-only: не даём пользователю повторно покупать/жать stop-premium, пока бэкенд синхронизирует статус.
+      const minutes = purchaseResponse.value.verificationUrl ? 60 : 10
+      setPending(
+        props.accountId,
+        minutes,
+        purchaseResponse.value.verificationUrl ? 'verification' : 'purchase',
+      )
+    }
   } finally {
     localLoading.value = false
     isSubmitting.value = false

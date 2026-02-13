@@ -1,10 +1,10 @@
 import asyncio
 from datetime import timedelta
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 from hatchet_sdk import Context
 from pydantic import BaseModel
-from telethon import TelegramClient
+from telethon import TelegramClient, types
 from telethon.events import NewMessage
 from telethon.tl.types import (
     KeyboardButton,
@@ -38,9 +38,16 @@ class StopPremiumIn(BaseModel):
 
 async def _stop_premium(
     client: TelegramClient, logger: StreamLogger
-) -> Literal["error", "success"]:
+) -> Literal["error", "success", "noop", "no_premium"]:
     finished = False  # флаг завершения цепочки
     steps_done = 0  # количество успешно пройденных шагов
+    noop = False  # PremiumBot ответил "нечего отключать" (уже отключено)
+
+    nothing_to_stop_markers = (
+        "Nothing to stop, recurring payments are already disabled for this account.",
+        "Нечего отключать",  # на случай локализации
+        "уже отключ",  # "уже отключены/отключено"
+    )
 
     async def debug_keyboard(msg):
         mk = msg.reply_markup
@@ -64,12 +71,21 @@ async def _stop_premium(
 
     @client.on(NewMessage(from_users="@PremiumBot"))
     async def handler(event):
-        nonlocal finished, steps_done
+        nonlocal finished, steps_done, noop
         try:
             msg = event.message
             await logger.info(msg.message)
 
             # await debug_keyboard(msg)
+            if msg.message and any(m in msg.message for m in nothing_to_stop_markers):
+                # Это корректный исход: recurring уже отключен.
+                await logger.info(
+                    "Nothing to stop: recurring уже отключен для этого аккаунта"
+                )
+                noop = True
+                finished = True
+                await client.disconnect()  # type: ignore
+                return
 
             mk = msg.reply_markup
             if mk and isinstance(mk, (ReplyKeyboardMarkup, ReplyInlineMarkup)):
@@ -109,11 +125,19 @@ async def _stop_premium(
             await logger.error("Вылетел из сессии")
             return "error"
 
+        me = await client.get_me()
+        me = cast(types.User, me)
+        if not me.premium:
+            await logger.info("Premium отсутствует на аккаунте: отменять нечего")
+            return "no_premium"
+
         await client.send_message("@PremiumBot", "/stop")
 
         await asyncio.gather(client.run_until_disconnected(), monitor_timeout())  # type: ignore
 
         # После завершения цепочки определяем результат
+        if noop:
+            return "noop"
         return "success" if steps_done > 0 else "error"
 
     except Exception as e:
@@ -158,18 +182,37 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
 
     try:
         status = await _stop_premium(client, logger)
-        if status == "error":
-            await logger.error("Не удалось отключить подписку")
+        if status == "no_premium":
+            # Синхронизация: premium реально отсутствует (даже если в БД было иначе).
+            orm_account.premium = False
+            orm_account.premiumed_at = None  # type: ignore
+            # Поле булевое (не nullable) в текущей модели, поэтому "сбрасываем" в False.
             orm_account.premium_stopped = False
+            await logger.info("Premium отсутствует: сбрасываем флаги в БД и завершаем")
+        elif status == "error":
+            await logger.error("Не удалось отключить подписку")
+            # Не "перекрашиваем" premium_stopped в False на любых ошибках:
+            # мы не можем надёжно определить, включены ли recurring-платежи.
         else:
-            await logger.success("Подписка успешно отключена")
+            # success/noop: recurring отключен, premium может оставаться активным до конца периода.
+            # Заодно выравниваем премиум-флаги по реальности (если раньше были выставлены неверно).
+            orm_account.premium = True
+            orm_account.premiumed_at = orm_account.premiumed_at or tz.now()
+            await logger.success("Recurring платежи отключены")
             orm_account.premium_stopped = True
     except Exception as e:
-        orm_account.premium_stopped = False
+        # Аналогично: на исключениях не трогаем premium_stopped, чтобы не скатывать UI в "жёлтую".
         await logger.error(f"Ошибка stop-premium: {e}")
     finally:
         orm_account.busy = False
         async with in_transaction() as conn:
             await orm_account.save(
-                using_db=conn, update_fields=["busy", "premium_stopped", "updated_at"]
+                using_db=conn,
+                update_fields=[
+                    "busy",
+                    "premium",
+                    "premiumed_at",
+                    "premium_stopped",
+                    "updated_at",
+                ],
             )

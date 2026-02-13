@@ -41,21 +41,38 @@
                 </template>
                 <template #premium-cell="{ row }">
                     <div class="flex items-center gap-1 justify-center">
-                        <template v-if="!row.original.premium">
+                        <template v-if="row.original.busy">
+                            <UIcon
+                                name="i-lucide-loader-circle"
+                                class="h-6 w-6 animate-spin text-warning"
+                                title="Аккаунт в работе"
+                                aria-label="Аккаунт в работе"
+                            />
+                        </template>
+                        <template v-else-if="row.original.premium && row.original.premiumStopped">
+                            <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
+                        </template>
+                        <template v-else-if="isPremiumPending(row.original.id)">
+                            <button class="flex items-center gap-1" @click="notifyPremiumPending(row.original)">
+                                <UIcon name="i-lucide-clock" class="h-6 w-6 animate-pulse text-blue-500" />
+                            </button>
+                        </template>
+                        <template v-else-if="!row.original.premium">
                             <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
                                 <UIcon name="bx:cart" class="h-6 w-6" />
                             </button>
                         </template>
-                        <template v-else-if="row.original.premium && !row.original.premiumStopped">
-                            <StopPremiumModal :account="row.original" @completed="refresh" />
-                        </template>
                         <template v-else>
-                            <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
+                            <StopPremiumModal :account="row.original" @completed="refresh" />
                         </template>
                     </div>
                 </template>
                 <template #name-cell="{ row }">
-                    <div class="flex items-center gap-3" @click="openDrawer(row.original)">
+                    <div
+                        class="flex items-center gap-3"
+                        :class="row.original.busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'"
+                        @click="openDrawer(row.original)"
+                    >
                         <UButton
                             v-if="row.original.photos.length"
                             class="rounded-full"
@@ -75,7 +92,15 @@
                                 {{ row.original.firstName }} {{ row.original.lastName }}
                             </p>
                             <p>
-                                <a class="text-sm" :href="`https://t.me/${row.original.username}`" target="_blank"> @{{ row.original.username }} </a>
+                                <a
+                                    class="text-sm"
+                                    :class="row.original.busy ? 'pointer-events-none' : ''"
+                                    :href="`https://t.me/${row.original.username}`"
+                                    target="_blank"
+                                    @click.stop
+                                >
+                                    @{{ row.original.username }}
+                                </a>
                             </p>
                         </div>
                     </div>
@@ -105,6 +130,7 @@ import StopPremiumModal from '@/components/dashboard/accounts/stop-premium-modal
 import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
+import { usePremiumPending } from '@/composables/use-premium-pending'
 import { useTitle, useDateFormat } from '@vueuse/core'
 
 import type { TableColumn } from '@nuxt/ui'
@@ -118,6 +144,7 @@ const title = 'Аккаунты'
 useTitle(title)
 const { get, state, accounts, loading } = useAccounts()
 const toast = useToast()
+const { isPending, remainingLabel, clearPending } = usePremiumPending()
 
 // Drawer управление
 const drawerOpen = ref(false)
@@ -138,8 +165,34 @@ function openDrawer (account: AccountOut) {
 }
 
 function openPremiumDrawer (account: AccountOut) {
+    if (account.busy) {
+        toast.add({
+            title: 'Аккаунт в работе',
+            color: 'warning',
+        })
+        return
+    }
+    if (isPending(account.id)) {
+        notifyPremiumPending(account)
+        return
+    }
     selectedAccountId.value = account.id
     premiumDrawerOpen.value = true
+}
+
+function isPremiumPending (accountId: number) {
+    return isPending(accountId)
+}
+
+function notifyPremiumPending (account: AccountOut) {
+    const remaining = remainingLabel(account.id)
+    toast.add({
+        title: 'Покупка premium обрабатывается',
+        description: remaining
+            ? `Проверка покупки и авто-отмена автосписания выполняются автоматически. Подождите примерно ${remaining}.`
+            : 'Проверка покупки и авто-отмена автосписания выполняются автоматически. Подождите около 10 минут.',
+        color: 'primary',
+    })
 }
 
 const columnFilters = ref([{ id: 'phone', value: '' }])
@@ -239,6 +292,10 @@ onUnmounted(() => {
 const refresh = async () => {
     tableApi.value?.setRowSelection({})
     await get()
+    // Если отмена recurring уже отражена в БД, убираем локальный pending, чтобы UI не "залипал".
+    accounts.value.forEach((a) => {
+        if (a.premiumStopped) clearPending(a.id)
+    })
     void syncState()
 }
 
