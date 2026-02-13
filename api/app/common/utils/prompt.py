@@ -2,6 +2,8 @@ import re
 from datetime import date
 
 from pydantic import BaseModel
+from zoneinfo import ZoneInfo
+from tortoise import timezone as tz
 
 from app.common.models.enums import DialogStatus
 from app.common.models.orm import (
@@ -51,7 +53,14 @@ async def get_status_addon() -> str:
 async def get_calendar_addon(user: User) -> str:
     prompt = await AppSettings.fetch("prompt.calendar")
     schedule = await UserSchedule.get_default_for_user(user)
-    prompt = prompt.replace("{CURRENT_DATE}", date.today().isoformat())
+    # Use schedule timezone as the reference for "today"/"tomorrow" words.
+    # date.today() depends on server local timezone and can drift.
+    try:
+        now_local = tz.now().astimezone(ZoneInfo(schedule.timezone))
+        current_date = now_local.date().isoformat()
+    except Exception:
+        current_date = tz.now().date().isoformat()
+    prompt = prompt.replace("{CURRENT_DATE}", current_date)
     prompt = prompt.replace("{TIMEZONE}", schedule.timezone)
     return prompt
 

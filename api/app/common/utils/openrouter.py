@@ -126,7 +126,12 @@ async def create_response_with_tools(
             if not handler:
                 raise RuntimeError(f"Нет handler-а для tool {tool_name}")
 
-            result = await handler(**args)
+            try:
+                result = await handler(**args)
+            except Exception as e:
+                # Do not fail the whole LLM request on tool errors. Return an error
+                # payload so the model can self-correct (e.g. re-call get_slots).
+                result = {"status": "error", "tool": tool_name, "message": str(e)}
 
             history.append(
                 {
