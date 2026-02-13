@@ -18,6 +18,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   
   const { api } = useApi()
+
+  function clearLocalSession() {
+    user.value = null
+    accessToken.value = null
+    localStorage.removeItem('accessToken')
+    stopBalancePolling()
+  }
+
+  let logoutInFlight: Promise<void> | null = null
   async function login(user: UserLoginIn) {
 
     const inviteRefCode = localStorage.getItem('inviteRefCode')
@@ -41,28 +50,48 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    user.value = null
-    accessToken.value = null
-    localStorage.removeItem('accessToken')
-    stopBalancePolling()
+    // Make logout idempotent and avoid spamming the API under repeated calls.
+    if (logoutInFlight) return logoutInFlight
+
+    logoutInFlight = (async () => {
+      clearLocalSession()
+      try {
+        await api('auth/logout', { method: 'POST' })
+      } catch {
+        // ignore errors
+      }
+    })()
+
     try {
-      await api('auth/logout', { method: 'POST' })
-    } catch {
-      // ignore errors
+      await logoutInFlight
+    } finally {
+      logoutInFlight = null
     }
   }
 
+  let refreshInFlight: Promise<boolean> | null = null
   async function refreshTokens() {
+    if (refreshInFlight) return refreshInFlight
+
+    refreshInFlight = (async () => {
+      try {
+        const data = await api<UserLoginOut>('auth/refresh', {
+          method: 'POST',
+        })
+        accessToken.value = data.accessToken
+        localStorage.setItem('accessToken', data.accessToken)
+        return true
+      } catch {
+        // Important: don't call server logout here; on refresh failure this can create request storms.
+        clearLocalSession()
+        return false
+      }
+    })()
+
     try {
-      const data = await api<UserLoginOut>('auth/refresh', {
-        method: 'POST',
-      })
-      accessToken.value = data.accessToken
-      localStorage.setItem('accessToken', data.accessToken)
-      return true
-    } catch {
-      logout()
-      return false
+      return await refreshInFlight
+    } finally {
+      refreshInFlight = null
     }
   }
 

@@ -90,7 +90,15 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (auth.isAuthenticated && !auth.user?.hasLicense && to.path.startsWith('/app')) {
-    return next({ name: 'license' })
+    // Allow admins to reach the admin panel even without a license, including while impersonating.
+    // Security must be enforced on the API side; this only affects client routing.
+    const isAdminRoute = to.path === '/app/admin' || to.path.startsWith('/app/admin/')
+    const canReachAdmin =
+      isAdminRoute && (auth.user?.role === 'ADMIN' || auth.user?.impersonated === true)
+
+    if (!canReachAdmin) {
+      return next({ name: 'license' })
+    }
   }
 
   next()

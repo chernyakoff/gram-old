@@ -28,6 +28,11 @@ function createKy() {
       afterResponse: [
         async (request, options, response) => {
           if (response.status === 401) {
+            // Never try to refresh on refresh/logout calls, otherwise we can end up in a retry loop.
+            if (request.url.includes('/auth/refresh') || request.url.includes('/auth/logout')) {
+              return response
+            }
+
             const headers =
               options.headers instanceof Headers ? options.headers : new Headers(options.headers)
 

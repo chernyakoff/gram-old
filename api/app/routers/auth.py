@@ -125,7 +125,34 @@ async def get_current_user(authorization: str = Header(...)) -> orm.User:
     return user
 
 
-def admin_required(user=Depends(get_current_user)):
+async def get_real_user(authorization: str = Header(...)) -> orm.User:
+    """
+    Returns the *real* authenticated user:
+    - normal session: user from `sub`
+    - impersonated session: user from `real_sub`
+
+    Intended for admin-only endpoints to stay usable while impersonating.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Authorization header missing or invalid")
+
+    token = authorization.split(" ", 1)[1]
+    payload = decode_token(token)
+
+    user_id_raw = payload.get("sub")
+    if payload.get("impersonated") and payload.get("real_sub"):
+        user_id_raw = payload.get("real_sub")
+
+    if not user_id_raw:
+        raise HTTPException(401, "Invalid token")
+
+    user = await orm.User.get_or_none(id=int(user_id_raw))  # type: ignore[arg-type]
+    if not user:
+        raise HTTPException(404, "User not found")
+    return user
+
+
+def admin_required(user=Depends(get_real_user)):
     if user.role != enums.Role.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
@@ -238,6 +265,7 @@ async def me(user=Depends(get_current_user), authorization: str = Header(...)):
 @router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie(key="refresh_token", path="/")
+    return {"status": "ok"}
 
 
 @router.post("/refresh", response_model=UserLoginOut)
@@ -247,11 +275,49 @@ async def refresh_token_endpoint(
     if not refresh_token:
         raise HTTPException(401, "No refresh token cookie found")
 
-    user = await get_user_from_token(refresh_token)
-    if not user:
-        raise HTTPException(404, "User not found")
+    payload = decode_token(refresh_token)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(401, "Invalid refresh token")
 
-    access_token = create_access_token({"sub": str(user.id)})
-    set_refresh_cookie(response, user.id)
+    user = await orm.User.get_or_none(id=int(user_id))  # type: ignore[arg-type]
+    if not user:
+        # Treat as invalid/unauthorized; don't leak user existence and avoid 404 loops on the client.
+        raise HTTPException(401, "Invalid refresh token")
+
+    # Preserve impersonation session across refresh so admin can keep using admin tools
+    # (and can later stop impersonation) without being forced to re-login.
+    if payload.get("impersonated") and payload.get("real_sub"):
+        real_sub = int(payload["real_sub"])
+        admin = await orm.User.get_or_none(id=real_sub)
+        if not admin or admin.role != enums.Role.ADMIN:
+            raise HTTPException(401, "Invalid refresh token")
+
+        access_token = create_access_token(
+            {
+                "sub": str(user.id),
+                "real_sub": str(admin.id),
+                "impersonated": True,
+            }
+        )
+        new_refresh = create_refresh_token(
+            {
+                "sub": str(user.id),
+                "real_sub": str(admin.id),
+                "impersonated": True,
+            }
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh,
+            httponly=True,
+            samesite="none" if config.web.url.startswith("https") else "lax",
+            secure=True if config.web.url.startswith("https") else False,
+            max_age=config.api.jwt.refresh_expire_days * 24 * 60 * 60,
+            path="/",
+        )
+    else:
+        access_token = create_access_token({"sub": str(user.id)})
+        set_refresh_cookie(response, user.id)
 
     return {"access_token": access_token}

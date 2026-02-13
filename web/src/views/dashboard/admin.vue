@@ -6,7 +6,7 @@
                     <UDashboardSidebarCollapse />
                 </template>
                 <template #right>
-                    <div class="flex items-center gap-4 text-sm">
+                    <div v-if="!limitedAdminMode" class="flex items-center gap-4 text-sm">
                         <div> OpenRouter: <span class="font-semibold">{{ balance.openrouter }} ₽</span>
                         </div>
                         <div> Пользователи: <span class="font-semibold">{{ balance.users }} ₽</span>
@@ -17,7 +17,20 @@
         </template>
         <template #body>
             <div class="w-full max-w-4xl mx-auto md:min-w-[800px] px-4">
-                <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
+                <UAlert
+                    v-if="limitedAdminMode"
+                    class="mb-4"
+                    color="warning"
+                    variant="soft"
+                    title="Режим имперсонации"
+                    description="Сейчас вы вошли как пользователь. Для безопасности доступны только действия по переключению/выходу из имперсонации." />
+                <UTabs
+                    :key="tabsKey"
+                    :items="tabs"
+                    variant="link"
+                    :ui="{ trigger: 'grow' }"
+                    :unmount-on-hide="false"
+                    class="gap-4">
                     <template #license>
                         <AdminLicenseForm />
                     </template>
@@ -65,19 +78,34 @@ import AdminBalanceForm from '@/components/dashboard/admin/balance-form.vue'
 import AdminImpersonateForm from '@/components/dashboard/admin/impersonate-form.vue'
 import AdminPromptForm from '@/components/dashboard/admin/prompt-form.vue'
 import AdminDialogsForm from '@/components/dashboard/admin/dialogs-form.vue'
-import { onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import type { GetBalanceOut } from '@/types/openapi'
 import { useAdmin } from '@/composables/use-admin'
+import { useAuth } from '@/composables/use-auth'
 
 const title = 'Админка'
 
-const tabs = [
+const allTabs = [
     { label: 'Лицензии', icon: 'bx:badge-check', slot: 'license' as const },
     { label: 'Баланс', icon: 'bx:user', slot: 'balance' as const },
     { label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const },
     { label: 'Скачать диалоги', icon: 'bx:download', slot: 'dialogs' as const },
     { label: 'Промпты', icon: 'bx:brain', slot: 'prompts' as const },
 ] satisfies TabsItem[]
+
+const { user, isImpersonated } = useAuth()
+const limitedAdminMode = computed(() => isImpersonated.value || user.value?.role !== 'ADMIN')
+
+const tabs = computed<TabsItem[]>(() => {
+    if (limitedAdminMode.value) {
+        // If items list shrinks/expands, UTabs can keep stale active value.
+        // We remount UTabs via `tabsKey`, and also keep the list minimal in impersonation mode.
+        return [{ label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const }] satisfies TabsItem[]
+    }
+    return allTabs
+})
+
+const tabsKey = computed(() => (limitedAdminMode.value ? 'admin-tabs-limited' : 'admin-tabs-full'))
 
 const promptTabs = [
     { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
@@ -98,6 +126,7 @@ const balance = reactive<GetBalanceOut>({
 })
 
 onMounted(async () => {
+    if (limitedAdminMode.value) return
     const response = await getBalance()
     Object.assign(balance, response)
 })

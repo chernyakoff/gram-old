@@ -15,7 +15,8 @@ from app.config import config
 from app.routers.auth import (
     admin_required,
     create_impersonation_tokens,
-    get_current_user,
+    get_real_user,
+    set_refresh_cookie,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -61,13 +62,16 @@ async def extend_license(data: LicenseIn):
     dependencies=[Depends(admin_required)],
 )
 async def impersonate(
-    data: ImpersonateIn, response: Response, admin=Depends(get_current_user)
+    data: ImpersonateIn, response: Response, admin=Depends(get_real_user)
 ):
     username = data.username.removeprefix("https://t.me/").removeprefix("@")
     user = await orm.User.get_or_none(username=username)
 
     if not user:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot impersonate yourself")
 
     access, refresh = create_impersonation_tokens(user.id, admin.id)
 
@@ -85,8 +89,10 @@ async def impersonate(
 
 
 @router.post("/stop-impersonate")
-async def stop_impersonate(response: Response):
-    response.delete_cookie("refresh_token", path="/")
+async def stop_impersonate(response: Response, admin=Depends(admin_required)):
+    # Restore admin refresh cookie (if any impersonation was active). This keeps the admin logged in
+    # without forcing a full re-login.
+    set_refresh_cookie(response, admin.id)
     return {"status": "ok"}
 
 

@@ -24,16 +24,48 @@
           </div>
 
           <div class="flex items-center gap-3 border-l border-slate-700 pl-6 h-8">
-            <UButton
-              @click="showLoginModal = true"
-              variant="link"
-              color="neutral"
-              size="md"
-              class="gap-2"
-            >
-              <LogIn class="h-4 w-4" />
-              Вход
-            </UButton>
+            <template v-if="!isAuthenticated">
+              <UButton
+                @click="showLoginModal = true"
+                variant="link"
+                color="neutral"
+                size="md"
+                class="gap-2"
+              >
+                <LogIn class="h-4 w-4" />
+                Вход
+              </UButton>
+            </template>
+            <template v-else>
+              <UButton
+                @click="goToCabinet"
+                variant="link"
+                color="neutral"
+                size="md"
+                class="gap-2"
+              >
+                Кабинет
+              </UButton>
+              <UButton
+                v-if="isImpersonated"
+                @click="onStopImpersonate"
+                variant="link"
+                color="neutral"
+                size="md"
+                class="gap-2"
+              >
+                Выйти из имперсонации
+              </UButton>
+              <UButton
+                @click="onLogout"
+                variant="link"
+                color="neutral"
+                size="md"
+                class="gap-2"
+              >
+                Выйти
+              </UButton>
+            </template>
 
             <a href="https://t.me/Maksim_Belichenko" target="_blank" rel="noopener noreferrer">
               <Button
@@ -70,15 +102,44 @@
           {{ item.label }}
         </a>
         <div class="pt-4 space-y-3 border-t border-slate-800 mt-4">
-          <UButton
-            @click="showLoginModal = true"
-            variant="ghost"
-            color="neutral"
-            class="w-full justify-start gap-2"
-          >
-            <LogIn class="h-4 w-4" />
-            Вход в кабинет
-          </UButton>
+          <template v-if="!isAuthenticated">
+            <UButton
+              @click="showLoginModal = true"
+              variant="ghost"
+              color="neutral"
+              class="w-full justify-start gap-2"
+            >
+              <LogIn class="h-4 w-4" />
+              Вход в кабинет
+            </UButton>
+          </template>
+          <template v-else>
+            <UButton
+              @click="goToCabinet"
+              variant="ghost"
+              color="neutral"
+              class="w-full justify-start gap-2"
+            >
+              Кабинет
+            </UButton>
+            <UButton
+              v-if="isImpersonated"
+              @click="onStopImpersonate"
+              variant="ghost"
+              color="neutral"
+              class="w-full justify-start gap-2"
+            >
+              Выйти из имперсонации
+            </UButton>
+            <UButton
+              @click="onLogout"
+              variant="ghost"
+              color="neutral"
+              class="w-full justify-start gap-2"
+            >
+              Выйти
+            </UButton>
+          </template>
           <a
             href="https://t.me/Maksim_Belichenko"
             target="_blank"
@@ -107,6 +168,7 @@
 import { useAuth } from '@/composables/use-auth'
 import type { UserLoginIn } from '@/types/openapi'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Menu, X, Send, LogIn } from 'lucide-vue-next'
 import Button from './Button.vue'
 import type { NavItem } from './types'
@@ -140,7 +202,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleScroll)
 })
 
-const { login } = useAuth()
+const router = useRouter()
+const { login, logout, stopImpersonate, isAuthenticated, isImpersonated } = useAuth()
 const showLoginModal = ref(false)
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.BOT_NAME
@@ -208,6 +271,22 @@ onMounted(() => {
       })
   }
 })
+
+const goToCabinet = async () => {
+  isOpen.value = false
+  await router.push({ name: 'app' })
+}
+
+const onLogout = async () => {
+  isOpen.value = false
+  await logout()
+}
+
+const onStopImpersonate = async () => {
+  isOpen.value = false
+  await stopImpersonate()
+  await router.push('/app/admin')
+}
 
 watch(showLoginModal, (isOpen) => {
   if (isOpen) {
