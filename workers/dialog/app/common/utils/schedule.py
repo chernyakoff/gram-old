@@ -8,6 +8,7 @@ __generated__ = True
 from datetime import date as date_cls
 from datetime import datetime, timedelta
 from typing import List
+from zoneinfo import ZoneInfo
 
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
@@ -59,9 +60,12 @@ class ScheduleService:
         except ValueError:
             raise ValueError("date must be in YYYY-MM-DD format")
 
-        today = tz.now().date()
-        if start_date < today:
-            start_date = today
+        # We do not allow scheduling "today". The minimum date is "tomorrow"
+        # in the schedule timezone, but we may have multiple schedules, so we
+        # enforce per-schedule in _get_available_slots_for_schedule too.
+        today_utc = tz.now().date()
+        if start_date < today_utc:
+            start_date = today_utc
 
         schedules: list[UserSchedule]
         if self.schedule:
@@ -87,6 +91,15 @@ class ScheduleService:
     ) -> List[TimeSlot]:
         available_slots: List[TimeSlot] = []
         meeting_duration = timedelta(minutes=schedule.meeting_duration)
+
+        # Disallow "today" in schedule timezone.
+        try:
+            local_today = tz.now().astimezone(ZoneInfo(schedule.timezone)).date()
+        except Exception:
+            local_today = tz.now().date()
+        min_date = local_today + timedelta(days=1)
+        if start_date < min_date:
+            start_date = min_date
 
         for day_offset in range(days_ahead):
             current_date = start_date + timedelta(days=day_offset)
@@ -208,6 +221,15 @@ async def book_meeting(
     """
     schedule = schedule or await UserSchedule.get_default_for_user(user)
 
+    # Hard guardrail: never allow meetings on "today" in schedule timezone.
+    # NOTE: our slots are naive datetimes (no tzinfo), so we compare by date.
+    try:
+        local_today = tz.now().astimezone(ZoneInfo(schedule.timezone)).date()
+    except Exception:
+        local_today = tz.now().date()
+    if slot_start.date() <= local_today:
+        raise ValueError("Нельзя назначить встречу на сегодня")
+
     async with in_transaction():
         # Проверяем, нет ли пересечения с другими встречами
         overlapping = (
@@ -256,10 +278,6 @@ TOOLS = [
                         "type": "string",
                         "description": "Дата начала в формате YYYY-MM-DD",
                     },
-                    "schedule_id": {
-                        "type": "integer",
-                        "description": "ID расписания пользователя",
-                    }
                 },
                 "required": ["date"],
             },
@@ -302,6 +320,9 @@ class ToolContext:
         self.dialog = dialog
         self.user = user
         self.days_ahead = days_ahead
+        # In-memory guardrail within a single tool loop: we only allow booking
+        # slot_keys that were actually returned by get_slots in this request.
+        self._last_slot_keys: set[str] = set()
 
     async def _get_schedule(self, schedule_id: int | None = None) -> UserSchedule:
         if schedule_id is None:
@@ -331,12 +352,29 @@ class ToolContext:
         }
 
     async def get_slots(self, date: str, schedule_id: int | None = None):
-        schedule = await self._get_schedule(schedule_id) if schedule_id else None
+        # schedule_id is intentionally kept optional in the handler signature for
+        # backward compatibility, but we do not encourage the model to pass it
+        # (it is frequently hallucinated). If it is invalid, return an error
+        # payload rather than failing the whole AI response.
+        schedule = None
+        if schedule_id:
+            try:
+                schedule = await self._get_schedule(schedule_id)
+            except Exception as e:
+                return {"status": "error", "message": str(e), "slots": []}
         service = ScheduleService(self.user, schedule)
         slots = await service.get_available_slots(date=date, days_ahead=self.days_ahead)
-        return {"slots": [self._slot_to_dict(s) for s in slots]}
+        payload_slots = [self._slot_to_dict(s) for s in slots]
+        self._last_slot_keys = {s["slot_key"] for s in payload_slots}
+        return {"slots": payload_slots}
 
     async def book_slot(self, slot_key: str):
+        if self._last_slot_keys and slot_key not in self._last_slot_keys:
+            return {
+                "status": "error",
+                "message": "slot_key не найден среди доступных слотов; сначала вызови get_slots и используй slot_key из ответа",
+            }
+
         parsed = slot_key.split("__", 2)
         if len(parsed) != 3:
             raise ValueError("Некорректный slot_key")
@@ -346,7 +384,10 @@ class ToolContext:
             start=datetime.fromisoformat(start_s),
             end=datetime.fromisoformat(end_s),
         )
-        schedule = await self._get_schedule(int(schedule_id_str))
+        try:
+            schedule = await self._get_schedule(int(schedule_id_str))
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
         if not self.dialog:
             return {
