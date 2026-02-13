@@ -1,8 +1,7 @@
 import re
-from datetime import date
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
-from zoneinfo import ZoneInfo
 from tortoise import timezone as tz
 
 from app.common.models.enums import DialogStatus

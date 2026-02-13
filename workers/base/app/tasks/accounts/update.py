@@ -275,7 +275,14 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     except Exception as e:
         await logger.error(
             "обновление аккаунта завершилось с ошибкой. "
-            "Проверьте прокси, сессию и корректность данных."
+            "Проверьте прокси, сессию и корректность данных.",
+            payload={
+                "account_id": input.id,
+                "user_id": input.user_id,
+                "stage": stage,
+                "exception": type(e).__name__,
+                "exception_message": str(e),
+            },
         )
         await logger.tech(
             "accounts_update failed",
@@ -295,8 +302,21 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
                     exc=e,
                 )
         if orm_account:
-            orm_account.busy = False
-            async with in_transaction() as conn:
-                await orm_account.save(
-                    using_db=conn, update_fields=["busy", "updated_at"]
+            # Cleanup must be best-effort: if we fail to persist `busy=False` (DB issue, closed conn),
+            # don't mask the real task outcome by raising from finally.
+            try:
+                orm_account.busy = False
+                async with in_transaction() as conn:
+                    await orm_account.save(
+                        using_db=conn, update_fields=["busy", "updated_at"]
+                    )
+            except Exception as e:
+                await logger.warning(
+                    "не удалось сохранить статус busy=false при завершении задачи",
+                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                )
+                await logger.tech(
+                    "accounts_update cleanup failed",
+                    payload={"account_id": input.id, "user_id": input.user_id, "stage": stage},
+                    exc=e,
                 )
