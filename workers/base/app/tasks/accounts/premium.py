@@ -97,6 +97,8 @@ async def tokenize_card(public_token: str, card: CardDetails):
 
 @hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
 async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
+
+    return BuyPremiumOut(status="error", message="Покупка премиум временно закрыта")
     logger = StreamLogger(ctx)
     card = input.card
 
