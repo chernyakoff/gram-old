@@ -16,9 +16,11 @@ class CallbackFormIn(BaseModel):
 
 router = APIRouter(prefix="/form", tags=["form"])
 
+CHANNEL_ID = -1003866275203
+
 
 async def send_messages(data: CallbackFormIn):
-    admins = await User.filter(role=Role.ADMIN).all()
+
     text = ["Форма обратной связи (тарифы)"]
     text.append("")
     text.append(f"<b>Имя:</b> {data.name}")
@@ -26,12 +28,12 @@ async def send_messages(data: CallbackFormIn):
     if data.telegram:
         data.telegram = data.telegram.removeprefix("https://t.me/").removeprefix("@")
         text.append(f"<b>Телеграм:</b> @{data.telegram}")
-    for user in admins:
-        try:
-            await send_text_to_user(chat_id=user.id, text="\n".join(text))
-            await asyncio.sleep(0.3)
-        except:
-            pass
+
+    try:
+        await send_text_to_user(chat_id=CHANNEL_ID, text="\n".join(text))
+        await asyncio.sleep(0.3)
+    except:
+        pass
 
 
 @router.post("/callback")
