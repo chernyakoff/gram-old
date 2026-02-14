@@ -5,6 +5,13 @@ from io import BytesIO
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient, types
+from telethon.errors import (
+    FloodWaitError,
+    RPCError,
+    UsernameInvalidError,
+    UsernameNotModifiedError,
+    UsernameOccupiedError,
+)
 from telethon.tl.functions.account import (
     UpdatePersonalChannelRequest,
     UpdateProfileRequest,
@@ -13,14 +20,20 @@ from telethon.tl.functions.account import (
 from telethon.tl.functions.photos import DeletePhotosRequest, UploadProfilePhotoRequest
 from tortoise.transactions import in_transaction
 
-from workers.base.client import hatchet
 from models import orm
+from queries.accounts import set_main_photo
 from utils.account import AccountUtil
+from utils.logger import StreamLogger
 from utils.proxy_pool import ProxyPool
 from utils.s3 import AsyncS3Client
 from workers.base.accounts.exceptions import SessionExpiredError
-from queries.accounts import set_main_photo
-from utils.logger import StreamLogger
+from workers.base.client import hatchet
+
+
+class AccountsUpdateStepFailedError(Exception):
+    def __init__(self, failed_steps: list[str]):
+        self.failed_steps = failed_steps
+        super().__init__(f"Accounts update failed steps: {', '.join(failed_steps)}")
 
 
 class AccountsUpdatePhotosIn(BaseModel):
@@ -51,17 +64,78 @@ def compare_models(
     return to_change
 
 
+def normalize_username(username: str | None) -> str:
+    """
+    Telegram expects username without leading '@'. Empty string means "clear username".
+    """
+
+    if not username:
+        return ""
+    u = username.strip()
+    if u.startswith("@"):
+        u = u[1:]
+    return u
+
+
 async def update_username(
     client: TelegramClient,
     username: str,
     orm_account: orm.Account,
     logger: StreamLogger,
-) -> None:
+) -> bool:
+    username = normalize_username(username)
     try:
         await client(UpdateUsernameRequest(username=username))
-        orm_account.username = username
+        orm_account.username = username or None  # type: ignore
         await orm_account.save()
         await logger.success("username обновлен")
+        return True
+    except UsernameOccupiedError as e:
+        await logger.error("username занят")
+        await logger.tech(
+            "update_username occupied",
+            payload={"account_id": orm_account.id, "username": username},
+            exc=e,
+        )
+        return False
+    except UsernameInvalidError as e:
+        await logger.error("username некорректный")
+        await logger.tech(
+            "update_username invalid",
+            payload={"account_id": orm_account.id, "username": username},
+            exc=e,
+        )
+        return False
+    except UsernameNotModifiedError as e:
+        orm_account.username = username or None
+        await orm_account.save()
+        await logger.info("username уже установлен")
+        await logger.tech(
+            "update_username not modified",
+            payload={"account_id": orm_account.id, "username": username},
+            exc=e,
+        )
+        return True
+    except FloodWaitError as e:
+        await logger.error(f"слишком часто меняли username, подождите {e.seconds} сек")
+        await logger.tech(
+            "update_username flood wait",
+            payload={
+                "account_id": orm_account.id,
+                "username": username,
+                "seconds": e.seconds,
+            },
+            exc=e,
+        )
+        return False
+    except RPCError as e:
+        await logger.error("ошибка Telegram при обновлении username")
+        await logger.tech(
+            "update_username rpc error",
+            payload={"account_id": orm_account.id, "username": username},
+            exc=e,
+        )
+        return False
     except Exception as e:
         await logger.error("ошибка обновления username")
         await logger.tech(
@@ -69,6 +143,7 @@ async def update_username(
             payload={"account_id": orm_account.id, "username": username},
             exc=e,
         )
+        return False
 
 
 async def update_profile(
@@ -76,12 +151,13 @@ async def update_profile(
     update: dict[str, str],
     orm_account: orm.Account,
     logger: StreamLogger,
-):
+) -> bool:
     try:
         await client(UpdateProfileRequest(**update))
         orm_account.update_from_dict(update)
         await orm_account.save()
         await logger.success("профиль обновлен")
+        return True
     except Exception as e:
         await logger.error("ошибка обновления профиля")
         await logger.tech(
@@ -89,6 +165,7 @@ async def update_profile(
             payload={"account_id": orm_account.id, "update": update},
             exc=e,
         )
+        return False
 
 
 async def update_channel(
@@ -96,12 +173,13 @@ async def update_channel(
     channel: str,
     orm_account: orm.Account,
     logger: StreamLogger,
-):
+) -> bool:
     try:
         await client(UpdatePersonalChannelRequest(channel=channel))  # type: ignore
         orm_account.channel = channel
         await orm_account.save()
         await logger.success("канал обновлен")
+        return True
     except Exception as e:
         await logger.error("ошибка обновления канала")
         await logger.tech(
@@ -109,6 +187,7 @@ async def update_channel(
             payload={"account_id": orm_account.id, "channel": channel},
             exc=e,
         )
+        return False
 
 
 async def delete_photos(
@@ -116,7 +195,7 @@ async def delete_photos(
     to_delete: list[int],
     account_id: int,
     logger: StreamLogger,
-):
+) -> bool:
     orm_photos = await orm.AccountPhoto.filter(id__in=to_delete).all()
     paths = [p.path for p in orm_photos]
     try:
@@ -138,6 +217,7 @@ async def delete_photos(
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete_many(paths)
         await set_main_photo(account_id)
+        return True
     except Exception as e:
         await logger.error("ошибка удаления фото")
         await logger.tech(
@@ -145,11 +225,13 @@ async def delete_photos(
             payload={"to_delete": to_delete, "paths": paths, "account_id": account_id},
             exc=e,
         )
+        return False
 
 
 async def upload_photos(
     client: TelegramClient, to_upload: list[str], account_id: int, logger: StreamLogger
-):
+) -> bool:
+    had_error = False
     async with AsyncS3Client() as s3:  # type:ignore
         for path in to_upload:
             try:
@@ -174,6 +256,7 @@ async def upload_photos(
                     await logger.error(
                         f"не удалось получить фото для {path}, результат: {type(result)}"
                     )
+                    had_error = True
             except Exception as e:
                 await logger.error(f"ошибка загрузки фото: {path.split('/')[-1]}")
                 await logger.tech(
@@ -181,7 +264,9 @@ async def upload_photos(
                     payload={"path": path, "account_id": account_id},
                     exc=e,
                 )
+                had_error = True
     await set_main_photo(account_id)
+    return not had_error
 
 
 async def update(
@@ -192,10 +277,21 @@ async def update(
 ):
     fields = ["username", "about", "channel", "first_name", "last_name"]
     to_change = compare_models(orm_account, input, fields)
+    await logger.info(
+        "поля для обновления",
+        payload={"account_id": orm_account.id, "to_change": to_change},
+    )
+    failed_steps: list[str] = []
 
     if "username" in to_change:
-        username = input.username or ""
-        await update_username(client, username, orm_account, logger)
+        desired = normalize_username(input.username)
+        current = normalize_username(orm_account.username)
+        if desired == current:
+            await logger.info("username без изменений")
+        else:
+            ok = await update_username(client, desired, orm_account, logger)
+            if not ok:
+                failed_steps.append("username")
 
     profile_update = {
         f: getattr(input, f) or ""
@@ -203,17 +299,32 @@ async def update(
         if f in to_change
     }
     if profile_update:
-        await update_profile(client, profile_update, orm_account, logger)
+        ok = await update_profile(client, profile_update, orm_account, logger)
+        if not ok:
+            failed_steps.append("profile")
 
     if "channel" in to_change:
         channel = input.channel or ""
-        await update_channel(client, channel, orm_account, logger)
+        ok = await update_channel(client, channel, orm_account, logger)
+        if not ok:
+            failed_steps.append("channel")
 
     if input.photos.delete:
-        await delete_photos(client, input.photos.delete, orm_account.id, logger)
+        ok = await delete_photos(client, input.photos.delete, orm_account.id, logger)
+        if not ok:
+            failed_steps.append("delete_photos")
 
     if input.photos.upload:
-        await upload_photos(client, input.photos.upload, orm_account.id, logger)
+        ok = await upload_photos(client, input.photos.upload, orm_account.id, logger)
+        if not ok:
+            failed_steps.append("upload_photos")
+
+    if failed_steps:
+        await logger.error(
+            "обновление аккаунта завершено частично",
+            payload={"account_id": orm_account.id, "failed_steps": failed_steps},
+        )
+        raise AccountsUpdateStepFailedError(failed_steps)
 
 
 @hatchet.task(
@@ -269,6 +380,27 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
         await update(client, input, orm_account, logger)
         await logger.success("обновление аккаунта завершено")
 
+    except AccountsUpdateStepFailedError as e:
+        await logger.error(
+            "не удалось обновить все поля аккаунта",
+            payload={
+                "account_id": input.id,
+                "user_id": input.user_id,
+                "stage": stage,
+                "failed_steps": e.failed_steps,
+            },
+        )
+        await logger.tech(
+            "accounts_update partial failure",
+            payload={
+                "account_id": input.id,
+                "user_id": input.user_id,
+                "stage": stage,
+                "failed_steps": e.failed_steps,
+            },
+            exc=e,
+        )
+        raise
     except SessionExpiredError as e:
         await logger.error(
             str(e),

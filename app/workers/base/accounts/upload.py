@@ -18,127 +18,17 @@ from telethon.tl.types.users import UserFull
 from telethon.types import Message
 from tortoise.exceptions import IntegrityError
 
-from workers.base.client import hatchet
 from models import orm
+from queries.accounts import set_main_photo
 from utils.account import AccountIn, AccountUtil
 from utils.functions import clear_dir, pick
+from utils.logger import StreamLogger
 from utils.proxy_pool import ProxyPool
 from utils.s3 import AsyncS3Client
-from queries.accounts import set_main_photo
-from utils.logger import StreamLogger
 from workers.base.accounts.utils import get_account_files
+from workers.base.client import hatchet
 
-
-class AccountsUploadIn(BaseModel):
-    user_id: int
-    s3path: str
-
-
-async def unzip_from_s3(file_id: str) -> AsyncPath:
-    tmp_dir = AsyncPath(tempfile.mkdtemp())
-
-    async with AsyncS3Client() as s3:  # type: ignore
-        content_bytes = await s3.get(file_id)  # получаем bytes
-
-    zip_bytes = BytesIO(content_bytes)
-    with zipfile.ZipFile(zip_bytes) as zf:
-        for member in zf.infolist():
-            member_path = tmp_dir / member.filename
-            if member.is_dir():
-                await member_path.mkdir(parents=True, exist_ok=True)
-            else:
-                await member_path.parent.mkdir(parents=True, exist_ok=True)
-                file_data = zf.read(member)
-                await member_path.write_bytes(file_data)
-
-    return tmp_dir
-
-
-async def save_photos(client: TelegramClient, account_in: AccountIn):
-    insert: list[orm.AccountPhoto] = []
-    i = 0
-    async with AsyncS3Client() as s3:  # type: ignore
-        async for photo in client.iter_profile_photos("me"):
-            buf = BytesIO()
-            await client.download_media(photo, file=buf)
-            buf.seek(0)  # важно!
-            path = f"media/{account_in.user_id}/{account_in.id}/{uuid4()}.png"
-            await s3.put(path, buf.getvalue(), "image/png")
-            insert.append(
-                orm.AccountPhoto(
-                    tg_id=photo.id,
-                    path=path,
-                    account_id=account_in.id,
-                    access_hash=photo.access_hash,
-                    file_reference=photo.file_reference,
-                )
-            )
-            i += 1
-    if insert:
-        insert.reverse()
-        await orm.AccountPhoto.bulk_create(insert, ignore_conflicts=True)
-        await set_main_photo(account_in.id)
-
-
-async def save_account(
-    user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
-):
-    proxy = await pool.acquire_proxy(account.country)
-    if not proxy:
-        await logger.from_proxy_pool(pool)
-        return
-
-    client = account.create_client(proxy)
-    try:
-        await client.connect()
-        if not await client.is_user_authorized():
-            await logger.error(f"{account.phone} вылетел из сессии")
-
-            return
-
-        me = await client.get_me(input_peer=False)
-        params = pick(
-            ["id", "username", "first_name", "last_name", "premium"],
-            me.to_dict(),
-        )
-        response = await client(GetFullUserRequest("me"))  # type: ignore
-        response = cast(UserFull, response)
-        params["about"] = response.full_user.about
-        params["channel"] = (
-            response.chats[0].username if response.chats else None  # type: ignore
-        )
-        params["user_id"] = user_id
-        params["proxy_id"] = proxy.id
-        params["session"] = StringSession.save(client.session)  # type: ignore
-        account_in = AccountIn(**params)
-
-        orm_account = account.to_orm(account_in)
-
-        try:
-            await orm_account.save()
-            saved_id = orm_account.id  # <-- сохраняем, но НЕ возвращаем здесь
-            await logger.success(account.phone)
-        except IntegrityError:
-            await logger.error(f"{account.phone} уже есть в базе")
-            return None
-        finally:
-            # Даже если уже есть в базе — освободим прокси
-            await pool.release_proxy_lock(proxy)
-
-        try:
-            await save_photos(client, account_in)
-        except Exception as e:
-            await logger.error(f"{account.phone} {e}")
-
-        return saved_id
-    except Exception as e:
-        await logger.error(f"{account.phone} {e}")
-        await pool.release_proxy_lock(proxy)
-
-    finally:
-        await client.disconnect()  # type: ignore
-
-
+""" 
 async def _get_telegram_code(app: TelegramClient) -> str | None:
     messages = await app.get_messages(777000, limit=20)
 
@@ -260,6 +150,117 @@ async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogg
         return
     finally:
         await dup_client.disconnect()  # type: ignore
+ """
+
+
+class AccountsUploadIn(BaseModel):
+    user_id: int
+    s3path: str
+
+
+async def unzip_from_s3(file_id: str) -> AsyncPath:
+    tmp_dir = AsyncPath(tempfile.mkdtemp())
+
+    async with AsyncS3Client() as s3:  # type: ignore
+        content_bytes = await s3.get(file_id)  # получаем bytes
+
+    zip_bytes = BytesIO(content_bytes)
+    with zipfile.ZipFile(zip_bytes) as zf:
+        for member in zf.infolist():
+            member_path = tmp_dir / member.filename
+            if member.is_dir():
+                await member_path.mkdir(parents=True, exist_ok=True)
+            else:
+                await member_path.parent.mkdir(parents=True, exist_ok=True)
+                file_data = zf.read(member)
+                await member_path.write_bytes(file_data)
+
+    return tmp_dir
+
+
+async def save_photos(client: TelegramClient, account_in: AccountIn):
+    insert: list[orm.AccountPhoto] = []
+    i = 0
+    async with AsyncS3Client() as s3:  # type: ignore
+        async for photo in client.iter_profile_photos("me"):
+            buf = BytesIO()
+            await client.download_media(photo, file=buf)
+            buf.seek(0)  # важно!
+            path = f"media/{account_in.user_id}/{account_in.id}/{uuid4()}.png"
+            await s3.put(path, buf.getvalue(), "image/png")
+            insert.append(
+                orm.AccountPhoto(
+                    tg_id=photo.id,
+                    path=path,
+                    account_id=account_in.id,
+                    access_hash=photo.access_hash,
+                    file_reference=photo.file_reference,
+                )
+            )
+            i += 1
+    if insert:
+        insert.reverse()
+        await orm.AccountPhoto.bulk_create(insert, ignore_conflicts=True)
+        await set_main_photo(account_in.id)
+
+
+async def save_account(
+    user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
+):
+    proxy = await pool.acquire_proxy(account.country)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    client = account.create_client(proxy)
+    try:
+        await client.connect()
+        if not await client.is_user_authorized():
+            await logger.error(f"{account.phone} вылетел из сессии")
+
+            return
+
+        me = await client.get_me(input_peer=False)
+        params = pick(
+            ["id", "username", "first_name", "last_name", "premium"],
+            me.to_dict(),
+        )
+        response = await client(GetFullUserRequest("me"))  # type: ignore
+        response = cast(UserFull, response)
+        params["about"] = response.full_user.about
+        params["channel"] = (
+            response.chats[0].username if response.chats else None  # type: ignore
+        )
+        params["user_id"] = user_id
+        params["proxy_id"] = proxy.id
+        params["session"] = StringSession.save(client.session)  # type: ignore
+        account_in = AccountIn(**params)
+
+        orm_account = account.to_orm(account_in)
+
+        try:
+            await orm_account.save()
+            saved_id = orm_account.id  # <-- сохраняем, но НЕ возвращаем здесь
+            await logger.success(account.phone)
+        except IntegrityError:
+            await logger.error(f"{account.phone} уже есть в базе")
+            return None
+        finally:
+            # Даже если уже есть в базе — освободим прокси
+            await pool.release_proxy_lock(proxy)
+
+        try:
+            await save_photos(client, account_in)
+        except Exception as e:
+            await logger.error(f"{account.phone} {e}")
+
+        return saved_id
+    except Exception as e:
+        await logger.error(f"{account.phone} {e}")
+        await pool.release_proxy_lock(proxy)
+
+    finally:
+        await client.disconnect()  # type: ignore
 
 
 @hatchet.task(
