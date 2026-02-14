@@ -1,7 +1,0 @@
-#!/usr/bin/env fish
-
-# Запуск sync из base через bash
-bash ../../workers/base/sync
-
-# Запуск sync из dialog через bash
-bash ../../workers/dialog/sync

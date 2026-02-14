@@ -1,2 +1,0 @@
-#!/bin/bash
-uv run -m app.cli.sync_tasks

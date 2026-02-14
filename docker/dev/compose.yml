@@ -14,20 +14,21 @@ services:
     networks:
       - dev
 
-  base-worker:
+  base:
     build:
-      context: ../../workers/base
+      context: ../..
+      dockerfile: app/workers/base/Dockerfile
       target: dev
-    container_name: neuro-base-worker
+    container_name: neuro-base
     volumes:
-      - ../../workers/base:/app
-      - uv-venv-base-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-base:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.base"]
     depends_on:
       - postgres
     networks:
@@ -35,20 +36,21 @@ services:
       - dev
       - web
 
-  dialog-worker:
+  dialog:
     build:
-      context: ../../workers/dialog
+      context: ../..
+      dockerfile: app/workers/dialog/Dockerfile
       target: dev
-    container_name: neuro-dialog-worker
+    container_name: neuro-dialog
     volumes:
-      - ../../workers/dialog:/app
-      - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-dialog:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.dialog"]
     depends_on:
       - postgres
     networks:
@@ -58,19 +60,20 @@ services:
 
   api:
     build:
-      context: ../../api
+      context: ../..
+      dockerfile: app/api/Dockerfile
       target: dev
     container_name: neuro-api
     ports:
       - "8833:8833" # маппим наружу API
     volumes:
-      - ../../api:/app
+      - ../../app:/app
       - uv-venv-api:/app/.venv # отдельный том под venv api
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    command: ["uv", "run", "python", "-m", "app.dev"]
+    command: ["uv", "run", "python", "-m", "api.dev"]
     depends_on:
       - postgres
     networks:
@@ -91,7 +94,7 @@ services:
       - ./config.yml:/app/config.yml
     depends_on:
       - api
-      - base-worker
+      - base
     networks:
       - dev
       - web
@@ -116,8 +119,8 @@ services:
       - web
 
 volumes:
-  uv-venv-base-worker: {}
-  uv-venv-dialog-worker: {}
+  uv-venv-base: {}
+  uv-venv-dialog: {}
   uv-venv-api: {}
   postgres-data-dev: {}
   minio-data: {}

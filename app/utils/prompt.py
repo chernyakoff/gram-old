@@ -1,0 +1,214 @@
+import re
+from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel
+from tortoise import timezone as tz
+
+from models.orm import DialogStatus
+from models.orm import (
+    PROMPT_FIELDS,
+    Account,
+    AppSettings,
+    Prompt,
+    Recipient,
+    User,
+    UserSchedule,
+)
+from utils import openrouter
+
+
+class ProjectSkipOptions(BaseModel):
+    engage: bool
+    offer: bool
+    closing: bool
+
+
+DEFAULT_SKIP_OPTIONS = ProjectSkipOptions(engage=False, offer=False, closing=False)
+
+TERMINAL_STATUSES = {
+    DialogStatus.COMPLETE.value,
+    DialogStatus.NEGATIVE.value,
+    DialogStatus.OPERATOR.value,
+    DialogStatus.MANUAL.value,
+}
+
+
+PROMPT_TITLES = {
+    "role": "РОЛЬ",
+    "instruction": "ИНСТРУКЦИЯ",
+    "context": "КОНТЕКСТ",
+    "init": "STAGE 1: INIT",
+    "engage": "STAGE 2: ENGAGE",
+    "offer": "STAGE 3: OFFER",
+    "closing": "STAGE 4: CLOSING",
+    "rules": "ГЛОБАЛЬНЫЕ ПРАВИЛА",
+}
+
+
+async def get_status_addon() -> str:
+    return await AppSettings.fetch("prompt.system")
+
+
+async def get_calendar_addon(user: User) -> str:
+    prompt = await AppSettings.fetch("prompt.calendar")
+    schedule = await UserSchedule.get_default_for_user(user)
+    # Use schedule timezone as the reference for "today"/"tomorrow" words.
+    # date.today() depends on server local timezone and can drift.
+    try:
+        now_local = tz.now().astimezone(ZoneInfo(schedule.timezone))
+        current_date = now_local.date().isoformat()
+    except Exception:
+        current_date = tz.now().date().isoformat()
+    prompt = prompt.replace("{CURRENT_DATE}", current_date)
+    prompt = prompt.replace("{TIMEZONE}", schedule.timezone)
+    return prompt
+
+
+def get_name_addon(account: Account, recipient: Recipient) -> str:
+    addon = []
+    account_names = [n for n in (account.first_name, account.last_name) if n]
+    if any(account_names):
+        addon.append(f"Тебя зовут {' '.join(account_names)}")
+
+    recipient_names = [n for n in (recipient.first_name, recipient.last_name) if n]
+    if any(recipient_names):
+        addon.append(f"Твоего собеседника зовут {' '.join(recipient_names)}")
+
+    return "\n".join(addon)
+
+
+async def get_generator() -> str:
+    return await AppSettings.fetch("prompt.generator")
+
+
+async def get_first_touch(brief_json: str) -> str:
+    firstTouch = await AppSettings.fetch("prompt.firstTouch")
+    return f"{firstTouch}\n\n# БРИФ:\n\n```json\n{brief_json}\n```\n"
+
+
+def build_prompt(prompt: dict, status: DialogStatus = DialogStatus.INIT):
+    text = []
+    statuses = {s.value for s in DialogStatus}
+    for key, title in PROMPT_TITLES.items():
+        if key not in statuses:
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+        elif key == status:
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+
+    markdown = "\n\n".join(text)
+    markdown = markdown.replace("{current_status}", status.value)
+    return markdown
+
+
+DYNAMIC_ORDER = ["engage", "offer", "closing"]
+
+
+def get_active_status(
+    status: str | DialogStatus = DialogStatus.INIT,
+    skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
+) -> DialogStatus:
+    status_value = status.value if isinstance(status, DialogStatus) else status
+
+    if status_value in TERMINAL_STATUSES:
+        return DialogStatus(status_value)
+
+    active_status: str | None = None
+
+    # INIT всегда включается
+    if status_value == DialogStatus.INIT.value:
+        active_status = DialogStatus.INIT.value
+
+    elif status_value in DYNAMIC_ORDER:
+        start_index = DYNAMIC_ORDER.index(status_value)
+        for s in DYNAMIC_ORDER[start_index:]:
+            if not getattr(skip_options, s, False):
+                active_status = s
+                break
+
+    # если ничего не нашли — значит, диалог логически завершён
+    if active_status is None:
+        active_status = DialogStatus.COMPLETE.value
+    print(f"Status: {status_value}, Active: {active_status}")
+    return DialogStatus(active_status)
+
+
+def get_status_info(
+    status: DialogStatus | None,
+    skip_options: ProjectSkipOptions = DEFAULT_SKIP_OPTIONS,
+):
+    available_sections = []
+    disabled_sections = []
+    for section in DYNAMIC_ORDER:
+        if section == "init":
+            # init всегда доступен
+            available_sections.append(section)
+        else:
+            is_skipped = getattr(skip_options, section, False)
+            if is_skipped:
+                disabled_sections.append(section)
+            else:
+                available_sections.append(section)
+
+    status_string = status.value if status else "None"
+
+    # Добавляем информацию о статусе и секциях
+    return f"""
+Текущий статус диалога: {status_string}
+ДОСТУПНЫЕ секции скрипта (галочка НЕ стоит):
+{", ".join(available_sections) if available_sections else "нет"}
+ОТКЛЮЧЕННЫЕ секции (галочка стоит - ПРОПУСТИТЬ):
+{", ".join(disabled_sections) if disabled_sections else "нет"}
+"""
+
+
+def build_prompt_v2(
+    prompt: dict[str, str],
+    status: DialogStatus | None,
+):
+    statuses = {s.value for s in DialogStatus}  # {"init", "engage", "offer", "closing"}
+    text = []
+    for key, title in PROMPT_TITLES.items():
+        if key not in statuses:
+            # обычная секция
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+        elif status and key == status.value:
+            # динамическая секция, которая не пропущена
+            block = f"# {title}\n{prompt[key]}"
+            text.append(block)
+    return "\n\n".join(text)
+
+
+async def analyze_dialog_status(
+    user: User, history: list[dict], status: DialogStatus
+) -> DialogStatus | None:
+    prompt = await AppSettings.fetch("prompt.findStatus")
+    prompt = f"ТЕКУЩИЙ СТАТУС: {status.value}\n\n" + prompt
+    history.append({"role": "user", "content": prompt})
+    response = await openrouter.create_response(user, history)
+    match = re.search(
+        r"(init|engage|offer|closing|complete|negative|operator)",
+        response.strip(),
+        re.IGNORECASE,
+    )
+    if match:
+        try:
+            return DialogStatus(response.strip().lower())
+        except:
+            return status
+
+
+def validate_prompt(prompt: Prompt | None, skip_option: ProjectSkipOptions) -> bool:
+    if prompt is None:
+        return False
+
+    for f in PROMPT_FIELDS:
+        skip = getattr(skip_option, f) if hasattr(skip_option, f) else False
+        if skip:
+            continue
+        v = getattr(prompt, f)
+        if len(v) < 3:
+            return False
+    return True

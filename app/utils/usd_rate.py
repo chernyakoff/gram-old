@@ -1,0 +1,48 @@
+from datetime import timedelta
+from decimal import Decimal
+
+import httpx
+from tortoise import timezone as tz
+
+from models.orm import AppSettings
+
+CACHE_TTL_HOURS = 6
+DEFAULT_USD_RATE = Decimal("100")  # значение по умолчанию на крайний случай
+
+
+async def get_usd_rate() -> Decimal:
+    path = "usd.rate"
+    section, name = path.split(".")
+    instance = await AppSettings.filter(section=section, name=name).first()
+    now = tz.now()
+
+    rate: Decimal | None = None
+
+    # проверяем, есть ли свежая запись
+    if instance and instance.value:
+        try:
+            db_rate = Decimal(instance.value)
+            if instance.updated_at and (now - instance.updated_at) < timedelta(
+                hours=CACHE_TTL_HOURS
+            ):
+                return db_rate  # свежая запись — возвращаем сразу
+            else:
+                rate = db_rate  # устаревшая, но на случай ошибки сети
+        except Exception:
+            rate = None  # неверное значение в базе
+    else:
+        rate = None
+
+    # обновляем через API
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("https://www.cbr-xml-daily.ru/daily_json.js")
+            resp.raise_for_status()
+            data = resp.json()
+            api_rate = Decimal(str(data["Valute"]["USD"]["Value"]))
+            # сохраняем в базу
+            await AppSettings.upsert(path, str(api_rate))
+            return api_rate
+    except Exception:
+        # если сеть умерла — возвращаем старое значение из базы или дефолт
+        return rate if rate is not None else DEFAULT_USD_RATE

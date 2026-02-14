@@ -39,40 +39,42 @@ services:
       done
       "
 
-  base-worker:
+  base:
     build:
-      context: ../../workers/base
+      context: ../..
+      dockerfile: app/workers/base/Dockerfile
       target: prod
-    container_name: neuro-base-worker
+    container_name: neuro-base
     volumes:
-      - ../../workers/base:/app
-      - uv-venv-base-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-base:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.base"]
     depends_on:
       - postgres
     networks:
       - hatchet
       - dev
 
-  dialog-worker:
+  dialog:
     build:
-      context: ../../workers/dialog
+      context: ../..
+      dockerfile: app/workers/dialog/Dockerfile
       target: prod
 
     volumes:
-      - ../../workers/dialog:/app
-      - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-dialog:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.dialog"]
     depends_on:
       - postgres
     networks:
@@ -83,17 +85,18 @@ services:
 
   api:
     build:
-      context: ../../api
+      context: ../..
+      dockerfile: app/api/Dockerfile
       target: prod
     container_name: neuro-api
     volumes:
-      - ../../api:/app
+      - ../../app:/app
       - uv-venv-api:/app/.venv # отдельный том под venv api
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "api"]
     depends_on:
       - postgres
     labels:
@@ -117,7 +120,7 @@ services:
 
     depends_on:
       - api
-      - base-worker
+      - base
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=web"
@@ -168,8 +171,8 @@ services:
       - web
 
 volumes:
-  uv-venv-base-worker: {}
-  uv-venv-dialog-worker: {}
+  uv-venv-base: {}
+  uv-venv-dialog: {}
   uv-venv-api: {}
   postgres-data-dev: {}
   minio-data: {}
