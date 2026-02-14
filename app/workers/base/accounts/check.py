@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
+from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
 from workers.base.client import hatchet
@@ -19,6 +20,7 @@ from utils.functions import pick
 from utils.proxy_pool import ProxyPool
 from utils.s3 import AsyncS3Client
 from workers.base.accounts.exceptions import SessionExpiredError
+from workers.base.accounts.stop_premium import StopPremiumIn, stop_premium
 from queries.accounts import set_main_photo
 from utils.logger import StreamLogger
 
@@ -111,9 +113,6 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
         ["id", "username", "first_name", "last_name", "premium"],
         me.to_dict(),
     )
-    if params["premium"] is False:
-        params["premiumed_at"] = None
-
     response = await app(GetFullUserRequest("me"))  # type: ignore
     response = cast(UserFull, response)
     params["about"] = response.full_user.about
@@ -121,6 +120,11 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
         response.chats[0].username if response.chats else None  # type: ignore
     )
     orm_account.update_from_dict(params)
+    # If Telegram reports premium, ensure we have a premiumed_at timestamp for UI and auditing.
+    if orm_account.premium:
+        orm_account.premiumed_at = orm_account.premiumed_at or tz.now()
+    else:
+        orm_account.premiumed_at = None  # type: ignore
 
 
 class AccountsCheckIn(BaseModel):
@@ -156,6 +160,7 @@ async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger
         now = datetime.now()
         prev_status = orm_account.status
         prev_muted_until = orm_account.muted_until
+        prev_premium = bool(orm_account.premium)
 
         muted_until_now = await check_spamblock(client)
 
@@ -195,6 +200,14 @@ async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger
 
         if orm_account.premium is False:
             orm_account.premium_stopped = False
+        else:
+            # Premium just appeared and recurring isn't disabled yet: schedule stop-premium.
+            if (not prev_premium) and (orm_account.premium_stopped is False):
+                schedule = stop_premium.schedule(
+                    run_at=tz.now() + timedelta(minutes=1),
+                    input=StopPremiumIn(account_id=orm_account.id),
+                )
+                await logger.info(f"scheduled stop-premium (premium detected): {schedule.id}")
 
     except SessionExpiredError:
         await logger.error(f"{account.phone} вылет из сессии")

@@ -5,6 +5,7 @@ from typing import Literal, cast
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient, types
+from telethon.errors import TimeoutError
 from telethon.events import NewMessage
 from telethon.tl.types import (
     KeyboardButton,
@@ -34,6 +35,72 @@ MAX_WAIT_SECONDS = 60
 
 class StopPremiumIn(BaseModel):
     account_id: int
+
+
+async def stop_premium_inline(
+    client: TelegramClient, logger: StreamLogger
+) -> Literal["error", "success", "noop", "no_premium"]:
+    """
+    Disable recurring in an already-connected session without disconnecting the client.
+
+    This is used from long-running tasks (e.g. dialog) where the account may stay busy for hours,
+    and scheduling the standalone `stop-premium` task would be delayed indefinitely.
+    """
+    nothing_to_stop_markers = (
+        "Nothing to stop, recurring payments are already disabled for this account.",
+        "Нечего отключать",
+        "уже отключ",
+    )
+
+    me = await client.get_me()
+    me = cast(types.User, me)
+    if not me.premium:
+        await logger.info("Premium отсутствует на аккаунте: отменять нечего")
+        return "no_premium"
+
+    steps_done = 0
+    try:
+        async with client.conversation("@PremiumBot", timeout=20) as conv:  # type: ignore
+            await conv.send_message("/stop")
+
+            # We expect a short chain of bot prompts with keyboards.
+            for _ in range(8):
+                msg = await conv.get_response()
+                text = getattr(msg, "message", None) or ""
+                await logger.info(text)
+
+                if text and any(m in text for m in nothing_to_stop_markers):
+                    await logger.info("Nothing to stop: recurring уже отключен для этого аккаунта")
+                    return "noop"
+
+                mk = getattr(msg, "reply_markup", None)
+                if mk and isinstance(mk, (ReplyKeyboardMarkup, ReplyInlineMarkup)):
+                    clicked = False
+                    for (ri, ci) in AUTO_STOP_POSITIONS:
+                        try:
+                            await msg.click(ri, ci)
+                            await logger.info(f"Нажата кнопка [{ri},{ci}]")
+                            steps_done += 1
+                            clicked = True
+                            break
+                        except Exception:
+                            continue
+                    if clicked:
+                        continue
+                    # keyboard exists but we couldn't click expected positions
+                    await logger.warning("Не удалось нажать кнопку PremiumBot по ожидаемой позиции")
+                    return "error"
+
+                # no keyboard -> chain likely finished
+                return "success" if steps_done > 0 else "error"
+
+        return "success" if steps_done > 0 else "error"
+    except TimeoutError:
+        await logger.warning("Timeout: PremiumBot не ответил вовремя")
+        return "error"
+    except Exception as e:
+        await logger.error(f"stop_premium_inline error: {e}")
+        return "error"
 
 
 async def _stop_premium(
@@ -195,9 +262,6 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
             # мы не можем надёжно определить, включены ли recurring-платежи.
         else:
             # success/noop: recurring отключен, premium может оставаться активным до конца периода.
-            # Заодно выравниваем премиум-флаги по реальности (если раньше были выставлены неверно).
-            orm_account.premium = True
-            orm_account.premiumed_at = orm_account.premiumed_at or tz.now()
             await logger.success("Recurring платежи отключены")
             orm_account.premium_stopped = True
     except Exception as e:

@@ -22,6 +22,8 @@ from utils.proxy_pool import ProxyPool
 from workers.dialog.task.manager import DialogManager
 from workers.dialog.task.telegram_service import FrozenError, SpamBlockedError
 from utils.logger import Logger
+from utils.logger import StreamLogger
+from workers.base.accounts.stop_premium import stop_premium_inline
 
 # Максимальное время на случай если что-то пойдет не так
 MAX_SESSION_HOURS = 6
@@ -50,7 +52,10 @@ async def release_account(account: orm.Account, error: str | None = None):
         await account.save(update_fields=update_fields)
 
 
-async def renew_account_info(client: TelegramClient, account: orm.Account):
+async def renew_account_info(
+    client: TelegramClient, account: orm.Account, slogger: StreamLogger
+):
+    prev_premium = bool(account.premium)
     me = await client.get_me(input_peer=False)
     keys = ["username", "first_name", "last_name", "premium"]
     account.update_from_dict(pick(keys, me.to_dict()))
@@ -59,6 +64,18 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
         account.premiumed_at = None  # type: ignore
         keys.append("premium_stopped")
         keys.append("premiumed_at")
+    else:
+        # Premium появился: фиксируем время покупки, если его еще не было.
+        if not account.premiumed_at:
+            account.premiumed_at = tz.now()
+            keys.append("premiumed_at")
+
+        # Premium появился впервые и recurring еще не отключали -> отключаем recurring сразу.
+        if (not prev_premium) and (account.premium_stopped is False):
+            status = await stop_premium_inline(client, slogger)
+            if status in ("success", "noop"):
+                account.premium_stopped = True
+                keys.append("premium_stopped")
     keys.append("updated_at")
     await account.save(update_fields=keys)
 
@@ -79,6 +96,7 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
 )
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
+    slogger = StreamLogger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related(
         "user", "proxy"
     )
@@ -173,7 +191,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         logger.info(f"Account {account.id} подключен к Telegram")
 
-        await renew_account_info(client, account)
+        await renew_account_info(client, account, slogger)
 
         project = await orm.Project.get(id=account.project_id)  # type: ignore
 
