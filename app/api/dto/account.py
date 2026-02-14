@@ -40,6 +40,7 @@ class AccountOut(AccountBase):
     phone: str
     premium: bool
     premium_stopped: bool
+    proxy: str | None
 
     twofa: str | None
     country: str
@@ -55,6 +56,13 @@ class AccountOut(AccountBase):
     dynamic_daily_limit: int | None
     premiumed_at: Optional[datetime] = None
     dialogs_count: int
+
+    @classmethod
+    async def resolve_proxy(cls, instance: orm.Account, context: ContextType) -> str | None:
+        proxy = getattr(instance, "proxy", None)
+        if not proxy:
+            return None
+        return f"{proxy.host}:{proxy.port}"
 
     @classmethod
     async def resolve_is_dynamic_limit(cls, instance, context):

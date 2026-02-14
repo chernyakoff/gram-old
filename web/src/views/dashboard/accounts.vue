@@ -12,29 +12,48 @@
     </template>
     <template #body>
       <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <UDropdownMenu
+          :items="columnVisibilityItems"
+          :content="{ align: 'end' }"
+        >
+          <UButton
+            label="Колонки"
+            color="neutral"
+            variant="outline"
+            trailing-icon="i-lucide-chevron-down"
+            aria-label="Columns select dropdown"
+          />
+        </UDropdownMenu>
         <SetLimitmodal :selected-ids="selectedIds" @close="refresh" />
         <CheckModal :selected-ids="selectedIds" @completed="refresh" />
         <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
         <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
       </div>
-      <UTable
-        ref="table"
-        v-model:column-filters="columnFilters"
-        v-model:column-visibility="columnVisibility"
-        class="shrink-0"
-        :data="accounts ?? []"
-        :columns="columns"
-        :loading="loading"
-        v-model:sorting="sorting"
-        :ui="{
-          base: 'table-fixed border-separate border-spacing-0',
-          thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-          tbody: '[&>tr]:last:[&>td]:border-b-0',
-          th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
-          td: 'border-b border-default',
-        }">
+      <UTable ref="table" v-model:column-filters="columnFilters" v-model:column-visibility="columnVisibility" class="shrink-0" :data="accounts ?? []" :columns="columns" :loading="loading" v-model:sorting="sorting" :ui="{
+        base: 'table-fixed border-separate border-spacing-0',
+        thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
+        tbody: '[&>tr]:last:[&>td]:border-b-0',
+        th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
+        td: 'border-b border-default',
+      }">
         <template #status-cell="{ row }">
           <AccountStatusBadge :account="row.original" />
+        </template>
+        <template #proxy-cell="{ row }">
+          <div class="flex items-center justify-center">
+            <UPopover v-if="row.original.proxy" mode="hover">
+              <UIcon
+                name="i-lucide-server"
+                class="h-5 w-5 text-muted"
+                aria-label="Прокси"
+                title="Прокси" />
+              <template #content>
+                <div class="p-2 text-sm">
+                  {{ row.original.proxy }}
+                </div>
+              </template>
+            </UPopover>
+          </div>
         </template>
         <template #project-cell="{ row }">
           {{ row.original.project?.name ?? 'не назначен' }}
@@ -125,14 +144,15 @@ import StopPremiumModal from '@/components/dashboard/accounts/stop-premium-modal
 import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
-import { useTitle, useDateFormat } from '@vueuse/core'
+import { useTitle, useDateFormat, useLocalStorage } from '@vueuse/core'
 
 import type { TableColumn } from '@nuxt/ui'
-import { ref, onMounted, onUnmounted, onActivated, onDeactivated, h, resolveComponent } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, h, resolveComponent, computed, watchEffect } from 'vue'
 
 import { useTableSelection } from '@/composables/table/use-selection'
 import type { AccountOut, AccountStateOut } from '@/types/openapi'
-import type { Column, SortingFn } from '@tanstack/vue-table'
+import type { Column, SortingFn, VisibilityState } from '@tanstack/vue-table'
+import { upperFirst } from 'scule'
 
 const title = 'Аккаунты'
 useTitle(title)
@@ -178,7 +198,38 @@ function openPremiumDrawer (account: AccountOut) {
 }
 
 const columnFilters = ref([{ id: 'phone', value: '' }])
-const columnVisibility = ref()
+const COLUMN_VISIBILITY_STORAGE_KEY = 'dashboard.accounts.columnVisibility'
+const HIDEABLE_COLUMN_IDS = ['premiumedAt', 'outDailyLimit', 'dialogsCount'] as const
+type HideableColumnId = (typeof HIDEABLE_COLUMN_IDS)[number]
+
+const columnVisibility = useLocalStorage<VisibilityState>(COLUMN_VISIBILITY_STORAGE_KEY, {})
+
+// Normalize stored value:
+// - keep only hideable columns
+// - keep only `false` entries (hidden); visible defaults to `true` when absent
+watchEffect(() => {
+  const current = columnVisibility.value ?? {}
+  const next: VisibilityState = {}
+
+  for (const id of HIDEABLE_COLUMN_IDS) {
+    if (current[id] === false) {
+      next[id] = false
+    }
+  }
+
+  const currentKeys = Object.keys(current)
+  const nextKeys = Object.keys(next)
+  if (currentKeys.length !== nextKeys.length) {
+    columnVisibility.value = next
+    return
+  }
+  for (const k of nextKeys) {
+    if (current[k] !== next[k]) {
+      columnVisibility.value = next
+      return
+    }
+  }
+})
 const UIcon = resolveComponent('UIcon')
 const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table', 'id', {
   isSelectable: (row) => !row.busy,
@@ -320,6 +371,32 @@ const sorting = ref([
   }
 ])
 
+const hideableColumnLabels: Record<HideableColumnId, string> = {
+  premiumedAt: 'Прем. куплен',
+  outDailyLimit: 'Лимит',
+  dialogsCount: '💬',
+}
+
+const columnVisibilityItems = computed(() => {
+  const api = tableApi.value
+  if (!api) return []
+
+  return api
+    .getAllColumns()
+    .filter((column) => column.getCanHide())
+    .map((column) => ({
+      label: hideableColumnLabels[column.id as HideableColumnId] ?? upperFirst(column.id),
+      type: 'checkbox' as const,
+      checked: column.getIsVisible(),
+      onUpdateChecked(checked: boolean) {
+        api.getColumn(column.id)?.toggleVisibility(!!checked)
+      },
+      onSelect(e: Event) {
+        e.preventDefault()
+      },
+    }))
+})
+
 const limitSortingFn: SortingFn<AccountOut> = (rowA, rowB) => {
   const getLimit = (row: AccountOut) =>
     row.isDynamicLimit ? row.dynamicDailyLimit : row.outDailyLimit
@@ -330,30 +407,67 @@ const limitSortingFn: SortingFn<AccountOut> = (rowA, rowB) => {
   return valueA - valueB
 }
 
+const projectSortingFn: SortingFn<AccountOut> = (rowA, rowB) => {
+  const a = (rowA.original.project?.name ?? '').toLowerCase()
+  const b = (rowB.original.project?.name ?? '').toLowerCase()
+
+  // "не назначен" отправляем в конец
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+
+  return a.localeCompare(b, 'ru')
+}
+
+const proxySortingFn: SortingFn<AccountOut> = (rowA, rowB) => {
+  const a = (rowA.original.proxy ?? '').toLowerCase()
+  const b = (rowB.original.proxy ?? '').toLowerCase()
+
+  // null/"" отправляем в конец
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+
+  return a.localeCompare(b, 'ru')
+}
+
 const columns: TableColumn<AccountOut>[] = [
-  selectionColumn(),
+  { ...selectionColumn(), enableHiding: false },
   {
     accessorKey: 'id',
-    header: "ID"
+    header: "ID",
+    enableHiding: false
 
   },
   {
     accessorKey: 'status',
     header: ({ column }) => getHeader(column, 'Статус'),
     ...columnCentered,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'proxy',
+    header: ({ column }) => getHeader(column, 'Прокси'),
+    sortingFn: proxySortingFn,
+    ...columnCentered,
+    enableHiding: false,
   },
   {
     accessorKey: 'project',
     header: ({ column }) => getHeader(column, 'Проект'),
+    sortingFn: projectSortingFn,
+    enableHiding: false,
 
   },
   {
     accessorKey: 'phone',
     header: 'Телефон',
+    enableHiding: false,
   },
   {
     accessorKey: 'country',
     header: ({ column }) => getHeader(column, 'Страна'),
+    enableHiding: false,
   },
   {
     accessorKey: 'name',
@@ -363,12 +477,14 @@ const columns: TableColumn<AccountOut>[] = [
         th: 'text-center',
       },
     },
+    enableHiding: false,
   },
   {
     accessorKey: 'premium',
 
     header: ({ column }) => getHeader(column, 'Премиум'),
     ...columnCentered,
+    enableHiding: false,
   },
   {
     accessorKey: 'premiumedAt',
@@ -382,18 +498,21 @@ const columns: TableColumn<AccountOut>[] = [
 
     },
     ...columnCentered,
+    enableHiding: true,
   },
   {
     accessorKey: 'outDailyLimit',
     header: ({ column }) => getHeader(column, 'Лимит'),
     ...columnCentered,
     sortingFn: limitSortingFn,
+    enableHiding: true,
 
   },
   {
     accessorKey: 'dialogsCount',
     header: ({ column }) => getHeader(column, '💬'),
     ...columnCentered,
+    enableHiding: true,
 
   },
   /*  {
@@ -421,6 +540,7 @@ const columns: TableColumn<AccountOut>[] = [
 
     header: ({ column }) => getHeader(column, 'Загружен'),
     cell: ({ row }) => useDateFormat(row.original.createdAt, 'DD.MM.YY').value,
+    enableHiding: false,
   },
 ]
 </script>

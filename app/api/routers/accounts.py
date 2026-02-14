@@ -59,7 +59,7 @@ async def get_accounts_state(user=Depends(get_current_user)):
 async def get_account(id: int, user=Depends(get_current_user)):
     account = (
         await orm.Account.get(id=id)
-        .prefetch_related("photos", "project")
+        .prefetch_related("photos", "project", "proxy")
         .annotate(dialogs_count=Count("dialogs"))
     )
     if not account:
@@ -75,6 +75,7 @@ async def get_accounts(user=Depends(get_current_user)):
         .prefetch_related(
             Prefetch("photos", queryset=orm.AccountPhoto.filter(main=True)),
             "project",
+            "proxy",
         )
         .annotate(dialogs_count=Count("dialogs"))
     )

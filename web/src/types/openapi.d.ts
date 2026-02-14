@@ -23,6 +23,7 @@ export interface components {
             phone: string;
             premium: boolean;
             premiumStopped: boolean;
+            proxy: string | null;
             twofa: string | null;
             country: string;
             active: boolean;
@@ -251,11 +252,6 @@ export interface components {
         };
         PremiumConfirmIn: {
             purchased: boolean;
-        };
-        PremiumConfirmOut: {
-            status: string;
-            message?: string | null;
-            stopWorkflowId?: string | null;
         };
         PresignedIn: {
             path: string;
@@ -530,7 +526,6 @@ export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
 export type PartnerOut = components['schemas']['PartnerOut'];
 export type PremiumConfirmIn = components['schemas']['PremiumConfirmIn'];
-export type PremiumConfirmOut = components['schemas']['PremiumConfirmOut'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
