@@ -5,16 +5,14 @@
     collapsible
     resizable
     class="bg-elevated/25"
-    :ui="{ footer: 'lg:border-t lg:border-default' }"
-  >
+    :ui="{ footer: 'lg:border-t lg:border-default' }">
     <template #header="{ collapsed }">
       <Logo :collapsed="collapsed" />
     </template>
     <template #default="{ collapsed }">
       <div
         class="py-3 mb-2 text-sm flex items-center"
-        :class="collapsed ? 'justify-center' : 'justify-between'"
-      >
+        :class="collapsed ? 'justify-center' : 'justify-between'">
         <span v-if="!collapsed" class="text-muted">Баланс</span>
         <span class="font-semibold tabular-nums">
           {{ balanceRub }}
@@ -25,8 +23,7 @@
         :items="filteredLinks"
         orientation="vertical"
         tooltip
-        popover
-      />
+        popover />
     </template>
     <template #footer="{ collapsed }">
       <AppUserMenu :collapsed="collapsed" />
@@ -101,11 +98,20 @@ const links: NavigationMenuItem[] = [
     onSelect: () => (open.value = false),
   },
   {
+    label: 'ECHO',
+    to: 'https://qt-echo.online',
+    external: true,
+    target: '_blank',
+    rel: 'noopener noreferrer',
+    icon: 'lucide:video',
+    onSelect: () => (open.value = false),
+  },
+  {
     label: 'Админка',
     to: '/app/admin',
     icon: 'bx:bxl-gitlab',
     onSelect: () => (open.value = false),
-  },
+  }
 ]
 
 const balanceRub = computed(() => {
