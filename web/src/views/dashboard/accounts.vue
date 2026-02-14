@@ -14,15 +14,13 @@
       <div class="flex flex-wrap items-center justify-end gap-1.5">
         <UDropdownMenu
           :items="columnVisibilityItems"
-          :content="{ align: 'end' }"
-        >
+          :content="{ align: 'end' }">
           <UButton
             label="Колонки"
             color="neutral"
             variant="outline"
             trailing-icon="i-lucide-chevron-down"
-            aria-label="Columns select dropdown"
-          />
+            aria-label="Columns select dropdown" />
         </UDropdownMenu>
         <SetLimitmodal :selected-ids="selectedIds" @close="refresh" />
         <CheckModal :selected-ids="selectedIds" @completed="refresh" />
@@ -59,24 +57,26 @@
           {{ row.original.project?.name ?? 'не назначен' }}
         </template>
         <template #premium-cell="{ row }">
-          <div class="flex items-center gap-1 justify-center">
-            <template v-if="row.original.busy">
-              <UIcon
-                name="i-lucide-loader-circle"
-                class="h-6 w-6 animate-spin text-warning"
-                title="Аккаунт в работе"
-                aria-label="Аккаунт в работе" />
-            </template>
-            <template v-else-if="row.original.premium && row.original.premiumStopped">
+          <div
+            class="flex items-center gap-1 justify-center"
+            :class="row.original.busy ? 'cursor-not-allowed' : ''"
+            :title="row.original.busy ? 'Аккаунт в работе' : undefined">
+            <template v-if="row.original.premium && row.original.premiumStopped">
               <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
             </template>
             <template v-else-if="!row.original.premium">
-              <button class="flex items-center gap-1" @click="openPremiumDrawer(row.original)">
+              <button
+                class="flex items-center gap-1"
+                :class="row.original.busy ? 'cursor-not-allowed' : 'cursor-pointer'"
+                :disabled="row.original.busy"
+                :aria-disabled="row.original.busy"
+                :title="row.original.busy ? 'Аккаунт в работе' : undefined"
+                @click="openPremiumDrawer(row.original)">
                 <UIcon name="bx:cart" class="h-6 w-6" />
               </button>
             </template>
             <template v-else>
-              <StopPremiumModal :account="row.original" @completed="refresh" />
+              <StopPremiumModal :account="row.original" :disabled="row.original.busy" @completed="refresh" />
             </template>
           </div>
         </template>
@@ -199,7 +199,7 @@ function openPremiumDrawer (account: AccountOut) {
 
 const columnFilters = ref([{ id: 'phone', value: '' }])
 const COLUMN_VISIBILITY_STORAGE_KEY = 'dashboard.accounts.columnVisibility'
-const HIDEABLE_COLUMN_IDS = ['premiumedAt', 'outDailyLimit', 'dialogsCount'] as const
+const HIDEABLE_COLUMN_IDS = ['premiumedAt', 'outDailyLimit', 'dialogsCount', 'createdAt'] as const
 type HideableColumnId = (typeof HIDEABLE_COLUMN_IDS)[number]
 
 const columnVisibility = useLocalStorage<VisibilityState>(COLUMN_VISIBILITY_STORAGE_KEY, {})
@@ -374,7 +374,8 @@ const sorting = ref([
 const hideableColumnLabels: Record<HideableColumnId, string> = {
   premiumedAt: 'Прем. куплен',
   outDailyLimit: 'Лимит',
-  dialogsCount: '💬',
+  dialogsCount: 'Диалоги',
+  createdAt: 'Создан',
 }
 
 const columnVisibilityItems = computed(() => {
@@ -388,10 +389,10 @@ const columnVisibilityItems = computed(() => {
       label: hideableColumnLabels[column.id as HideableColumnId] ?? upperFirst(column.id),
       type: 'checkbox' as const,
       checked: column.getIsVisible(),
-      onUpdateChecked(checked: boolean) {
+      onUpdateChecked (checked: boolean) {
         api.getColumn(column.id)?.toggleVisibility(!!checked)
       },
-      onSelect(e: Event) {
+      onSelect (e: Event) {
         e.preventDefault()
       },
     }))
@@ -540,7 +541,7 @@ const columns: TableColumn<AccountOut>[] = [
 
     header: ({ column }) => getHeader(column, 'Загружен'),
     cell: ({ row }) => useDateFormat(row.original.createdAt, 'DD.MM.YY').value,
-    enableHiding: false,
+    enableHiding: true,
   },
 ]
 </script>
