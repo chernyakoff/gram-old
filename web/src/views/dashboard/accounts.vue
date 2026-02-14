@@ -1,7 +1,7 @@
 <template>
   <UDashboardPanel id="accounts">
     <template #header>
-      <UDashboardNavbar :title="title" :ui="{ right: 'gap-3' }">
+      <UDashboardNavbar :title="title" :ui="navbarUi">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -17,7 +17,7 @@
         </div>
         <UDropdownMenu
           :items="columnVisibilityItems"
-          :content="{ align: 'end' }">
+          :content="dropdownContent">
           <UButton
             label="Колонки"
             color="neutral"
@@ -30,13 +30,17 @@
         <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
         <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
       </div>
-      <UTable ref="table" v-model:column-filters="columnFilters" v-model:column-visibility="columnVisibility" class="shrink-0" :data="accounts ?? []" :columns="columns" :loading="loading" v-model:sorting="sorting" :ui="{
-        base: 'table-fixed border-separate border-spacing-0',
-        thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-        tbody: '[&>tr]:last:[&>td]:border-b-0',
-        th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
-        td: 'border-b border-default',
-      }">
+      <UTable
+        ref="table"
+        v-model:column-filters="columnFilters"
+        v-model:column-visibility="columnVisibility"
+        class="shrink-0"
+        :data-hold-tick="holdTick"
+        :data="accounts"
+        :columns="columns"
+        :loading="loading"
+        v-model:sorting="sorting"
+        :ui="tableUi">
         <template #status-cell="{ row }">
           <AccountStatusBadge :account="row.original" />
         </template>
@@ -62,31 +66,31 @@
         <template #premium-cell="{ row }">
           <div
             class="flex items-center gap-1 justify-center"
-            :class="row.original.busy ? 'cursor-not-allowed' : ''"
-            :title="row.original.busy ? 'Аккаунт в работе' : undefined">
+            :class="(row.original.busy || isInHold(row.original)) ? 'cursor-not-allowed' : ''"
+            :title="row.original.busy ? 'Аккаунт в работе' : isInHold(row.original) ? `Отлежка до ${holdUntilLabel(row.original) ?? '---'}` : undefined">
             <template v-if="row.original.premium && row.original.premiumStopped">
               <UIcon name="bxs:star" class="h-6 w-6 text-gray-400" />
             </template>
             <template v-else-if="!row.original.premium">
               <button
                 class="flex items-center gap-1"
-                :class="row.original.busy ? 'cursor-not-allowed' : 'cursor-pointer'"
-                :disabled="row.original.busy"
-                :aria-disabled="row.original.busy"
-                :title="row.original.busy ? 'Аккаунт в работе' : undefined"
+                :class="(row.original.busy || isInHold(row.original)) ? 'cursor-not-allowed' : 'cursor-pointer'"
+                :disabled="row.original.busy || isInHold(row.original)"
+                :aria-disabled="row.original.busy || isInHold(row.original)"
+                :title="row.original.busy ? 'Аккаунт в работе' : isInHold(row.original) ? `Отлежка до ${holdUntilLabel(row.original) ?? '---'}` : undefined"
                 @click="openPremiumDrawer(row.original)">
                 <UIcon name="bx:cart" class="h-6 w-6" />
               </button>
             </template>
             <template v-else>
-              <StopPremiumModal :account="row.original" :disabled="row.original.busy" @completed="refresh" />
+              <StopPremiumModal :account="row.original" :disabled="row.original.busy || isInHold(row.original)" @completed="refresh" />
             </template>
           </div>
         </template>
         <template #name-cell="{ row }">
           <div
             class="flex items-center gap-3"
-            :class="row.original.busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'"
+            :class="(row.original.busy || isInHold(row.original)) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'"
             @click="openDrawer(row.original)">
             <UButton
               v-if="row.original.photos.length"
@@ -103,22 +107,31 @@
               </template>
             </UButton>
             <div>
-              <p class="font-medium text-highlighted">
-                {{ row.original.firstName }} {{ row.original.lastName }}
-              </p>
-              <p>
-                <template v-if="row.original.username">
-                  <a
-                    class="text-sm"
-                    :class="row.original.busy ? 'pointer-events-none' : ''"
-                    :href="`https://t.me/${row.original.username}`"
-                    target="_blank"
-                    @click.stop> @{{ row.original.username }} </a>
-                </template>
-                <template v-else>
-                  <span class="text-sm text-gray-400">(нет username)</span>
-                </template>
-              </p>
+              <template v-if="isInHold(row.original)">
+                <p
+                  class="font-medium text-muted whitespace-nowrap"
+                  :title="`Отлежка до ${holdUntilLabel(row.original) ?? '---'}`">
+                  💤 {{ holdRemainingLabel(row.original) ?? '---' }}
+                </p>
+              </template>
+              <template v-else>
+                <p class="font-medium text-highlighted">
+                  {{ row.original.firstName }} {{ row.original.lastName }}
+                </p>
+                <p>
+                  <template v-if="row.original.username">
+                    <a
+                      class="text-sm"
+                      :class="row.original.busy ? 'pointer-events-none' : ''"
+                      :href="`https://t.me/${row.original.username}`"
+                      target="_blank"
+                      @click.stop> @{{ row.original.username }} </a>
+                  </template>
+                  <template v-else>
+                    <span class="text-sm text-gray-400">(нет username)</span>
+                  </template>
+                </p>
+              </template>
             </div>
           </div>
         </template>
@@ -147,10 +160,10 @@ import StopPremiumModal from '@/components/dashboard/accounts/stop-premium-modal
 import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
-import { useTitle, useDateFormat, useLocalStorage } from '@vueuse/core'
+import { useTitle, useLocalStorage } from '@vueuse/core'
 
 import type { TableColumn } from '@nuxt/ui'
-import { ref, onMounted, onUnmounted, onActivated, onDeactivated, h, resolveComponent, computed, watchEffect } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, h, resolveComponent, computed, watch, watchEffect } from 'vue'
 
 import { useTableSelection } from '@/composables/table/use-selection'
 import type { AccountOut, AccountStateOut } from '@/types/openapi'
@@ -162,13 +175,83 @@ useTitle(title)
 const { get, state, accounts, loading } = useAccounts()
 const toast = useToast()
 
-const accountsTotal = computed(() => accounts.value?.length ?? 0)
-const accountsWithoutProxy = computed(() => (accounts.value ?? []).filter(a => !a.proxy).length)
+// "Отлежка" (в часах): аккаунты, загруженные меньше чем N часов назад, нельзя трогать.
+// Если захочешь конфиг с бэка/ENV - вынесем, но пока держим тут.
+const HOLD_HOURS = 24
+const HOLD_MS = HOLD_HOURS * 60 * 60 * 1000
+
+const NOW_TICK_MS = 30_000
+const nowMs = ref(Date.now())
+// Дергаем UTable через attrs, т.к. при неизменных props она может не апдейтиться,
+// а слоты завязаны на nowMs (отлежка).
+const holdTick = computed(() => Math.floor(nowMs.value / NOW_TICK_MS))
+let lastNowUpdateMs = 0
+function maybeUpdateNowMs() {
+  if (HOLD_MS <= 0) return
+  const t = Date.now()
+  if (t - lastNowUpdateMs >= NOW_TICK_MS) {
+    lastNowUpdateMs = t
+    nowMs.value = t
+  }
+}
+
+function toMs(value: string | Date | null | undefined): number | null {
+  if (!value) return null
+  const d = value instanceof Date ? value : new Date(value)
+  const t = d.getTime()
+  return Number.isNaN(t) ? null : t
+}
+
+function holdUntilMs(account: AccountOut): number | null {
+  if (HOLD_MS <= 0) return null
+  const created = toMs(account.createdAt)
+  if (created === null) return null
+  return created + HOLD_MS
+}
+
+function isInHold(account: AccountOut): boolean {
+  const until = holdUntilMs(account)
+  if (until === null) return false
+  return nowMs.value < until
+}
+
+function holdUntilLabel(account: AccountOut): string | null {
+  const until = holdUntilMs(account)
+  if (until === null) return null
+  return formatDateTimeDDMMYY_HHMM(until)
+}
+
+function holdRemainingLabel(account: AccountOut): string | null {
+  const until = holdUntilMs(account)
+  if (until === null) return null
+  const remainingMs = until - nowMs.value
+  if (remainingMs <= 0) return null
+  return formatRemainingHHMM(remainingMs)
+}
+
+// Дорогие вычисления по всему списку (filter по accounts) лучше не триггерить
+// на каждый state-poll, т.к. мы каждые 5s меняем поля `busy/status/premium` у элементов.
+const accountsTotal = computed(() => accounts.value.length)
+const accountsWithoutProxy = ref(0)
+watch(accounts, (list) => {
+  accountsWithoutProxy.value = list.filter(a => !a.proxy).length
+}, { immediate: true })
+
 const accountsCountLabel = computed(() => {
   const n = accountsTotal.value
   const m = accountsWithoutProxy.value
   return m > 0 ? `Аккаунтов: ${n} (без прокси: ${m})` : `Аккаунтов: ${n}`
 })
+
+const navbarUi = { right: 'gap-3' } as const
+const dropdownContent = { align: 'end' } as const
+const tableUi = {
+  base: 'table-fixed border-separate border-spacing-0',
+  thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
+  tbody: '[&>tr]:last:[&>td]:border-b-0',
+  th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
+  td: 'border-b border-default',
+} as const
 
 // Drawer управление
 const drawerOpen = ref(false)
@@ -177,6 +260,14 @@ const premiumDrawerOpen = ref(false)
 const selectedAccountId = ref<number | null>(null)
 
 function openDrawer (account: AccountOut) {
+  if (isInHold(account)) {
+    const until = holdUntilLabel(account)
+    toast.add({
+      title: until ? `Отлежка до ${until}` : 'Аккаунт на отлежке',
+      color: 'warning',
+    })
+    return
+  }
   if (account.busy) {
     toast.add({
       title: 'Аккаунт в работе',
@@ -189,6 +280,14 @@ function openDrawer (account: AccountOut) {
 }
 
 function openPremiumDrawer (account: AccountOut) {
+  if (isInHold(account)) {
+    const until = holdUntilLabel(account)
+    toast.add({
+      title: until ? `Отлежка до ${until}` : 'Аккаунт на отлежке',
+      color: 'warning',
+    })
+    return
+  }
   if (account.busy) {
     toast.add({
       title: 'Аккаунт в работе',
@@ -243,25 +342,29 @@ watchEffect(() => {
 })
 const UIcon = resolveComponent('UIcon')
 const { tableApi, selectedIds, selectionColumn } = useTableSelection<AccountOut>('table', 'id', {
-  isSelectable: (row) => !row.busy,
-  renderNonSelectable: () => h('div', { class: 'flex items-center justify-center w-full' }, [
-    h(UIcon, {
-      name: 'i-lucide-loader-circle',
-      class: 'h-4 w-4 animate-spin text-warning',
-      title: 'Аккаунт в работе',
-      'aria-label': 'Аккаунт в работе',
-    }),
-  ]),
+  isSelectable: (row) => !row.busy && !isInHold(row),
+  renderNonSelectable: (row) => {
+    const hold = isInHold(row)
+    const title = hold ? `Отлежка до ${holdUntilLabel(row) ?? ''}`.trim() : 'Аккаунт в работе'
+    return h('div', { class: 'flex items-center justify-center w-full' }, [
+      h(UIcon, {
+        name: hold ? 'i-lucide-clock' : 'i-lucide-loader-circle',
+        class: hold ? 'h-4 w-4 text-muted' : 'h-4 w-4 animate-spin text-warning',
+        title,
+        'aria-label': title,
+      }),
+    ])
+  },
 })
 
 const STATE_POLL_INTERVAL = 5000
 const stateSyncInFlight = ref(false)
 let statePollTimer: ReturnType<typeof setInterval> | null = null
 
-function cleanupBusySelection () {
+function cleanupNonSelectableSelection () {
   if (!tableApi.value) return
   tableApi.value.getSelectedRowModel().rows.forEach((row) => {
-    if (row.original.busy) {
+    if (row.original.busy || isInHold(row.original)) {
       row.toggleSelected(false)
     }
   })
@@ -288,7 +391,7 @@ function applyStateUpdates (states: AccountStateOut[]) {
   })
 
   if (changed) {
-    cleanupBusySelection()
+    cleanupNonSelectableSelection()
   }
 }
 
@@ -296,12 +399,16 @@ async function syncState () {
   if (stateSyncInFlight.value || !accounts.value.length) return
 
   stateSyncInFlight.value = true
+  // Используем state poll как heartbeat для отлежки (не чаще NOW_TICK_MS).
+  maybeUpdateNowMs()
   try {
     const states = await state()
     applyStateUpdates(states)
   } catch (e) {
     console.error('accounts state sync failed', e)
   } finally {
+    // Даже если state упал, пусть UI продолжает "тикать" и отлежка снимется вовремя.
+    maybeUpdateNowMs()
     stateSyncInFlight.value = false
   }
 }
@@ -321,12 +428,14 @@ function stopStatePolling () {
 
 onMounted(async () => {
   await get()
+  maybeUpdateNowMs()
   void syncState()
   startStatePolling()
 })
 
 onActivated(() => {
   startStatePolling()
+  maybeUpdateNowMs()
   void syncState()
 })
 
@@ -503,7 +612,7 @@ const columns: TableColumn<AccountOut>[] = [
     header: 'Прем. куплен',
     cell: ({ row }) => {
       if (row.original.premiumedAt) {
-        return useDateFormat(row.original.premiumedAt, 'DD.MM.YY').value
+        return formatDateDDMMYY(row.original.premiumedAt)
       } else {
         return "---"
       }
@@ -551,8 +660,46 @@ const columns: TableColumn<AccountOut>[] = [
     accessorKey: 'createdAt',
 
     header: ({ column }) => getHeader(column, 'Загружен'),
-    cell: ({ row }) => useDateFormat(row.original.createdAt, 'DD.MM.YY').value,
+    cell: ({ row }) => formatDateDDMMYY(row.original.createdAt),
     enableHiding: true,
   },
 ]
+
+const dateDDMMYY = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+})
+
+function formatDateDDMMYY(value: string | Date | null | undefined): string {
+  if (!value) return '---'
+  const d = value instanceof Date ? value : new Date(value)
+  // Guard against invalid dates
+  if (Number.isNaN(d.getTime())) return '---'
+  return dateDDMMYY.format(d)
+}
+
+function formatDateTimeDDMMYY_HHMM(value: number | string | Date | null | undefined): string {
+  const ms =
+    typeof value === 'number'
+      ? value
+      : value instanceof Date
+        ? value.getTime()
+        : typeof value === 'string'
+          ? new Date(value).getTime()
+          : NaN
+
+  if (!Number.isFinite(ms)) return '---'
+  const d = new Date(ms)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${dateDDMMYY.format(d)} ${hh}:${mm}`
+}
+
+function formatRemainingHHMM(remainingMs: number): string {
+  const totalMinutes = Math.max(0, Math.floor(remainingMs / 60_000))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
 </script>
