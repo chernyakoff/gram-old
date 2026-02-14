@@ -12,6 +12,9 @@
     </template>
     <template #body>
       <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <div class="mr-auto text-sm text-muted">
+          {{ accountsCountLabel }}
+        </div>
         <UDropdownMenu
           :items="columnVisibilityItems"
           :content="{ align: 'end' }">
@@ -158,6 +161,14 @@ const title = 'Аккаунты'
 useTitle(title)
 const { get, state, accounts, loading } = useAccounts()
 const toast = useToast()
+
+const accountsTotal = computed(() => accounts.value?.length ?? 0)
+const accountsWithoutProxy = computed(() => (accounts.value ?? []).filter(a => !a.proxy).length)
+const accountsCountLabel = computed(() => {
+  const n = accountsTotal.value
+  const m = accountsWithoutProxy.value
+  return m > 0 ? `Аккаунтов: ${n} (без прокси: ${m})` : `Аккаунтов: ${n}`
+})
 
 // Drawer управление
 const drawerOpen = ref(false)
