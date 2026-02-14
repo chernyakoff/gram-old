@@ -18,9 +18,9 @@ from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import F
 from tortoise.transactions import in_transaction
 
+from config import config
 from models.orm import AiModel, User
 from utils.usd_rate import get_usd_rate
-from config import config
 
 # enc = tiktoken.get_encoding("cl100k_base")
 DEFAULT_MODEL = "openai/gpt-5.2-chat"
@@ -171,13 +171,13 @@ async def create_response(
     # атомарно добавляем ключ/модель
     user = await add_openrouter_to_user(user)
 
-    model = await get_ai_model(user.or_model)
+    model = await get_ai_model(user.or_model)  # type: ignore
     usd_rate = await get_usd_rate()
 
     await check_balance_before_request(user, model, max_tokens, usd_rate)
 
     try:
-        async with _openrouter(api_key=user.or_api_key) as app:
+        async with _openrouter(api_key=user.or_api_key) as app:  # type: ignore
             response = await app.chat.send_async(
                 model=user.or_model,
                 messages=input,
@@ -242,7 +242,9 @@ async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
 
     # Fast, conservative estimate to prevent outbound requests when balance is clearly insufficient.
     estimated_tokens = max(1, len(question) // 3)
-    estimated_cost_usd = (model.prompt_price * Decimal(estimated_tokens)) * Decimal("1.1")
+    estimated_cost_usd = (model.prompt_price * Decimal(estimated_tokens)) * Decimal(
+        "1.1"
+    )
     estimated_cost_rub = estimated_cost_usd * usd_rate
     estimated_cost_cents = int(estimated_cost_rub * 100)
     if user.balance < estimated_cost_cents:
@@ -266,7 +268,9 @@ async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
     if not response or not data:
         raise OpenRouterResponseError("Пустой ответ от embeddings")
 
-    usage = getattr(response, "usage", None) or SimpleNamespace(prompt_tokens=estimated_tokens)
+    usage = getattr(response, "usage", None) or SimpleNamespace(
+        prompt_tokens=estimated_tokens
+    )
     await charge_user_for_embedding_usage(user, model, usage, usd_rate)
 
     query_embedding = data[0].embedding

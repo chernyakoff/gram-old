@@ -107,7 +107,7 @@ async def update_username(
         )
         return False
     except UsernameNotModifiedError as e:
-        orm_account.username = username or None
+        orm_account.username = username or None  # type: ignore
         await orm_account.save()
         await logger.info("username уже установлен")
         await logger.tech(
