@@ -187,7 +187,8 @@ async def analyze_dialog_status(
     prompt = await AppSettings.fetch("prompt.findStatus")
     prompt = f"ТЕКУЩИЙ СТАТУС: {status.value}\n\n" + prompt
     history.append({"role": "user", "content": prompt})
-    response = await openrouter.create_response(user, history)
+    # Status detection should be fast/cheap: we only need a single keyword.
+    response = await openrouter.create_response(user, history, max_tokens=50, timeout_min=1)
     match = re.search(
         r"(init|engage|offer|closing|complete|negative|operator)",
         response.strip(),

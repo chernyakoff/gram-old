@@ -25,6 +25,9 @@ from .telegram_service import TelegramService
 WAIT_FOR_REPLY_MINUTES = 5
 WAIT_BEFORE_REPLY_MIN_SEC = 5
 WAIT_BEFORE_REPLY_MAX_SEC = 30
+# AI timeout: this wraps status detection + prompt assembly + OpenRouter request.
+# 60s is too aggressive for larger prompts/models and causes false "OpenAI timeout".
+AI_RESPONSE_TIMEOUT_SEC = 180
 
 
 async def get_last_active_dialog(username: str, account_id: int) -> orm.Dialog | None:
@@ -798,7 +801,7 @@ class DialogManager:
                         recipient,
                         self.logger,
                     ),
-                    timeout=60,
+                    timeout=AI_RESPONSE_TIMEOUT_SEC,
                 )
 
                 # Старый маркер терминального статуса больше не используется.
