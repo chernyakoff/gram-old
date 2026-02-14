@@ -18,13 +18,13 @@ from telethon.tl.types.payments import PaymentVerificationNeeded
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
-from workers.base.client import hatchet
 from models import orm
 from utils.account import AccountUtil
+from utils.logger import StreamLogger
 from utils.proxy_pool import ProxyPool
 from workers.base.accounts.exceptions import SessionExpiredError
 from workers.base.accounts.stop_premium import StopPremiumIn, stop_premium
-from utils.logger import StreamLogger
+from workers.base.client import hatchet
 
 PREMIUM_BOT = "PremiumBot"
 
@@ -103,7 +103,6 @@ async def tokenize_card(public_token: str, card: CardDetails):
 )
 async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
-    return BuyPremiumOut(status="error", message="Покупка премиум временно закрыта")
     logger = StreamLogger(ctx)
     card = input.card
 
