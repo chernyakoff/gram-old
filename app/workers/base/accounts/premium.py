@@ -23,7 +23,6 @@ from utils.account import AccountUtil
 from utils.logger import StreamLogger
 from utils.proxy_pool import ProxyPool
 from workers.base.accounts.exceptions import SessionExpiredError
-from workers.base.accounts.stop_premium import StopPremiumIn, stop_premium
 from workers.base.client import hatchet
 
 PREMIUM_BOT = "PremiumBot"
@@ -122,8 +121,6 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         await orm_account.save(using_db=conn, update_fields=["busy", "updated_at"])
 
     client = account.create_client(proxy)
-    should_schedule_stop = False
-    stop_delay = timedelta(minutes=10)
     try:
         await client.connect()
         if not await client.is_user_authorized():
@@ -132,7 +129,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         me = await client.get_me()
         me = cast(types.User, me)
         if me.premium:
-            raise Exception("На этом аккаунте уже есть премиум")
+            return BuyPremiumOut(status="error", message="На этом аккаунте уже есть premium")
 
         # получаем invoice message
         await client.send_message(PREMIUM_BOT, "/start")
@@ -180,38 +177,17 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
             )
         )
 
-        should_schedule_stop = True
-
         if isinstance(send_data, PaymentVerificationNeeded):
-            # 3DS/верификация: премиум мог и не активироваться, не ставим флаг в БД.
-            # Авто-отключение recurring имеет смысл попытаться позже, если пользователь завершит верификацию.
-            stop_delay = timedelta(hours=1)
-            return BuyPremiumOut(status="success", verification_url=send_data.url)
+            return BuyPremiumOut(
+                status="success",
+                verification_url=send_data.url,
+                message="Оплата отправлена. Требуется 3DS/верификация в банке: откройте ссылку и завершите оплату. Далее проверьте статус premium у аккаунта и подтвердите результат в интерфейсе.",
+            )
         else:
-            # Без верификации премиум может активироваться не мгновенно. Пару раз проверяем.
-            activated = False
-            for i in range(8):
-                if i:
-                    await asyncio.sleep(2)
-                me2 = await client.get_me()
-                me2 = cast(types.User, me2)
-                if me2.premium:
-                    activated = True
-                    break
-
-            if activated:
-                orm_account.premium = True
-                orm_account.premiumed_at = tz.now()
-                await orm_account.save(
-                    update_fields=["premium", "premiumed_at", "updated_at"]
-                )
-            else:
-                # Не портим данные: пусть дальнейшая синхронизация (accounts-check/stop-premium) выставит правильно.
-                stop_delay = timedelta(minutes=30)
-                await logger.warning(
-                    "Оплата отправлена, но premium ещё не подтвержден через get_me(); не отмечаем в БД"
-                )
-            return BuyPremiumOut(status="success")
+            return BuyPremiumOut(
+                status="success",
+                message="Оплата отправлена. Проверьте, появился ли premium у аккаунта, и подтвердите результат в интерфейсе.",
+            )
 
     except SessionExpiredError as e:
         await logger.error(str(e))
@@ -223,10 +199,3 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         orm_account.busy = False
         await orm_account.save()
         await client.disconnect()  # type: ignore
-
-        if should_schedule_stop:
-            run_at = tz.now() + stop_delay
-            schedule = stop_premium.schedule(
-                run_at=run_at, input=StopPremiumIn(account_id=input.account_id)
-            )
-            ctx.log(f"scheduled stop-premium: {schedule.id}")

@@ -34,6 +34,12 @@ def get_encoder():
 
 
 HEADER_RE = re.compile(r"^#{1,6}\s+.+$", re.MULTILINE)
+HR_RE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", re.MULTILINE)
+LONG_UNDERSCORE_RE = re.compile(r"^\s*_{8,}\s*$", re.MULTILINE)
+NUMBERED_ITEM_RE = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)(?P<num>\d{1,4})(?P<delim>[.)])[ \t]+"
+)
+BULLET_ITEM_RE = re.compile(r"(?m)^(?P<indent>[ \t]*)(?:[-*+])[ \t]+")
 
 EMBED_MODEL = "openai/text-embedding-3-small"
 
@@ -79,6 +85,8 @@ def detect_text_type(text: str) -> str:
     lines = text.splitlines()
     if any(line.startswith(("#", "-", "*", ">")) for line in lines):
         return "markdown"
+    if any(NUMBERED_ITEM_RE.match(line) for line in lines):
+        return "markdown"
     if "```" in text:
         return "markdown"
     return "plain"
@@ -90,9 +98,82 @@ def normalize(text: str) -> str:
     """
     text = text.replace("\r\n", "\n")
     text = re.sub(r"\n{3,}", "\n\n", text)
-    text = re.sub(r"^\s*(---|\*\*\*)\s*$", "", text, flags=re.MULTILINE)
+    # Common "visual separators" frequently seen in exported docs.
+    # Remove them so they don't pollute chunks and so list/header splitting works better.
+    text = LONG_UNDERSCORE_RE.sub("", text)
+    text = HR_RE.sub("", text)
     return text.strip()
 
+
+def _split_by_list_items(
+    text: str,
+    *,
+    item_re: re.Pattern[str],
+    max_items_per_chunk: int,
+    min_tokens: int,
+    max_tokens: int,
+    tiktoken_len,
+) -> list[str]:
+    """
+    Split long lists (numbered/bulleted) into reasonable blocks.
+
+    Motivation: exported docs often contain 10+ list items without headings; a header-only splitter
+    will keep that as one chunk, hurting retrieval quality.
+    """
+    starts = [m.start() for m in item_re.finditer(text)]
+    if len(starts) < 2:
+        t = text.strip()
+        return [t] if t else []
+
+    blocks: list[str] = []
+    preface = text[: starts[0]].strip()
+    if preface:
+        blocks.append(preface)
+
+    items: list[str] = []
+    for i, s in enumerate(starts):
+        e = starts[i + 1] if i + 1 < len(starts) else len(text)
+        item = text[s:e].strip()
+        if item:
+            items.append(item)
+
+    packed: list[str] = []
+    cur_parts: list[str] = []
+    cur_tokens = 0
+    cur_items = 0
+
+    def flush():
+        nonlocal cur_parts, cur_tokens, cur_items
+        if cur_parts:
+            packed.append("\n\n".join(cur_parts).strip())
+        cur_parts = []
+        cur_tokens = 0
+        cur_items = 0
+
+    for item in items:
+        item_tokens = tiktoken_len(item)
+        if item_tokens > max_tokens:
+            # Keep the oversized item standalone; it will be split in a later pass.
+            flush()
+            packed.append(item)
+            continue
+
+        next_tokens = cur_tokens + (2 if cur_parts else 0) + item_tokens
+        should_flush = (
+            (cur_parts and next_tokens > max_tokens)
+            or (cur_items >= max_items_per_chunk)
+            or (cur_parts and cur_tokens >= min_tokens)
+        )
+        if should_flush:
+            flush()
+
+        cur_parts.append(item)
+        cur_tokens = cur_tokens + (2 if len(cur_parts) > 1 else 0) + item_tokens
+        cur_items += 1
+
+    flush()
+    blocks.extend([b for b in packed if b])
+    return blocks
 
 def chunk_text(
     text: str,
@@ -112,9 +193,29 @@ def chunk_text(
     def tiktoken_len(s: str) -> int:
         return len(get_encoder().encode(s))
 
-    # Выбираем сплиттер
+    # Token-aware recursive splitter used as a final fallback for any block.
+    recursive_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=max_tokens,
+        chunk_overlap=overlap,
+        length_function=tiktoken_len,
+        separators=[
+            "\n\n",
+            "\n",
+            ". ",
+            "! ",
+            "? ",
+            "; ",
+            ": ",
+            ", ",
+            " ",
+            "",
+        ],
+    )
+
+    blocks: list[str] = []
+
     if text_type == "markdown":
-        splitter = MarkdownHeaderTextSplitter(
+        header_splitter = MarkdownHeaderTextSplitter(
             headers_to_split_on=[
                 ("#", "h1"),
                 ("##", "h2"),
@@ -126,14 +227,62 @@ def chunk_text(
             strip_headers=True,
             return_each_line=False,
         )
-    else:
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=max_tokens,
-            chunk_overlap=overlap,
-            length_function=tiktoken_len,
-        )
+        header_docs = header_splitter.split_text(text)
+        header_blocks: list[str] = []
+        for d in header_docs:
+            if isinstance(d, Document):
+                b = d.page_content.strip()
+            else:
+                b = str(d).strip()
+            if b:
+                header_blocks.append(b)
 
-    raw_chunks = splitter.split_text(text)
+        for b in header_blocks or [text]:
+            list_blocks = _split_by_list_items(
+                b,
+                item_re=NUMBERED_ITEM_RE,
+                max_items_per_chunk=4,
+                min_tokens=min_tokens,
+                max_tokens=max_tokens,
+                tiktoken_len=tiktoken_len,
+            )
+            if len(list_blocks) == 1:
+                list_blocks = _split_by_list_items(
+                    b,
+                    item_re=BULLET_ITEM_RE,
+                    max_items_per_chunk=6,
+                    min_tokens=min_tokens,
+                    max_tokens=max_tokens,
+                    tiktoken_len=tiktoken_len,
+                )
+            blocks.extend(list_blocks)
+    else:
+        blocks = _split_by_list_items(
+            text,
+            item_re=NUMBERED_ITEM_RE,
+            max_items_per_chunk=4,
+            min_tokens=min_tokens,
+            max_tokens=max_tokens,
+            tiktoken_len=tiktoken_len,
+        )
+        if len(blocks) == 1:
+            blocks = _split_by_list_items(
+                text,
+                item_re=BULLET_ITEM_RE,
+                max_items_per_chunk=6,
+                min_tokens=min_tokens,
+                max_tokens=max_tokens,
+                tiktoken_len=tiktoken_len,
+            )
+
+    # Final pass: make sure every block respects max_tokens via token-aware recursive splitting.
+    raw_chunks: list[str] = []
+    for b in blocks:
+        if tiktoken_len(b) <= max_tokens:
+            raw_chunks.append(b)
+        else:
+            raw_chunks.extend(recursive_splitter.split_text(b))
+
     chunks: list[str] = []
 
     for c in raw_chunks:

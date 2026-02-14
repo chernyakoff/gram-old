@@ -50,6 +50,7 @@ export interface components {
             id: number;
             busy: boolean;
             status: components["schemas"]["AccountStatus"];
+            premium: boolean;
         };
         AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited" | "noproxy";
         AccountsBulkCreateIn: {
@@ -247,6 +248,14 @@ export interface components {
             photoUrl?: string | null;
             referredBy?: components["schemas"]["UserBasicOut"] | null;
             referrals: components["schemas"]["UserBasicOut"][];
+        };
+        PremiumConfirmIn: {
+            purchased: boolean;
+        };
+        PremiumConfirmOut: {
+            status: string;
+            message?: string | null;
+            stopWorkflowId?: string | null;
         };
         PresignedIn: {
             path: string;
@@ -456,6 +465,8 @@ export interface components {
             loc: (string | number)[];
             msg: string;
             type: string;
+            input?: unknown;
+            ctx?: Record<string, never>;
         };
         WorkflowOut: {
             id: string;
@@ -518,6 +529,8 @@ export type Message = components['schemas']['Message'];
 export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
 export type PartnerOut = components['schemas']['PartnerOut'];
+export type PremiumConfirmIn = components['schemas']['PremiumConfirmIn'];
+export type PremiumConfirmOut = components['schemas']['PremiumConfirmOut'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];

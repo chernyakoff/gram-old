@@ -11,6 +11,8 @@ import type {
   BindProjectIn,
   BuyPremiumOut,
   CardDetails,
+  PremiumConfirmIn,
+  PremiumConfirmOut,
   SetLimitIn,
   WorkflowOut,
 } from '@/types/openapi'
@@ -31,6 +33,11 @@ export function useAccounts() {
 
   async function premium(id: number, body: CardDetails): Promise<BuyPremiumOut> {
     return await api<BuyPremiumOut>(`accounts/${id}/premium`, { method: 'POST', body })
+  }
+
+  async function confirmPremium(id: number, purchased: boolean): Promise<PremiumConfirmOut> {
+    const body: PremiumConfirmIn = { purchased }
+    return await api<PremiumConfirmOut>(`accounts/${id}/premium/confirm`, { method: 'POST', body })
   }
 
   async function stopPremium(id: number): Promise<WorkflowOut> {
@@ -86,6 +93,7 @@ export function useAccounts() {
   return {
     upload,
     premium,
+    confirmPremium,
     list,
     state,
     update,

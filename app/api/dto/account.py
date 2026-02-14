@@ -102,6 +102,17 @@ class AccountStateOut(Serializer):
     id: int
     busy: bool
     status: orm.AccountStatus
+    premium: bool
+
+
+class PremiumConfirmIn(BaseModel):
+    purchased: bool
+
+
+class PremiumConfirmOut(BaseModel):
+    status: str
+    message: str | None = None
+    stop_workflow_id: str | None = None
 
 
 class AccountsCheckIn(BaseModel):

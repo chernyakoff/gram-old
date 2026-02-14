@@ -2,19 +2,21 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from tortoise import timezone as tz
 from tortoise.functions import Count
 from tortoise.query_utils import Prefetch
+from tortoise.transactions import in_transaction
 
-from models import orm
-from utils.s3 import AsyncS3Client
 from api.dto.account import (
     AccountIn,
     AccountListOut,
     AccountOut,
-    AccountStateOut,
     AccountsBulkCreateIn,
     AccountsCheckIn,
+    AccountStateOut,
     BindProjectIn,
+    PremiumConfirmIn,
+    PremiumConfirmOut,
     SetLimitIn,
 )
 from api.dto.card import CardDetails
@@ -22,6 +24,8 @@ from api.dto.common import WorkflowOut
 from api.hatchet.base import models, tasks
 from api.routers.auth import get_current_user
 from api.routers.sse import watch_job
+from models import orm
+from utils.s3 import AsyncS3Client
 
 router = APIRouter(prefix="/accounts", tags=["account"])
 
@@ -135,6 +139,43 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
     )
     response = await tasks.buy_premium.aio_run(input=input_model)
     return response
+
+
+@router.post("/{id}/premium/confirm")
+async def confirm_premium_purchase(
+    id: int, data: PremiumConfirmIn, user=Depends(get_current_user)
+):
+    account = await orm.Account.get_or_none(user_id=user.id, id=id)
+    if not account:
+        raise HTTPException(status_code=404, detail="not found")
+
+    stop_workflow_id: str | None = None
+    async with in_transaction() as conn:
+        # User-confirmed source of truth for UI.
+        if data.purchased:
+            account.premium = True
+            account.premiumed_at = account.premiumed_at or tz.now()
+            account.premium_stopped = True
+        else:
+            account.premium = False
+            account.premiumed_at = None  # type: ignore
+            account.premium_stopped = True
+
+        await account.save(
+            using_db=conn,
+            update_fields=["premium", "premiumed_at", "premium_stopped", "updated_at"],
+        )
+
+    if data.purchased:
+        await tasks.stop_premium.aio_run_no_wait(
+            input=models.StopPremiumIn(account_id=id)
+        )
+
+    return PremiumConfirmOut(
+        status="success",
+        message="Статус premium сохранен.",
+        stop_workflow_id=stop_workflow_id,
+    )
 
 
 @router.post("/check", response_model=WorkflowOut)
