@@ -260,6 +260,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project.first_message:
         return ChatOut(text="В проекте отсутсвует первое сообщение", status=chat.status)
 
+    # Test chat hygiene: every time the client starts a new test run (messages=[]),
+    # reset reminder chain flags and in-memory booking state.
+    if not chat.messages:
+        ToolContext.reset_test_state(user.id)
+        await orm.Settings.upsert(user.id, "test.morning-reminder-sent", "")
+        await orm.Settings.upsert(user.id, "test.meeting-reminder-sent", "")
+
     # If the client already has a terminal status from a previous turn,
     # consider the dialog closed and don't call the model again.
     # If the status becomes terminal during this request, we still let the model
@@ -293,12 +300,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             chat.status = new_status
 
     if not chat.messages and project.first_message:
-        # Reset in-memory test booking state between separate prompt test runs.
-        ToolContext.reset_test_state(user.id)
-        # Reset reminder chain flags between separate prompt test runs.
-        await orm.Settings.upsert(user.id, "test.morning-reminder-sent", "")
-        await orm.Settings.upsert(user.id, "test.meeting-reminder-sent", "")
-
         # Persist a stable name addon for this user and show it once in debug output.
         name_ev = await _prime_test_name_addon(user.id)
         if name_ev:
