@@ -317,6 +317,10 @@ class ToolContext:
         # slot_keys that were actually returned by get_slots in this request.
         self._last_slot_keys: set[str] = set()
 
+    # Best-effort state for the prompt test UI where dialog is None and we don't
+    # persist meetings. This avoids repeated "booking" tool calls across turns.
+    _test_booked_by_user: dict[int, str] = {}
+
     async def _get_schedule(self, schedule_id: int | None = None) -> UserSchedule:
         if schedule_id is None:
             return await UserSchedule.get_default_for_user(self.user)
@@ -359,7 +363,14 @@ class ToolContext:
         slots = await service.get_available_slots(date=date, days_ahead=self.days_ahead)
         payload_slots = [self._slot_to_dict(s) for s in slots]
         self._last_slot_keys = {s["slot_key"] for s in payload_slots}
-        return {"slots": payload_slots}
+        payload: dict = {"slots": payload_slots}
+
+        # Hint for the model in the test UI: a prior slot might already be "booked".
+        if not self.dialog:
+            booked = self._test_booked_by_user.get(self.user.id)
+            if booked:
+                payload["already_booked_slot_key"] = booked
+        return payload
 
     async def book_slot(self, slot_key: str):
         if self._last_slot_keys and slot_key not in self._last_slot_keys:
@@ -367,6 +378,28 @@ class ToolContext:
                 "status": "error",
                 "message": "slot_key не найден среди доступных слотов; сначала вызови get_slots и используй slot_key из ответа",
             }
+
+        # If this dialog already has a scheduled meeting, make booking idempotent.
+        if self.dialog:
+            existing = await Meeting.get_or_none(dialog_id=self.dialog.id, status="scheduled")
+            if existing:
+                if existing.start_at and existing.end_at:
+                    existing_key = f"{existing.schedule_id}__{existing.start_at.isoformat()}__{existing.end_at.isoformat()}"
+                    if slot_key == existing_key:
+                        return {
+                            "status": "ok",
+                            "message": "Слот уже забронирован ранее",
+                            "meeting_id": existing.id,
+                            "start": existing.start_at.isoformat(),
+                            "end": existing.end_at.isoformat(),
+                        }
+                return {
+                    "status": "error",
+                    "message": "Встреча уже забронирована; если нужно изменить время, сначала вызови cancel_meeting, затем выбери новый слот",
+                    "meeting_id": existing.id,
+                    "start": existing.start_at.isoformat() if existing.start_at else None,
+                    "end": existing.end_at.isoformat() if existing.end_at else None,
+                }
 
         parsed = slot_key.split("__", 2)
         if len(parsed) != 3:
@@ -383,6 +416,15 @@ class ToolContext:
             return {"status": "error", "message": str(e)}
 
         if not self.dialog:
+            prev = self._test_booked_by_user.get(self.user.id)
+            if prev == slot_key:
+                return {
+                    "status": "ok",
+                    "message": "Тестовый режим: слот уже был выбран ранее",
+                    "start": slot.start.isoformat(),
+                    "end": slot.end.isoformat(),
+                }
+            self._test_booked_by_user[self.user.id] = slot_key
             return {
                 "status": "ok",
                 "message": "Тестовый режим: встреча не была создана",
