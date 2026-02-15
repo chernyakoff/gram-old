@@ -4,11 +4,11 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 from tortoise import timezone as tz
 
-from models.orm import DialogStatus
 from models.orm import (
     PROMPT_FIELDS,
     Account,
     AppSettings,
+    DialogStatus,
     Prompt,
     Recipient,
     User,
@@ -188,7 +188,9 @@ async def analyze_dialog_status(
     prompt = f"ТЕКУЩИЙ СТАТУС: {status.value}\n\n" + prompt
     history.append({"role": "user", "content": prompt})
     # Status detection should be fast/cheap: we only need a single keyword.
-    response = await openrouter.create_response(user, history, max_tokens=50, timeout_min=1)
+    response = await openrouter.create_response(
+        user, history, max_tokens=5000, timeout_min=3
+    )
     match = re.search(
         r"(init|engage|offer|closing|complete|negative|operator)",
         response.strip(),
