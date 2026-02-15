@@ -25,6 +25,12 @@ from api.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+TERMINAL_STATUSES = {
+    DialogStatus.COMPLETE,
+    DialogStatus.NEGATIVE,
+    DialogStatus.OPERATOR,
+}
+
 def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
     """
     Human-readable tool output for the test chat UI.
@@ -87,6 +93,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             text="В проекте отсутсвует первое сообщение", status=chat.status
         )
 
+    # If the client already has a terminal status from a previous turn,
+    # consider the dialog closed and don't call the model again.
+    # If the status becomes terminal during this request, we still let the model
+    # produce the final reply (same as in the Telegram task).
+    if chat.status in TERMINAL_STATUSES:
+        return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
+
     status_changed = False
 
     # TODO - сделать оповещение если статус не найден и оставлен предыдущий
@@ -106,13 +119,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         if new_status != chat.status:
             status_changed = True
         chat.status = new_status
-
-    if chat.status in [
-        DialogStatus.COMPLETE,
-        DialogStatus.NEGATIVE,
-        DialogStatus.OPERATOR,
-    ]:
-        return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)

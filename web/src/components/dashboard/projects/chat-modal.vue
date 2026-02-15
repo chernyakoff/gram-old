@@ -58,7 +58,7 @@
             icon="i-lucide-search"
             variant="naked"
             :error="chat.error.value ? new Error(chat.error.value) : undefined"
-            :disabled="chat.status.value === 'submitted'"
+            :disabled="chat.status.value === 'submitted' || isTerminal"
             @submit="handleSubmit">
             <UChatPromptSubmit :status="chat.status.value" />
           </UChatPrompt>
@@ -68,7 +68,7 @@
   </UModal>
 </template>
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 
 import { getTextFromMessage } from '@nuxt/ui/utils/ai'
@@ -85,6 +85,10 @@ const { id } = defineProps<{
 
 const { user } = useAuth()
 const chat = useChat()
+
+const isTerminal = computed(() =>
+  ['complete', 'negative', 'operator'].includes(chat.dialogStatus.value),
+)
 
 async function handleSubmit (e: Event) {
   e.preventDefault()
