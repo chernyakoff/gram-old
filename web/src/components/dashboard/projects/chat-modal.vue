@@ -7,17 +7,28 @@
     <template #content>
       <div class="mb-4 flex items-center justify-between border-b border-default pb-3">
         <h3 class="text-base font-semibold">Тестируем промпт</h3>
-        <button
-          type="button"
-          title="Закрыть"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-default transition-colors"
-          @click="open = false">
-          <UIcon name="i-lucide-x" class="h-4 w-4" />
-        </button>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 select-none">
+            <span
+              class="text-xs text-muted"
+              title="Показывать системные сообщения (warnings/tools)"
+            >
+              Отладка
+            </span>
+            <USwitch v-model="debug" class="scale-75 origin-right" />
+          </div>
+          <button
+            type="button"
+            title="Закрыть"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-default transition-colors"
+            @click="open = false">
+            <UIcon name="i-lucide-x" class="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <UChatPalette>
         <UChatMessages
-          :messages="chat.messages.value"
+          :messages="visibleMessages"
           :status="chat.status.value"
           :user="{
             side: 'right',
@@ -77,6 +88,7 @@ import { useAuth } from '@/composables/use-auth'
 import { statusColor } from '@/utils/status'
 const input = ref('')
 const promptRef = ref<ComponentPublicInstance | null>(null)
+const debug = ref(false)
 
 const open = ref(false)
 const { id } = defineProps<{
@@ -88,6 +100,10 @@ const chat = useChat()
 
 const isTerminal = computed(() =>
   ['complete', 'negative', 'operator'].includes(chat.dialogStatus.value),
+)
+
+const visibleMessages = computed(() =>
+  debug.value ? chat.messages.value : chat.messages.value.filter((m) => m.role !== 'system'),
 )
 
 async function handleSubmit (e: Event) {

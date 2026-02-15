@@ -40,9 +40,48 @@ def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
     This is intentionally explicit so it doesn't look like an assistant message.
     """
     import json
+    from datetime import date as date_cls
+    from datetime import datetime
 
     if not tool_events:
         return ""
+
+    def _format_iso_dt_strings(v):
+        """
+        Recursively format ISO-8601 date/datetime strings for display.
+        Keeps non-ISO strings as-is (including slot_key).
+        """
+
+        def _try_parse(s: str):
+            s2 = s.strip()
+            # Support "Z" suffix.
+            if s2.endswith("Z") and "T" in s2:
+                s2 = s2[:-1] + "+00:00"
+            try:
+                if "T" in s2 or ":" in s2:
+                    return datetime.fromisoformat(s2)
+            except ValueError:
+                pass
+            try:
+                # Date-only tool args are common (YYYY-MM-DD).
+                if len(s2) == 10 and s2[4] == "-" and s2[7] == "-":
+                    return date_cls.fromisoformat(s2)
+            except ValueError:
+                pass
+            return None
+
+        if isinstance(v, dict):
+            return {k: _format_iso_dt_strings(val) for k, val in v.items()}
+        if isinstance(v, list):
+            return [_format_iso_dt_strings(val) for val in v]
+        if isinstance(v, str):
+            parsed = _try_parse(v)
+            if isinstance(parsed, datetime):
+                return parsed.strftime("%d.%m.%y %H:%M")
+            if isinstance(parsed, date_cls):
+                return parsed.strftime("%d.%m.%y")
+            return v
+        return v
 
     lines: list[str] = []
     lines.append("=== TOOL OUTPUT (test chat) ===")
@@ -63,9 +102,13 @@ def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
                 }
 
         lines.append(f"{idx}. {tool}")
-        lines.append(f"args: {json.dumps(args, ensure_ascii=False)}")
+        lines.append(
+            f"args: {json.dumps(_format_iso_dt_strings(args), ensure_ascii=False)}"
+        )
         lines.append("result:")
-        lines.append(json.dumps(result, ensure_ascii=False, indent=2))
+        lines.append(
+            json.dumps(_format_iso_dt_strings(result), ensure_ascii=False, indent=2)
+        )
     lines.append("=== END TOOL OUTPUT ===")
     return "\n".join(lines)
 
