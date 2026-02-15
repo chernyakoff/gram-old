@@ -1,4 +1,5 @@
 import logging
+import random
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -20,6 +21,7 @@ from utils.prompt import (
     build_prompt_v2,
     get_active_status,
     get_calendar_addon,
+    get_name_addon,
     get_status_addon,
     validate_prompt,
 )
@@ -33,6 +35,85 @@ TERMINAL_STATUSES = {
     DialogStatus.NEGATIVE,
     DialogStatus.OPERATOR,
 }
+
+# In-memory cache for the prompt test UI: keep a stable random pair across turns.
+# Keyed by (user_id, project_id) to avoid changing names every message.
+_TEST_NAME_PAIR_CACHE: dict[tuple[int, int], tuple[int, int]] = {}
+
+
+async def _get_test_name_addon(
+    user: orm.User, project: orm.Project
+) -> tuple[str, dict | None]:
+    """
+    Pick a random (Account, Recipient) for this user/project and produce get_name_addon().
+    Returns (addon_text, tool_event_dict_or_None).
+    """
+
+    cache_key = (user.id, project.id)
+    cached = _TEST_NAME_PAIR_CACHE.get(cache_key)
+
+    async def _resolve_pair(account_id: int, recipient_id: int):
+        account = await orm.Account.get_or_none(id=account_id, user_id=user.id)
+        recipient = (
+            await orm.Recipient.filter(id=recipient_id, mailing__user_id=user.id)
+            .prefetch_related("mailing")
+            .first()
+        )
+        if not account or not recipient:
+            return None, None
+        return account, recipient
+
+    account: orm.Account | None = None
+    recipient: orm.Recipient | None = None
+    if cached:
+        account, recipient = await _resolve_pair(cached[0], cached[1])
+        if not account or not recipient:
+            _TEST_NAME_PAIR_CACHE.pop(cache_key, None)
+
+    if not account or not recipient:
+        account_ids = await orm.Account.filter(
+            user_id=user.id,
+            project_id=project.id,
+        ).values_list("id", flat=True)
+        if not account_ids:
+            account_ids = await orm.Account.filter(user_id=user.id).values_list(
+                "id", flat=True
+            )
+
+        recipient_ids = await orm.Recipient.filter(
+            mailing__user_id=user.id,
+            mailing__project_id=project.id,
+        ).values_list("id", flat=True)
+        if not recipient_ids:
+            recipient_ids = await orm.Recipient.filter(
+                mailing__user_id=user.id
+            ).values_list("id", flat=True)
+
+        if not account_ids or not recipient_ids:
+            return "", None
+
+        picked_account_id = random.choice(list(account_ids))
+        picked_recipient_id = random.choice(list(recipient_ids))
+        _TEST_NAME_PAIR_CACHE[cache_key] = (picked_account_id, picked_recipient_id)
+        account, recipient = await _resolve_pair(picked_account_id, picked_recipient_id)
+        if not account or not recipient:
+            return "", None
+
+    addon = get_name_addon(account, recipient).strip()
+    if not addon:
+        return "", None
+
+    tool_event = {
+        "tool": "name_addon",
+        "arguments": {
+            "account_id": account.id,
+            "recipient_id": recipient.id,
+            "account_username": account.username,
+            "recipient_username": recipient.username,
+        },
+        "result": addon,
+    }
+    return addon, tool_event
 
 
 def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
@@ -158,6 +239,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     status_changed = False
     warnings: list[str] = []
+    tool_events: list[dict] = []
 
     # TODO - сделать оповещение если статус не найден и оставлен предыдущий
     if chat.messages:
@@ -189,6 +271,12 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
+                name_addon, name_ev = await _get_test_name_addon(user, project)
+                if name_addon:
+                    msg.text = f"{msg.text}\n{name_addon}"
+                    if name_ev:
+                        tool_events.append(name_ev)
+
                 STATUS_ADDON = await get_status_addon()
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if project.use_calendar:
@@ -226,7 +314,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
-    tool_events: list[dict] = []
     if project.use_calendar:
         ctx = ToolContext(user, None)
         tool_handlers = {

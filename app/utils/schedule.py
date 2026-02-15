@@ -6,8 +6,7 @@ from zoneinfo import ZoneInfo
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
-from models.orm import WeekDay
-from models.orm import Dialog, Meeting, User, UserSchedule
+from models.orm import Dialog, Meeting, User, UserSchedule, WeekDay
 
 
 class TimeSlot:
@@ -98,7 +97,9 @@ class ScheduleService:
             current_date = start_date + timedelta(days=day_offset)
 
             # 1. Проверяем, не выключен ли день
-            disabled = await schedule.disabled_month_days.filter(day=current_date.day).exists()
+            disabled = await schedule.disabled_month_days.filter(
+                day=current_date.day
+            ).exists()
             if disabled:
                 continue
 
@@ -188,7 +189,9 @@ class ScheduleService:
                         schedule_id=schedule_id,
                     )
                 )
-                cursor += meeting_duration  # следующий слот начинается сразу после этого
+                cursor += (
+                    meeting_duration  # следующий слот начинается сразу после этого
+                )
 
         return slots
 
@@ -381,7 +384,9 @@ class ToolContext:
 
         # If this dialog already has a scheduled meeting, make booking idempotent.
         if self.dialog:
-            existing = await Meeting.get_or_none(dialog_id=self.dialog.id, status="scheduled")
+            existing = await Meeting.get_or_none(
+                dialog_id=self.dialog.id, status="scheduled"
+            )
             if existing:
                 if existing.start_at and existing.end_at:
                     existing_key = f"{existing.schedule_id}__{existing.start_at.isoformat()}__{existing.end_at.isoformat()}"
@@ -397,7 +402,9 @@ class ToolContext:
                     "status": "error",
                     "message": "Встреча уже забронирована; если нужно изменить время, сначала вызови cancel_meeting, затем выбери новый слот",
                     "meeting_id": existing.id,
-                    "start": existing.start_at.isoformat() if existing.start_at else None,
+                    "start": existing.start_at.isoformat()
+                    if existing.start_at
+                    else None,
                     "end": existing.end_at.isoformat() if existing.end_at else None,
                 }
 

@@ -863,6 +863,7 @@ class MeetingSource(StrEnum):
 
 class Meeting(Model, TimestampMixin):
     id = fields.IntField(pk=True)
+    schedule_id: int
 
     user = fields.ForeignKeyField(
         "models.User",
