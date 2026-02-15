@@ -88,10 +88,10 @@ def _format_test_meeting_reminder(template: str, start_iso: str) -> str:
     return template.format(
         time=dt.strftime("%H:%M"),
         TIME=dt.strftime("%H:%M"),
-        date=dt.strftime("%d.%m.%Y"),
-        DATE=dt.strftime("%d.%m.%Y"),
-        datetime=dt.strftime("%d.%m.%Y %H:%M"),
-        DATETIME=dt.strftime("%d.%m.%Y %H:%M"),
+        date=dt.strftime("%d.%m.%y"),
+        DATE=dt.strftime("%d.%m.%y"),
+        datetime=dt.strftime("%d.%m.%y %H:%M"),
+        DATETIME=dt.strftime("%d.%m.%y %H:%M"),
     )
 
 
@@ -118,11 +118,18 @@ async def test_reminders(data: TestRemindersIn, user=Depends(get_current_user)):
     if not booked_slot_key:
         return ChatOut(text="", status=DialogStatus.COMPLETE)
 
+    parsed = booked_slot_key.split("__", 2)
+    start_iso = parsed[1] if len(parsed) == 3 else ""
+
     morning_sent = (await orm.Settings.fetch(user.id, "test.morning-reminder-sent") or "").strip() == "1"
     meeting_sent = (await orm.Settings.fetch(user.id, "test.meeting-reminder-sent") or "").strip() == "1"
 
     if (not morning_sent) and (project.morning_reminder or "").strip():
-        reminder_text = (project.morning_reminder or "").strip()
+        template = (project.morning_reminder or "").strip()
+        try:
+            reminder_text = _format_test_meeting_reminder(template, start_iso)
+        except Exception:
+            reminder_text = template
         await orm.Settings.upsert(user.id, "test.morning-reminder-sent", "1")
         return ChatOut(
             text=f"[УТРЕННЕЕ НАПОМИНАНИЕ]\n{reminder_text}",
@@ -131,8 +138,6 @@ async def test_reminders(data: TestRemindersIn, user=Depends(get_current_user)):
 
     if (not meeting_sent) and (project.meeting_reminder or "").strip():
         template = (project.meeting_reminder or "").strip()
-        parsed = booked_slot_key.split("__", 2)
-        start_iso = parsed[1] if len(parsed) == 3 else ""
         try:
             reminder_text = _format_test_meeting_reminder(template, start_iso)
         except Exception:

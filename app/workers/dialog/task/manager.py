@@ -1193,9 +1193,13 @@ class DialogManager:
             if dialog.project_id != self.project.id:
                 continue
 
+            reminder_text = self._format_meeting_reminder(
+                self.project.morning_reminder, meeting
+            )
+
             # Отправляем немедленно
             success = await self._send_reminder_immediately(
-                dialog, self.project.morning_reminder
+                dialog, reminder_text
             )
 
             if success:
@@ -1276,10 +1280,10 @@ class DialogManager:
         return template.format(
             time=meeting_time.strftime("%H:%M"),
             TIME=meeting_time.strftime("%H:%M"),
-            date=meeting_time.strftime("%d.%m.%Y"),
-            DATE=meeting_time.strftime("%d.%m.%Y"),
-            datetime=meeting_time.strftime("%d.%m.%Y %H:%M"),
-            DATETIME=meeting_time.strftime("%d.%m.%Y %H:%M"),
+            date=meeting_time.strftime("%d.%m.%y"),
+            DATE=meeting_time.strftime("%d.%m.%y"),
+            datetime=meeting_time.strftime("%d.%m.%y %H:%M"),
+            DATETIME=meeting_time.strftime("%d.%m.%y %H:%M"),
         )
 
     async def check_and_send_reminders(self):
