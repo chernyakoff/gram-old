@@ -32,3 +32,4 @@ class ChatOut(BaseModel):
     text: str
     status: DialogStatus
     tool_events: list[ToolEvent] | None = None
+    warnings: list[str] | None = None

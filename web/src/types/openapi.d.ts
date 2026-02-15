@@ -125,6 +125,7 @@ export interface components {
             text: string;
             status: components["schemas"]["DialogStatus"];
             toolEvents?: components["schemas"]["ToolEvent"][] | null;
+            warnings?: string[] | null;
         };
         DayIn: {
             weekday: number;

@@ -46,6 +46,10 @@ function toolEventToText(ev: ToolEvent): string {
   return `TOOL: ${ev.tool}\nargs: ${args}\nresult:\n${result}`
 }
 
+function warningToText(w: string): string {
+  return `WARNING: ${w}`
+}
+
 export function useChat() {
   const { api } = useApi()
 
@@ -74,6 +78,13 @@ export function useChat() {
       dialogStatus.value = data.status
 
       if (data?.text) {
+        if (data.warnings?.length) {
+          for (const w of data.warnings) {
+            messages.value.push(
+              toUIMessage({ role: 'system', text: warningToText(w) }, dialogStatus.value),
+            )
+          }
+        }
         if (data.toolEvents?.length) {
           for (const ev of data.toolEvents) {
             messages.value.push(
@@ -114,6 +125,13 @@ export function useChat() {
       })
       dialogStatus.value = data.status
       if (data?.text) {
+        if (data.warnings?.length) {
+          for (const w of data.warnings) {
+            messages.value.push(
+              toUIMessage({ role: 'system', text: warningToText(w) }, dialogStatus.value),
+            )
+          }
+        }
         if (data.toolEvents?.length) {
           for (const ev of data.toolEvents) {
             messages.value.push(

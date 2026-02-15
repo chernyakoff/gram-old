@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from models import orm
@@ -24,6 +26,7 @@ from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
 from api.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = {
     DialogStatus.COMPLETE,
@@ -101,6 +104,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
 
     status_changed = False
+    warnings: list[str] = []
 
     # TODO - сделать оповещение если статус не найден и оставлен предыдущий
     if chat.messages:
@@ -110,20 +114,21 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             chat.status,
         )
         if not new_status:
-            return ChatOut(text="Не могу определить статус диалога", status=chat.status)
-            """ raise HTTPException(
-                status_code=404, detail="Не могу определить статус диалога"
-            ) """
-
-        new_status = get_active_status(new_status, skip_options)
-        if new_status != chat.status:
-            status_changed = True
-        chat.status = new_status
+            # Match production behavior (Telegram task): keep previous status and continue.
+            logger.warning("Test chat: AI did not return dialog status; keeping previous")
+            warnings.append(
+                f"AI не вернул статус диалога, оставлен предыдущий: {chat.status.value}"
+            )
+        else:
+            new_status = get_active_status(new_status, skip_options)
+            if new_status != chat.status:
+                status_changed = True
+            chat.status = new_status
 
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
-        return ChatOut(text=first_message, status=chat.status)
+        return ChatOut(text=first_message, status=chat.status, warnings=warnings or None)
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
@@ -179,15 +184,15 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 user, messages, TOOLS, tool_handlers, tool_events=tool_events
             )
         except Exception as e:
-            return ChatOut(text=str(e), status=chat.status)
+            return ChatOut(text=str(e), status=chat.status, warnings=warnings or None)
     else:
         try:
             response = await openrouter.create_response(user, messages)
         except Exception as e:
-            return ChatOut(text=str(e), status=chat.status)
+            return ChatOut(text=str(e), status=chat.status, warnings=warnings or None)
 
     if not response:
-        return ChatOut(text="AI не вернул ответ", status=chat.status)
+        return ChatOut(text="AI не вернул ответ", status=chat.status, warnings=warnings or None)
 
     response = normalize_dashes(response)  # type: ignore
 
@@ -203,4 +208,5 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         text=response,
         status=chat.status,
         tool_events=[ToolEvent(**ev) for ev in tool_events] if tool_events else None,
+        warnings=warnings or None,
     )
