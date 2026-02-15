@@ -39,12 +39,9 @@ TERMINAL_STATUSES = {
 async def _prime_test_name_addon(user_id: int) -> dict | None:
     """
     For the prompt test UI: persist a single get_name_addon() in user Settings so it
-    stays stable across requests. Emits a debug event only on first creation.
+    stays stable across requests within a single test run. On every test start
+    (messages=[]), we overwrite it with a new random addon and emit a debug event.
     """
-
-    existing = (await orm.Settings.fetch(user_id, "test.name-addon") or "").strip()
-    if existing:
-        return None
 
     async def _random_instance(model):
         cnt = await model.all().count()
