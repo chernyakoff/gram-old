@@ -40,9 +40,48 @@ function stripLegacyToolBlock(text: string): string {
   return after.trimStart()
 }
 
+function isoToHuman(s: string): string | null {
+  // Keep tool debug stable: do not apply local timezone conversions.
+  // We only reformat the literal ISO strings: YYYY-MM-DD and YYYY-MM-DDTHH:MM...
+  const dt = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+  if (dt) {
+    const yy = dt[1].slice(2, 4)
+    return `${dt[3]}.${dt[2]}.${yy} ${dt[4]}:${dt[5]}`
+  }
+  const d = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (d) {
+    const yy = d[1].slice(2, 4)
+    return `${d[3]}.${d[2]}.${yy}`
+  }
+  return null
+}
+
+function slotKeyToHuman(s: string): string | null {
+  const m = s.match(/^(\d+)__(.+)__(.+)$/)
+  if (!m) return null
+  const a = isoToHuman(m[2]) ?? m[2]
+  const b = isoToHuman(m[3]) ?? m[3]
+  return `${m[1]}__${a}__${b}`
+}
+
+function humanizeDebugValue(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(humanizeDebugValue)
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      out[k] = humanizeDebugValue(val)
+    }
+    return out
+  }
+  if (typeof v === 'string') {
+    return slotKeyToHuman(v) ?? isoToHuman(v) ?? v
+  }
+  return v
+}
+
 function toolEventToText(ev: ToolEvent): string {
-  const args = JSON.stringify(ev.arguments ?? {}, null, 2)
-  const result = JSON.stringify(ev.result ?? null, null, 2)
+  const args = JSON.stringify(humanizeDebugValue(ev.arguments ?? {}), null, 2)
+  const result = JSON.stringify(humanizeDebugValue(ev.result ?? null), null, 2)
   return `TOOL: ${ev.tool}\nargs: ${args}\nresult:\n${result}`
 }
 

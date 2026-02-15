@@ -49,11 +49,22 @@ def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
     def _format_iso_dt_strings(v):
         """
         Recursively format ISO-8601 date/datetime strings for display.
-        Keeps non-ISO strings as-is (including slot_key).
+        Also formats slot_key-like strings: "<id>__<iso_dt>__<iso_dt>".
         """
 
         def _try_parse(s: str):
             s2 = s.strip()
+            # Format slot_key-like strings too.
+            if "__" in s2:
+                parts = s2.split("__", 2)
+                if len(parts) == 3 and parts[0].isdigit():
+                    a = _try_parse(parts[1])
+                    b = _try_parse(parts[2])
+                    if isinstance(a, datetime) and isinstance(b, datetime):
+                        return (
+                            f"{parts[0]}__{a.strftime('%d.%m.%y %H:%M')}__{b.strftime('%d.%m.%y %H:%M')}"
+                        )
+
             # Support "Z" suffix.
             if s2.endswith("Z") and "T" in s2:
                 s2 = s2[:-1] + "+00:00"
@@ -76,6 +87,8 @@ def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
             return [_format_iso_dt_strings(val) for val in v]
         if isinstance(v, str):
             parsed = _try_parse(v)
+            if isinstance(parsed, str):
+                return parsed
             if isinstance(parsed, datetime):
                 return parsed.strftime("%d.%m.%y %H:%M")
             if isinstance(parsed, date_cls):
