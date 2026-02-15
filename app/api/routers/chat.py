@@ -245,7 +245,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
                 STATUS_ADDON = await get_status_addon()
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
-                if project.use_calendar:
+                if project.use_calendar and chat.status == DialogStatus.CLOSING:
                     CALENDAR_ADDON = await get_calendar_addon(user)
                     # Append calendar instructions; do not overwrite the user's message.
                     msg.text = f"{msg.text}\n\n{CALENDAR_ADDON}"

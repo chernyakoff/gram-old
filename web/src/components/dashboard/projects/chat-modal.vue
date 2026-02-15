@@ -42,11 +42,27 @@
           }">
           <template #content="{ message }">
             <div class="min-w-20 p-2">
-              <pre
-                v-if="(message as any).role === 'system'"
-                class="mb-1 whitespace-pre-wrap rounded-md border border-default bg-elevated px-3 py-2 text-xs font-mono text-muted"
-                >{{ getTextFromMessage(message) }}</pre
-              >
+              <template v-if="(message as any).role === 'system'">
+                <details
+                  v-if="isToolDebugMessage(message)"
+                  class="tool-debug mb-1 rounded-md border border-default bg-elevated px-3 py-2 text-xs font-mono text-muted"
+                >
+                  <summary class="flex items-center gap-2 cursor-pointer select-none">
+                    <span class="tool-debug__pm tool-debug__pm--closed">+</span>
+                    <span class="tool-debug__pm tool-debug__pm--open">-</span>
+                    <span class="whitespace-pre-wrap">{{ toolDebugSummary(message) }}</span>
+                  </summary>
+                  <div class="mt-2">
+                    <div class="whitespace-pre-wrap">{{ toolDebugArgs(message) }}</div>
+                    <div class="mt-2">result:</div>
+                    <pre class="mt-1 whitespace-pre-wrap">{{ toolDebugResult(message) }}</pre>
+                  </div>
+                </details>
+                <pre
+                  v-else
+                  class="mb-1 whitespace-pre-wrap rounded-md border border-default bg-elevated px-3 py-2 text-xs font-mono text-muted"
+                >{{ getTextFromMessage(message) }}</pre>
+              </template>
               <p v-else class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
               <small
                 v-if="(message as any).role !== 'system'"
@@ -106,6 +122,51 @@ const visibleMessages = computed(() =>
   debug.value ? chat.messages.value : chat.messages.value.filter((m) => m.role !== 'system'),
 )
 
+type ToolDebugParts = { tool: string; args: string; result: string } | null
+
+function parseToolDebugText(text: string): ToolDebugParts {
+  if (!text.startsWith('TOOL:')) return null
+  const toolMatch = text.match(/^TOOL:\s*(.+)\s*$/m)
+  const tool = toolMatch?.[1]?.trim() || 'unknown'
+
+  const argsIdx = text.indexOf('\nargs:')
+  const resIdx = text.indexOf('\nresult:')
+  if (argsIdx === -1 || resIdx === -1 || resIdx < argsIdx) return null
+
+  const args = text.slice(argsIdx + '\nargs:'.length, resIdx).trim()
+  const result = text.slice(resIdx + '\nresult:'.length).trim()
+  return { tool, args, result }
+}
+
+function isToolDebugMessage(message: any): boolean {
+  const text = String(getTextFromMessage(message) ?? '')
+  return parseToolDebugText(text) !== null
+}
+
+function toolDebugSummary(message: any): string {
+  const text = String(getTextFromMessage(message) ?? '')
+  const p = parseToolDebugText(text)
+  if (!p) return text
+  // Keep summary single-line-ish.
+  const argsOneLine = p.args.replace(/\s+/g, ' ').slice(0, 120)
+  const suffix = p.args.length > 120 ? '…' : ''
+  return `TOOL: ${p.tool} | args: ${argsOneLine}${suffix} | result:`
+}
+
+function toolDebugArgs(message: any): string {
+  const text = String(getTextFromMessage(message) ?? '')
+  const p = parseToolDebugText(text)
+  if (!p) return ''
+  return `args: ${p.args}`
+}
+
+function toolDebugResult(message: any): string {
+  const text = String(getTextFromMessage(message) ?? '')
+  const p = parseToolDebugText(text)
+  if (!p) return text
+  return p.result
+}
+
 async function handleSubmit (e: Event) {
   e.preventDefault()
   if (input.value.trim() && id) {
@@ -141,3 +202,15 @@ watch(
   { immediate: true },
 )
 </script>
+
+<style scoped>
+.tool-debug__pm--open {
+  display: none;
+}
+.tool-debug[open] .tool-debug__pm--open {
+  display: inline;
+}
+.tool-debug[open] .tool-debug__pm--closed {
+  display: none;
+}
+</style>
