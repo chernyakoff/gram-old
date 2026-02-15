@@ -459,6 +459,13 @@ class ToolContext:
         }
 
     async def cancel_meeting(self):
+        # Test chat mode: there is no persisted Meeting; clear in-memory selection.
+        if not self.dialog:
+            existed = self._test_booked_by_user.pop(self.user.id, None)
+            if not existed:
+                return {"status": "error", "message": "Встреча не найдена"}
+            return {"status": "ok", "message": "Встреча отменена"}
+
         meeting = await self._get_meeting()
         if not meeting:
             return {"status": "error", "message": "Встреча не найдена"}
