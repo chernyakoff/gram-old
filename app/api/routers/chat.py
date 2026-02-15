@@ -3,6 +3,8 @@ import random
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from pydantic import BaseModel
+
 from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
 from api.routers.auth import get_current_user
 from models import orm
@@ -36,6 +38,7 @@ TERMINAL_STATUSES = {
     DialogStatus.OPERATOR,
 }
 
+
 async def _prime_test_name_addon(user_id: int) -> dict | None:
     """
     For the prompt test UI: persist a single get_name_addon() in user Settings so it
@@ -61,12 +64,13 @@ async def _prime_test_name_addon(user_id: int) -> dict | None:
     await orm.Settings.upsert(user_id, "test.name-addon", addon)
     return {
         "tool": "name_addon",
+        """
         "arguments": {
             "account_id": account.id,
             "recipient_id": recipient.id,
             "account_username": getattr(account, "username", None),
             "recipient_username": getattr(recipient, "username", None),
-        },
+        },"""
         "result": addon,
     }
 
@@ -90,6 +94,57 @@ def _format_test_meeting_reminder(template: str, start_iso: str) -> str:
         datetime=dt.strftime("%d.%m.%Y %H:%M"),
         DATETIME=dt.strftime("%d.%m.%Y %H:%M"),
     )
+
+
+class TestRemindersIn(BaseModel):
+    project_id: int
+
+
+@router.post("/test-reminders", response_model=ChatOut)
+async def test_reminders(data: TestRemindersIn, user=Depends(get_current_user)):
+    """
+    Test-chat helper endpoint:
+    Returns the next reminder (morning -> meeting) as plain assistant text without calling the LLM.
+    The frontend can append it as an assistant message and set status to closing.
+    """
+
+    project = await orm.Project.filter(id=data.project_id, user_id=user.id).get_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not project.use_calendar:
+        return ChatOut(text="", status=DialogStatus.COMPLETE)
+
+    booked_slot_key = ToolContext._test_booked_by_user.get(user.id)  # type: ignore[attr-defined]
+    if not booked_slot_key:
+        return ChatOut(text="", status=DialogStatus.COMPLETE)
+
+    morning_sent = (await orm.Settings.fetch(user.id, "test.morning-reminder-sent") or "").strip() == "1"
+    meeting_sent = (await orm.Settings.fetch(user.id, "test.meeting-reminder-sent") or "").strip() == "1"
+
+    if (not morning_sent) and (project.morning_reminder or "").strip():
+        reminder_text = (project.morning_reminder or "").strip()
+        await orm.Settings.upsert(user.id, "test.morning-reminder-sent", "1")
+        return ChatOut(
+            text=f"[УТРЕННЕЕ НАПОМИНАНИЕ]\n{reminder_text}",
+            status=DialogStatus.CLOSING,
+        )
+
+    if (not meeting_sent) and (project.meeting_reminder or "").strip():
+        template = (project.meeting_reminder or "").strip()
+        parsed = booked_slot_key.split("__", 2)
+        start_iso = parsed[1] if len(parsed) == 3 else ""
+        try:
+            reminder_text = _format_test_meeting_reminder(template, start_iso)
+        except Exception:
+            reminder_text = template
+        await orm.Settings.upsert(user.id, "test.meeting-reminder-sent", "1")
+        return ChatOut(
+            text=f"[НАПОМИНАНИЕ О ВСТРЕЧЕ]\n{reminder_text}",
+            status=DialogStatus.CLOSING,
+        )
+
+    return ChatOut(text="", status=DialogStatus.COMPLETE)
 
 
 def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
@@ -255,7 +310,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         return ChatOut(
             text=first_message,
             status=chat.status,
-            tool_events=[ToolEvent(**ev) for ev in tool_events] if tool_events else None,
+            tool_events=[ToolEvent(**ev) for ev in tool_events]
+            if tool_events
+            else None,
             warnings=warnings or None,
         )
     else:
@@ -338,43 +395,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if tool_events:
         tool_block = _render_tool_events_for_chat(tool_events)
         response = f"{tool_block}\n\n{response}"
-
-    # Test UI reminder chain (mirrors production behavior in manager.py):
-    # after a "complete" close and a booked meeting, we "send" reminders (project templates)
-    # and reopen the dialog to CLOSING so the user can reply and the model sees the context.
-    if project.use_calendar:
-        booked_slot_key = ToolContext._test_booked_by_user.get(user.id)  # type: ignore[attr-defined]
-        if booked_slot_key and chat.status == DialogStatus.COMPLETE:
-            morning_sent = (
-                await orm.Settings.fetch(user.id, "test.morning-reminder-sent") or ""
-            ).strip() == "1"
-            meeting_sent = (
-                await orm.Settings.fetch(user.id, "test.meeting-reminder-sent") or ""
-            ).strip() == "1"
-
-            # slot_key format: "<schedule_id>__<start_iso>__<end_iso>"
-            parsed = booked_slot_key.split("__", 2)
-            start_iso = parsed[1] if len(parsed) == 3 else ""
-
-            if (not morning_sent) and (project.morning_reminder or "").strip():
-                reminder_text = (project.morning_reminder or "").strip()
-                response = (
-                    f"{response}\n\n[УТРЕННЕЕ НАПОМИНАНИЕ]\n{reminder_text}"
-                )
-                await orm.Settings.upsert(user.id, "test.morning-reminder-sent", "1")
-                chat.status = DialogStatus.CLOSING
-
-            elif morning_sent and (not meeting_sent) and (project.meeting_reminder or "").strip():
-                template = (project.meeting_reminder or "").strip()
-                try:
-                    reminder_text = _format_test_meeting_reminder(template, start_iso)
-                except Exception:
-                    reminder_text = template
-                response = (
-                    f"{response}\n\n[НАПОМИНАНИЕ О ВСТРЕЧЕ]\n{reminder_text}"
-                )
-                await orm.Settings.upsert(user.id, "test.meeting-reminder-sent", "1")
-                chat.status = DialogStatus.CLOSING
 
     return ChatOut(
         text=response,

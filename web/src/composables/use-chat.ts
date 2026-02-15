@@ -111,6 +111,29 @@ export function useChat() {
   const error = ref<string | null>(null)
   const dialogStatus = ref<DialogStatus>('init')
 
+  async function maybeInjectTestReminder(projectId: number) {
+    // Only used by the prompt test UI: after a terminal status, ask the backend
+    // for the next reminder (without calling the LLM) and reopen the dialog.
+    if (dialogStatus.value !== 'complete') return
+
+    try {
+      const data = await api<ChatOut>('chat/test-reminders', {
+        method: 'POST',
+        body: { projectId },
+      })
+
+      if (data?.text && data.text.trim()) {
+        dialogStatus.value = data.status
+        messages.value.push(toUIMessage({ role: 'assistant', text: data.text }, dialogStatus.value))
+      } else {
+        // Keep the terminal status as-is.
+        dialogStatus.value = data.status
+      }
+    } catch {
+      // Ignore reminder failures in the test UI.
+    }
+  }
+
   function toApiMessages() {
     // Do not send local debug/system messages back to the server, otherwise the LLM may
     // "learn" a human-formatted slotKey and reuse it in tool calls, breaking booking.
@@ -159,6 +182,8 @@ export function useChat() {
             dialogStatus.value,
           ),
         )
+
+        await maybeInjectTestReminder(projectId)
       } else {
         status.value = 'error'
         error.value = 'Сервер вернул пустой ответ'
