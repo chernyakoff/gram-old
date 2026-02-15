@@ -136,7 +136,8 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                 msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if project.use_calendar:
                     CALENDAR_ADDON = await get_calendar_addon(user)
-                    msg.text = f"\n\n{CALENDAR_ADDON}"
+                    # Append calendar instructions; do not overwrite the user's message.
+                    msg.text = f"{msg.text}\n\n{CALENDAR_ADDON}"
                 if chat.status == DialogStatus.CLOSING:
                     msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
