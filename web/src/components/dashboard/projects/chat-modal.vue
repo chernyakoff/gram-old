@@ -31,8 +31,15 @@
           }">
           <template #content="{ message }">
             <div class="min-w-20 p-2">
-              <p class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
-              <small class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
+              <pre
+                v-if="(message as any).role === 'system'"
+                class="mb-1 whitespace-pre-wrap rounded-md border border-default bg-elevated px-3 py-2 text-xs font-mono text-muted"
+                >{{ getTextFromMessage(message) }}</pre
+              >
+              <p v-else class="mb-4 whitespace-pre-line">{{ getTextFromMessage(message) }}</p>
+              <small
+                v-if="(message as any).role !== 'system'"
+                class="absolute bottom-1 right-2 text-gray-500 text-xs text-nowrap">
                 <UBadge
                   :style="{
                     backgroundColor: statusColor[(message as UIMessageWithStatus).status],

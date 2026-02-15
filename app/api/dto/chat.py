@@ -22,6 +22,13 @@ class ChatIn(BaseModel):
     messages: list[Message]
 
 
+class ToolEvent(BaseModel):
+    tool: str
+    arguments: dict
+    result: object
+
+
 class ChatOut(BaseModel):
     text: str
     status: DialogStatus
+    tool_events: list[ToolEvent] | None = None

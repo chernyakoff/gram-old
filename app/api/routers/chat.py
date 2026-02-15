@@ -20,10 +20,45 @@ from utils.prompt import (
     validate_prompt,
 )
 from utils.schedule import TOOLS, ToolContext
-from api.dto.chat import ChatIn, ChatOut, MessageRole
+from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
 from api.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
+    """
+    Human-readable tool output for the test chat UI.
+    This is intentionally explicit so it doesn't look like an assistant message.
+    """
+    import json
+
+    if not tool_events:
+        return ""
+
+    lines: list[str] = []
+    lines.append("=== TOOL OUTPUT (test chat) ===")
+    for idx, ev in enumerate(tool_events, 1):
+        tool = ev.get("tool", "unknown_tool")
+        args = ev.get("arguments", {}) or {}
+        result = ev.get("result", None)
+
+        # Avoid dumping extremely long slot lists into the chat UI.
+        if isinstance(result, dict) and isinstance(result.get("slots"), list):
+            slots = result.get("slots") or []
+            if len(slots) > 30:
+                result = {
+                    **result,
+                    "slots": slots[:30],
+                    "truncated": True,
+                    "total_slots": len(slots),
+                }
+
+        lines.append(f"{idx}. {tool}")
+        lines.append(f"args: {json.dumps(args, ensure_ascii=False)}")
+        lines.append("result:")
+        lines.append(json.dumps(result, ensure_ascii=False, indent=2))
+    lines.append("=== END TOOL OUTPUT ===")
+    return "\n".join(lines)
 
 
 @router.post("/", response_model=ChatOut)
@@ -124,6 +159,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     messages = [{"role": "system", "content": prompt}]
     messages.extend([{"role": m.role.value, "content": m.text} for m in chat.messages])
 
+    tool_events: list[dict] = []
     if project.use_calendar:
         ctx = ToolContext(user, None)
         tool_handlers = {
@@ -134,7 +170,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
         try:
             response = await openrouter.create_response_with_tools(
-                user, messages, TOOLS, tool_handlers
+                user, messages, TOOLS, tool_handlers, tool_events=tool_events
             )
         except Exception as e:
             return ChatOut(text=str(e), status=chat.status)
@@ -152,4 +188,13 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if file_message:
         response = f"{'\n'.join(file_message)}\n\n{response}"
 
-    return ChatOut(text=response, status=chat.status)
+    # In the test chat, also show tool outputs in-band and via a structured field.
+    if tool_events:
+        tool_block = _render_tool_events_for_chat(tool_events)
+        response = f"{tool_block}\n\n{response}"
+
+    return ChatOut(
+        text=response,
+        status=chat.status,
+        tool_events=[ToolEvent(**ev) for ev in tool_events] if tool_events else None,
+    )

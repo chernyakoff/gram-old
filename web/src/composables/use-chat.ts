@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import type { UIMessage, TextUIPart } from 'ai'
 import { getErrorValue, useApi } from './use-api'
-import type { ChatOut, DialogStatus } from '@/types/openapi'
+import type { ChatOut, DialogStatus, ToolEvent } from '@/types/openapi'
 
 export interface UIMessageWithStatus extends UIMessage {
   status: DialogStatus
@@ -26,6 +26,24 @@ function toUIMessage(
     parts: [part],
     status,
   }
+}
+
+function stripLegacyToolBlock(text: string): string {
+  const startMarker = '=== TOOL OUTPUT (test chat) ==='
+  const endMarker = '=== END TOOL OUTPUT ==='
+  const startIdx = text.indexOf(startMarker)
+  if (startIdx === -1) return text
+  const endIdx = text.indexOf(endMarker, startIdx)
+  if (endIdx === -1) return text
+
+  const after = text.slice(endIdx + endMarker.length)
+  return after.trimStart()
+}
+
+function toolEventToText(ev: ToolEvent): string {
+  const args = JSON.stringify(ev.arguments ?? {}, null, 2)
+  const result = JSON.stringify(ev.result ?? null, null, 2)
+  return `TOOL: ${ev.tool}\nargs: ${args}\nresult:\n${result}`
 }
 
 export function useChat() {
@@ -56,7 +74,19 @@ export function useChat() {
       dialogStatus.value = data.status
 
       if (data?.text) {
-        messages.value.push(toUIMessage({ role: 'assistant', text: data.text }, dialogStatus.value))
+        if (data.toolEvents?.length) {
+          for (const ev of data.toolEvents) {
+            messages.value.push(
+              toUIMessage({ role: 'system', text: toolEventToText(ev) }, dialogStatus.value),
+            )
+          }
+        }
+        messages.value.push(
+          toUIMessage(
+            { role: 'assistant', text: stripLegacyToolBlock(data.text) },
+            dialogStatus.value,
+          ),
+        )
       } else {
         status.value = 'error'
         error.value = 'Сервер вернул пустой ответ'
@@ -84,7 +114,19 @@ export function useChat() {
       })
       dialogStatus.value = data.status
       if (data?.text) {
-        messages.value.push(toUIMessage({ role: 'assistant', text: data.text }, dialogStatus.value))
+        if (data.toolEvents?.length) {
+          for (const ev of data.toolEvents) {
+            messages.value.push(
+              toUIMessage({ role: 'system', text: toolEventToText(ev) }, dialogStatus.value),
+            )
+          }
+        }
+        messages.value.push(
+          toUIMessage(
+            { role: 'assistant', text: stripLegacyToolBlock(data.text) },
+            dialogStatus.value,
+          ),
+        )
       } else {
         error.value = 'Сервер вернул пустой ответ'
       }

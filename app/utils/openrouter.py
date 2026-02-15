@@ -107,6 +107,7 @@ async def create_response_with_tools(
     tools: list,
     tool_handlers: dict[str, Callable],
     max_tokens: int = 3000,
+    tool_events: list[dict[str, Any]] | None = None,
 ) -> str:
     message = await create_raw_response(
         user=user,
@@ -146,6 +147,15 @@ async def create_response_with_tools(
                 # Do not fail the whole LLM request on tool errors. Return an error
                 # payload so the model can self-correct (e.g. re-call get_slots).
                 result = {"status": "error", "tool": tool_name, "message": str(e)}
+
+            if tool_events is not None:
+                tool_events.append(
+                    {
+                        "tool": tool_name,
+                        "arguments": args,
+                        "result": result,
+                    }
+                )
 
             history.append(
                 {

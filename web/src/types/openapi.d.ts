@@ -124,6 +124,7 @@ export interface components {
         ChatOut: {
             text: string;
             status: components["schemas"]["DialogStatus"];
+            toolEvents?: components["schemas"]["ToolEvent"][] | null;
         };
         DayIn: {
             weekday: number;
@@ -421,6 +422,13 @@ export interface components {
         ToggleDayIn: {
             day: number;
         };
+        ToolEvent: {
+            tool: string;
+            arguments: {
+                [key: string]: unknown;
+            };
+            result: unknown;
+        };
         UserBasicOut: {
             id: number;
             username?: string | null;
@@ -557,6 +565,7 @@ export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
 export type ToggleDayIn = components['schemas']['ToggleDayIn'];
+export type ToolEvent = components['schemas']['ToolEvent'];
 export type UserBasicOut = components['schemas']['UserBasicOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
