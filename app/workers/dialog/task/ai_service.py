@@ -110,7 +110,7 @@ class AIService:
                 msg["content"] += f"\n{name_addon}"
                 status_addon = await get_status_addon()
                 msg["content"] += f"\n{status_addon}"
-                if project.use_calendar:
+                if project.use_calendar and status == orm.DialogStatus.CLOSING:
                     calendar_addon = await get_calendar_addon(self.user)
                     msg["content"] += f"\n\n{calendar_addon}"
                 break
