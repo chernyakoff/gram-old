@@ -151,14 +151,10 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
 
     # If the client already has a terminal status from a previous turn,
     # consider the dialog closed and don't call the model again.
-    #
-    # Exception for the test chat UI: if the last message is from the user, allow
-    # one more model call so the assistant can produce the final confirmation
-    # ("Записал вас...") and the UI can then lock on the terminal status.
+    # If the status becomes terminal during this request, we still let the model
+    # produce the final reply (same as in the Telegram task).
     if chat.status in TERMINAL_STATUSES:
-        last_role = chat.messages[-1].role if chat.messages else None
-        if last_role != MessageRole.user:
-            return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
+        return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
 
     status_changed = False
     warnings: list[str] = []
