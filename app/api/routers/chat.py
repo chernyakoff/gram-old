@@ -64,13 +64,12 @@ async def _prime_test_name_addon(user_id: int) -> dict | None:
     await orm.Settings.upsert(user_id, "test.name-addon", addon)
     return {
         "tool": "name_addon",
-        """
         "arguments": {
             "account_id": account.id,
             "recipient_id": recipient.id,
             "account_username": getattr(account, "username", None),
             "recipient_username": getattr(recipient, "username", None),
-        },"""
+        },
         "result": addon,
     }
 
