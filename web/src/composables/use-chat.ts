@@ -45,13 +45,23 @@ function isoToHuman(s: string): string | null {
   // We only reformat the literal ISO strings: YYYY-MM-DD and YYYY-MM-DDTHH:MM...
   const dt = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
   if (dt) {
-    const yy = dt[1].slice(2, 4)
-    return `${dt[3]}.${dt[2]}.${yy} ${dt[4]}:${dt[5]}`
+    const yyyy = dt[1]
+    const mm = dt[2]
+    const dd = dt[3]
+    const hh = dt[4]
+    const mi = dt[5]
+    if (!yyyy || !mm || !dd || !hh || !mi) return null
+    const yy = yyyy.slice(2, 4)
+    return `${dd}.${mm}.${yy} ${hh}:${mi}`
   }
   const d = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (d) {
-    const yy = d[1].slice(2, 4)
-    return `${d[3]}.${d[2]}.${yy}`
+    const yyyy = d[1]
+    const mm = d[2]
+    const dd = d[3]
+    if (!yyyy || !mm || !dd) return null
+    const yy = yyyy.slice(2, 4)
+    return `${dd}.${mm}.${yy}`
   }
   return null
 }
@@ -59,9 +69,13 @@ function isoToHuman(s: string): string | null {
 function slotKeyToHuman(s: string): string | null {
   const m = s.match(/^(\d+)__(.+)__(.+)$/)
   if (!m) return null
-  const a = isoToHuman(m[2]) ?? m[2]
-  const b = isoToHuman(m[3]) ?? m[3]
-  return `${m[1]}__${a}__${b}`
+  const id = m[1]
+  const start = m[2]
+  const end = m[3]
+  if (!id || !start || !end) return null
+  const a = isoToHuman(start) ?? start
+  const b = isoToHuman(end) ?? end
+  return `${id}__${a}__${b}`
 }
 
 function humanizeDebugValue(v: unknown): unknown {

@@ -2,6 +2,8 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
+from api.routers.auth import get_current_user
 from models import orm
 from models.orm import DialogStatus
 from utils import openrouter
@@ -22,8 +24,6 @@ from utils.prompt import (
     validate_prompt,
 )
 from utils.schedule import TOOLS, ToolContext
-from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
-from api.routers.auth import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ TERMINAL_STATUSES = {
     DialogStatus.NEGATIVE,
     DialogStatus.OPERATOR,
 }
+
 
 def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
     """
@@ -61,9 +62,7 @@ def _render_tool_events_for_chat(tool_events: list[dict]) -> str:
                     a = _try_parse(parts[1])
                     b = _try_parse(parts[2])
                     if isinstance(a, datetime) and isinstance(b, datetime):
-                        return (
-                            f"{parts[0]}__{a.strftime('%d.%m.%y %H:%M')}__{b.strftime('%d.%m.%y %H:%M')}"
-                        )
+                        return f"{parts[0]}__{a.strftime('%d.%m.%y %H:%M')}__{b.strftime('%d.%m.%y %H:%M')}"
 
             # Support "Z" suffix.
             if s2.endswith("Z") and "T" in s2:
@@ -148,16 +147,18 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         return ChatOut(text="В проекте отсутсвует промпт", status=chat.status)
 
     if not project.first_message:
-        return ChatOut(
-            text="В проекте отсутсвует первое сообщение", status=chat.status
-        )
+        return ChatOut(text="В проекте отсутсвует первое сообщение", status=chat.status)
 
     # If the client already has a terminal status from a previous turn,
     # consider the dialog closed and don't call the model again.
-    # If the status becomes terminal during this request, we still let the model
-    # produce the final reply (same as in the Telegram task).
+    #
+    # Exception for the test chat UI: if the last message is from the user, allow
+    # one more model call so the assistant can produce the final confirmation
+    # ("Записал вас...") and the UI can then lock on the terminal status.
     if chat.status in TERMINAL_STATUSES:
-        return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
+        last_role = chat.messages[-1].role if chat.messages else None
+        if last_role != MessageRole.user:
+            return ChatOut(text="ДИАЛОГ ЗАКРЫТ", status=chat.status)
 
     status_changed = False
     warnings: list[str] = []
@@ -171,7 +172,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
         )
         if not new_status:
             # Match production behavior (Telegram task): keep previous status and continue.
-            logger.warning("Test chat: AI did not return dialog status; keeping previous")
+            logger.warning(
+                "Test chat: AI did not return dialog status; keeping previous"
+            )
             warnings.append(
                 f"AI не вернул статус диалога, оставлен предыдущий: {chat.status.value}"
             )
@@ -184,7 +187,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not chat.messages and project.first_message:
         first_message = generate_message(project.first_message)
         first_message = randomize_message(first_message)
-        return ChatOut(text=first_message, status=chat.status, warnings=warnings or None)
+        return ChatOut(
+            text=first_message, status=chat.status, warnings=warnings or None
+        )
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
@@ -194,8 +199,6 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
                     CALENDAR_ADDON = await get_calendar_addon(user)
                     # Append calendar instructions; do not overwrite the user's message.
                     msg.text = f"{msg.text}\n\n{CALENDAR_ADDON}"
-                if chat.status == DialogStatus.CLOSING:
-                    msg.text += "\nВАЖНО, если ты попрощался, а тебе продолжают писать, то отвечай одним словом COMPLETE и больше ничего не пиши"
 
                 break
 
@@ -249,7 +252,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             return ChatOut(text=str(e), status=chat.status, warnings=warnings or None)
 
     if not response:
-        return ChatOut(text="AI не вернул ответ", status=chat.status, warnings=warnings or None)
+        return ChatOut(
+            text="AI не вернул ответ", status=chat.status, warnings=warnings or None
+        )
 
     response = normalize_dashes(response)  # type: ignore
 
