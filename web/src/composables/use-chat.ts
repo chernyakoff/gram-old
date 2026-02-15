@@ -97,6 +97,14 @@ export function useChat() {
   const error = ref<string | null>(null)
   const dialogStatus = ref<DialogStatus>('init')
 
+  function toApiMessages() {
+    // Do not send local debug/system messages back to the server, otherwise the LLM may
+    // "learn" a human-formatted slotKey and reuse it in tool calls, breaking booking.
+    return messages.value
+      .filter((m) => m.role !== 'system')
+      .map(toApiMessage)
+  }
+
   async function sendMessage(projectId: number, text: string) {
     if (!text) return
 
@@ -110,7 +118,7 @@ export function useChat() {
         method: 'POST',
         body: {
           projectId: projectId,
-          messages: messages.value.map(toApiMessage),
+          messages: toApiMessages(),
           status: dialogStatus.value,
         },
       })
