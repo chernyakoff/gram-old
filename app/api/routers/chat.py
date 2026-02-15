@@ -218,6 +218,9 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
             chat.status = new_status
 
     if not chat.messages and project.first_message:
+        # Reset in-memory test booking state between separate prompt test runs.
+        ToolContext.reset_test_state(user.id)
+
         # Persist a stable name addon for this user and show it once in debug output.
         name_ev = await _prime_test_name_addon(user.id)
         if name_ev:

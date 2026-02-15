@@ -324,6 +324,10 @@ class ToolContext:
     # persist meetings. This avoids repeated "booking" tool calls across turns.
     _test_booked_by_user: dict[int, str] = {}
 
+    @classmethod
+    def reset_test_state(cls, user_id: int) -> None:
+        cls._test_booked_by_user.pop(user_id, None)
+
     async def _get_schedule(self, schedule_id: int | None = None) -> UserSchedule:
         if schedule_id is None:
             return await UserSchedule.get_default_for_user(self.user)
