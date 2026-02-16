@@ -175,9 +175,9 @@ useTitle(title)
 const { get, state, accounts, loading } = useAccounts()
 const toast = useToast()
 
-// "Отлежка" (в часах): аккаунты, загруженные меньше чем N часов назад, нельзя трогать.
+// "Отлежка" (в часах): 0 = отключена.
 // Если захочешь конфиг с бэка/ENV - вынесем, но пока держим тут.
-const HOLD_HOURS = 24
+const HOLD_HOURS = 0
 const HOLD_MS = HOLD_HOURS * 60 * 60 * 1000
 
 const NOW_TICK_MS = 30_000
