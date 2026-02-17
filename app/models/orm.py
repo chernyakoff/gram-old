@@ -210,7 +210,7 @@ class AccountAction(StrEnum):
 
 
 class Account(Model, TimestampMixin):
-    PROGREV = [2, 2, 3, 4, 4, 5, 6, 6, 7]
+    PROGREV = [1, 2, 3, 3, 4, 5, 6, 7]
     id = fields.BigIntField(pk=True, generated=False)
     username = fields.CharField(max_length=34, null=True)
     first_name = fields.CharField(max_length=64, null=True)
