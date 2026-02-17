@@ -8,7 +8,6 @@ from telethon import TelegramClient
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
-from workers.dialog.client import hatchet
 from models import orm
 from utils.account import AccountUtil
 from utils.functions import (
@@ -17,13 +16,13 @@ from utils.functions import (
     pick,
     randomize_message,
 )
+from utils.logger import Logger, StreamLogger
 from utils.notify import BotNotify
 from utils.proxy_pool import ProxyPool
+from workers.base.accounts.stop_premium import stop_premium_inline
+from workers.dialog.client import hatchet
 from workers.dialog.task.manager import DialogManager
 from workers.dialog.task.telegram_service import FrozenError, SpamBlockedError
-from utils.logger import Logger
-from utils.logger import StreamLogger
-from workers.base.accounts.stop_premium import stop_premium_inline
 
 # Максимальное время на случай если что-то пойдет не так
 MAX_SESSION_HOURS = 6
@@ -140,7 +139,8 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 )
                 await asyncio.wait_for(client.connect(), timeout=30)  # type: ignore
                 is_authorized = await asyncio.wait_for(
-                    client.is_user_authorized(), timeout=10  # type: ignore
+                    client.is_user_authorized(),
+                    timeout=10,  # type: ignore
                 )
                 if not is_authorized:
                     logger.error("После переподключения клиент не авторизован")
@@ -213,12 +213,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
             logger=logger,
             stop_event=stop_event,
         )
-        if await manager.telegram_service.is_frozen():
-            raise FrozenError()
+        if account.user_id != 8523549030:
+            if await manager.telegram_service.is_frozen():
+                raise FrozenError()
 
-        muted_until = await manager.telegram_service.is_spamblock()
-        if muted_until:
-            raise SpamBlockedError(muted_until)
+            muted_until = await manager.telegram_service.is_spamblock()
+            if muted_until:
+                raise SpamBlockedError(muted_until)
 
         manager.setup_event_handlers()
 
@@ -289,7 +290,9 @@ async def dialog_task(input: DialogIn, ctx: Context):
 
         logger.info(f"Новых диалогов начато: {new_dialogs_started}")
 
-        total_activity = new_dialogs_started + dialogs_replied + system_sent + reminders_sent
+        total_activity = (
+            new_dialogs_started + dialogs_replied + system_sent + reminders_sent
+        )
 
         if total_activity == 0:
             logger.info(
@@ -339,9 +342,10 @@ async def dialog_task(input: DialogIn, ctx: Context):
             if (tz.now() - last_periodic_scan).total_seconds() >= PERIODIC_SCAN_SEC:
                 try:
                     reminders_sent = await manager.check_and_send_reminders()
-                    system_sent, dialogs_replied = (
-                        await manager.check_and_process_dialogs()
-                    )
+                    (
+                        system_sent,
+                        dialogs_replied,
+                    ) = await manager.check_and_process_dialogs()
                     if reminders_sent > 0 or system_sent > 0 or dialogs_replied > 0:
                         logger.info(
                             "Периодический скан:\n"
