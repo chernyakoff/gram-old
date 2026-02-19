@@ -4,17 +4,15 @@ from io import StringIO
 import httpx
 from jose import jwt
 
-from models.orm import Account, Dialog, Recipient
 from config import config
+from models.orm import Account, Dialog, Recipient
 
 
 def get_api_url(endpoint: str) -> str:
     return f"https://api.telegram.org/bot{config.api.bot.token.get_secret_value()}/{endpoint}"
 
 
-def create_dialog_share_token(
-    *, dialog_id: int, user_id: int
-) -> str:
+def create_dialog_share_token(*, dialog_id: int, user_id: int) -> str:
     payload = {
         "sub": str(user_id),
         "dialog_id": dialog_id,
@@ -86,17 +84,15 @@ async def notify_complete_dialog(dialog: Dialog, account: Account) -> None:
         # Fallback для окружений без api.url в конфиге
         base_url = f"{config.web.url.rstrip('/')}/api"
     dialog_url = f"{base_url}/dialogs/shared/{token}"
-    recipient = await Recipient.get_or_none(id=dialog.recipient_id)
+    recipient = await Recipient.get_or_none(id=dialog.recipient_id)  # type: ignore
     username = escape((recipient.username if recipient else None) or "unknown")
-    text = (
-        f"Новая заявка от @{username}\n"
-        "Актуальный диалог по ссылке:\n"
-        f"{dialog_url}"
-    )
+    text = f"Новая заявка от @{username}\nАктуальный диалог по ссылке:\n{dialog_url}"
     await send_text_to_user(chat_id=account.user_id, text=text)
 
 
-async def notify_mailing_end(user_id: int, mailing_name: str, project_name: str) -> None:
+async def notify_mailing_end(
+    user_id: int, mailing_name: str, project_name: str
+) -> None:
     text = f"Рассылка '{mailing_name}' проекта '{project_name}' завершена"
     await send_text_to_user(chat_id=user_id, text=text)
 
