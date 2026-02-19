@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
+from jose import ExpiredSignatureError, JWTError, jwt
 from tortoise import Tortoise
 
 from api.dto.dialog import DialogIn, DialogMessageOut, DialogOut, DialogSystemMessageIn
 from api.routers.auth import get_current_user
+from config import config
 from models import orm
 
 router = APIRouter(prefix="/dialogs", tags=["dialogs"])
@@ -74,9 +76,41 @@ async def get_dialogs(payload: DialogIn, user=Depends(get_current_user)):
     ]
 
 
-@router.get("/{id}", response_model=list[DialogMessageOut])
-async def get_dialiog(id: int, user=Depends(get_current_user)):
-    messages = await orm.Message.filter(dialog_id=id).order_by("id").all()
+def decode_dialog_share_token(token: str) -> tuple[int, int]:
+    try:
+        payload = jwt.decode(
+            token, config.api.jwt.secret, algorithms=[config.api.jwt.algorithm]
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Link expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid link")
+
+    if payload.get("scope") != "dialog_share":
+        raise HTTPException(status_code=401, detail="Invalid link")
+
+    user_id = payload.get("sub")
+    dialog_id = payload.get("dialog_id")
+    if not user_id or dialog_id is None:
+        raise HTTPException(status_code=401, detail="Invalid link")
+
+    try:
+        return int(user_id), int(dialog_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid link")
+
+
+async def _get_dialog_messages_for_user(
+    *, dialog_id: int, user_id: int
+) -> list[DialogMessageOut]:
+    owned = await orm.Dialog.filter(
+        id=dialog_id,
+        recipient__mailing__user_id=user_id,
+    ).exists()
+    if not owned:
+        raise HTTPException(status_code=404, detail="Dialog not found")
+
+    messages = await orm.Message.filter(dialog_id=dialog_id).order_by("id").all()
     return [
         DialogMessageOut(
             sender=m.sender, text=m.text, created_at=m.created_at, ack=m.ack
@@ -85,9 +119,23 @@ async def get_dialiog(id: int, user=Depends(get_current_user)):
     ]
 
 
+@router.get("/shared/{token}", response_model=list[DialogMessageOut])
+async def get_shared_dialog(token: str):
+    user_id, dialog_id = decode_dialog_share_token(token)
+    return await _get_dialog_messages_for_user(dialog_id=dialog_id, user_id=user_id)
+
+
+@router.get("/{id:int}", response_model=list[DialogMessageOut])
+async def get_dialiog(id: int, user=Depends(get_current_user)):
+    return await _get_dialog_messages_for_user(dialog_id=id, user_id=user.id)
+
+
 @router.post("/add", response_model=list[DialogMessageOut])
 async def system(data: DialogSystemMessageIn, user=Depends(get_current_user)):
-    if not await orm.Dialog.filter(id=data.dialog_id).exists():
+    owned = await orm.Dialog.filter(
+        id=data.dialog_id, recipient__mailing__user_id=user.id
+    ).exists()
+    if not owned:
         raise HTTPException(status_code=404, detail="Dialog not found")
 
     await orm.Message.create(

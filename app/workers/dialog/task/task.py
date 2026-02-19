@@ -139,7 +139,7 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 )
                 await asyncio.wait_for(client.connect(), timeout=30)  # type: ignore
                 is_authorized = await asyncio.wait_for(
-                    client.is_user_authorized(),
+                    client.is_user_authorized(),  # type: ignore
                     timeout=10,  # type: ignore
                 )
                 if not is_authorized:
@@ -213,13 +213,13 @@ async def dialog_task(input: DialogIn, ctx: Context):
             logger=logger,
             stop_event=stop_event,
         )
-        if account.user_id != 8523549030:
-            if await manager.telegram_service.is_frozen():
-                raise FrozenError()
 
-            muted_until = await manager.telegram_service.is_spamblock()
-            if muted_until:
-                raise SpamBlockedError(muted_until)
+        if await manager.telegram_service.is_frozen():
+            raise FrozenError()
+
+        muted_until = await manager.telegram_service.is_spamblock()
+        if muted_until:
+            raise SpamBlockedError(muted_until)
 
         manager.setup_event_handlers()
 
