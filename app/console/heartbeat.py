@@ -81,7 +81,7 @@ async def debug_heartbeat_for_user(user_id: int):
             print(f"   - Mailing #{m.id} [{m.status}] {m.name}")
 
         # Берём все доступные аккаунты
-        all_accounts = await orm.Account.filter(
+        all_accounts_qs = orm.Account.filter(
             project=project,
             active=True,
             status=orm.AccountStatus.GOOD,
@@ -89,9 +89,9 @@ async def debug_heartbeat_for_user(user_id: int):
         ).filter(Q(lease_expires_at__lt=now) | Q(lease_expires_at__isnull=True))
 
         if project.premium_required:
-            all_accounts = all_accounts.filter(premium=True)
+            all_accounts_qs = all_accounts_qs.filter(premium=True)
 
-        all_accounts = await all_accounts.all()
+        all_accounts = await all_accounts_qs.all()
 
         if not all_accounts:
             print("❌ Нет свободных аккаунтов")
