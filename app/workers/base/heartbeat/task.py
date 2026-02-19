@@ -466,9 +466,7 @@ async def lock_account_and_recipients(
 
 async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | None:
     """
-    Закрывает рассылку, если:
-        1) нет PENDING recipients
-        2) нет открытых диалогов
+    Закрывает рассылку, если нет PENDING recipients.
 
     Возвращает словарь info, если нужно отправить notify.
     """
@@ -484,22 +482,13 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
     if pending_exists:
         return None
 
-    open_dialogs_exist = (
-        await orm.Dialog.filter(
-            finished_at__isnull=True, recipient__mailing_id=mailing.id
-        )
-        .using_db(conn)
-        .exists()
-    )
-
-    if open_dialogs_exist:
-        return None
-
     await (
         orm.Mailing.filter(id=mailing.id)
         .using_db(conn)
         .update(status=orm.MailingStatus.FINISHED, finished_at=now)
     )
+    mailing.status = orm.MailingStatus.FINISHED
+    mailing.finished_at = now  # type: ignore
 
     info = await (
         orm.Mailing.filter(id=mailing.id)
