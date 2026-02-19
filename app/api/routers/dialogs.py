@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
-from jose import ExpiredSignatureError, JWTError, jwt
+from fastapi.responses import PlainTextResponse
+from jose import JWTError, jwt
 from tortoise import Tortoise
 
 from api.dto.dialog import DialogIn, DialogMessageOut, DialogOut, DialogSystemMessageIn
 from api.routers.auth import get_current_user
 from config import config
 from models import orm
+from utils.notify import build_dialog_text
 
 router = APIRouter(prefix="/dialogs", tags=["dialogs"])
 
@@ -81,8 +83,6 @@ def decode_dialog_share_token(token: str) -> tuple[int, int]:
         payload = jwt.decode(
             token, config.api.jwt.secret, algorithms=[config.api.jwt.algorithm]
         )
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Link expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid link")
 
@@ -103,10 +103,7 @@ def decode_dialog_share_token(token: str) -> tuple[int, int]:
 async def _get_dialog_messages_for_user(
     *, dialog_id: int, user_id: int
 ) -> list[DialogMessageOut]:
-    owned = await orm.Dialog.filter(
-        id=dialog_id,
-        recipient__mailing__user_id=user_id,
-    ).exists()
+    owned = await _is_dialog_owned_by_user(dialog_id=dialog_id, user_id=user_id)
     if not owned:
         raise HTTPException(status_code=404, detail="Dialog not found")
 
@@ -119,10 +116,22 @@ async def _get_dialog_messages_for_user(
     ]
 
 
-@router.get("/shared/{token}", response_model=list[DialogMessageOut])
+async def _is_dialog_owned_by_user(*, dialog_id: int, user_id: int) -> bool:
+    owned = await orm.Dialog.filter(
+        id=dialog_id,
+        recipient__mailing__user_id=user_id,
+    ).exists()
+    return owned
+
+
+@router.get("/shared/{token}")
 async def get_shared_dialog(token: str):
     user_id, dialog_id = decode_dialog_share_token(token)
-    return await _get_dialog_messages_for_user(dialog_id=dialog_id, user_id=user_id)
+    owned = await _is_dialog_owned_by_user(dialog_id=dialog_id, user_id=user_id)
+    if not owned:
+        raise HTTPException(status_code=404, detail="Dialog not found")
+    text = await build_dialog_text(dialog_id)
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
 
 @router.get("/{id:int}", response_model=list[DialogMessageOut])

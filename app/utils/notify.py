@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
 
@@ -14,18 +13,52 @@ def get_api_url(endpoint: str) -> str:
 
 
 def create_dialog_share_token(
-    *, dialog_id: int, user_id: int, ttl_hours: int = 72
+    *, dialog_id: int, user_id: int
 ) -> str:
-    exp = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
     payload = {
         "sub": str(user_id),
         "dialog_id": dialog_id,
         "scope": "dialog_share",
-        "exp": exp,
     }
     return jwt.encode(
         payload, config.api.jwt.secret, algorithm=config.api.jwt.algorithm
     )
+
+
+def format_dialog_text(dialog: Dialog) -> str:
+    recipient = dialog.recipient
+    account = dialog.account
+
+    buf = StringIO()
+    buf.write(f"Диалог #{dialog.id}\n")
+    buf.write(f"Аккаунт: {account.display_username}\n")
+    buf.write(f"Получатель: {recipient.username}\n")
+    buf.write(f"Начат: {dialog.started_at}\n")
+    buf.write(f"Завершён: {dialog.finished_at}\n")
+    buf.write("\n=====================\n\n")
+
+    msgs = sorted(dialog.messages, key=lambda m: m.created_at)
+
+    for msg in msgs:
+        author = (
+            account.display_username
+            if msg.sender.name == "ACCOUNT"
+            else recipient.username
+        )
+        time = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        buf.write(f"[{time}] {author}:\n")
+        buf.write(f"{msg.text or ''}\n\n")
+
+    return buf.getvalue()
+
+
+async def build_dialog_text(dialog_id: int) -> str:
+    dialog = (
+        await Dialog.get(id=dialog_id)
+        .select_related("recipient", "account")
+        .prefetch_related("messages")
+    )
+    return format_dialog_text(dialog)
 
 
 async def build_dialog_text_file(dialog_id: int) -> tuple[str, str, bytes]:
@@ -37,38 +70,11 @@ async def build_dialog_text_file(dialog_id: int) -> tuple[str, str, bytes]:
         .select_related("recipient", "account")
         .prefetch_related("messages")
     )
-
-    recipient = dialog.recipient
-    account = dialog.account
-
-    # Заголовок файла
-    buf = StringIO()
-    buf.write(f"Диалог #{dialog.id}\n")
-    buf.write(f"Аккаунт: {account.display_username}\n")
-    buf.write(f"Получатель: {recipient.username}\n")
-    buf.write(f"Начат: {dialog.started_at}\n")
-    buf.write(f"Завершён: {dialog.finished_at}\n")
-    buf.write("\n=====================\n\n")
-
-    # Сообщения
-    msgs = sorted(dialog.messages, key=lambda m: m.created_at)
-
-    for msg in msgs:
-        author = (
-            account.display_username
-            if msg.sender.name == "ACCOUNT"
-            else recipient.username
-        )
-
-        time = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-
-        buf.write(f"[{time}] {author}:\n")
-        buf.write(f"{msg.text or ''}\n\n")
-
+    text = format_dialog_text(dialog)
     filename = f"dialog_{dialog.id}.txt"
-    file_bytes = buf.getvalue().encode("utf-8")
+    file_bytes = text.encode("utf-8")
 
-    caption = f"Новая заявка от @{recipient.username}"
+    caption = f"Новая заявка от @{dialog.recipient.username}"
 
     return caption, filename, file_bytes
 
