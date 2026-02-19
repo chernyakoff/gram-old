@@ -38,8 +38,6 @@ dependencies = [
     "tortoise-serializer>=1.6.0",
     "uvicorn[standard]>=0.35.0",
     "watchfiles>=1.1.0",
-    "TGConvertor>=0.0.8",
-    "opentele @ git+https://github.com/AlreadyNobody/OpenTele-3.13.git@main",
 ]
 requires-python = "==3.13.*"
 readme = "README.md"

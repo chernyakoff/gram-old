@@ -49,31 +49,12 @@ CFG = {
         "system_version": ["sdk"],
         "app_version": ["app_version"],
     },
-    # Profiles are aligned with existing imported JSONs (Windows + x64 app versions).
-    "profile": {
-        "system_versions": ["Windows 8", "Windows 8.1", "Windows 10", "Windows 11"],
-        "app_versions": [
-            "5.3.1 x64",
-            "5.3.2 x64",
-            "5.5.5 x64",
-            "5.5.8 x64",
-            "5.6.2 x64",
-            "5.9.0 x64",
-            "5.10.2 x64",
-        ],
-        "device_models": [
-            "MYD82",
-            "4313CTO",
-            "B150I GAMING PRO AC",
-            "M5A99X EVO skt940",
-            "M5A88-M VGA mATX skt940",
-            "785GM-S3 VGA mATX skt940",
-            "H252-3C0 (rev. 100)",
-            "970A-G43 PLUS (MS-7974)",
-            "B75M-D3H",
-            "P8H61-M LX3 R2.0",
-        ],
+    "system": {
+        "Windows PC": ["Windows 10", "Windows 11"],
+        "Linux PC": ["Ubuntu 20.04", "Ubuntu 22.04", "Debian 12", "Arch Linux"],
+        "MacBook Pro": ["macOS 12 Monterey", "macOS 13 Ventura", "macOS 14 Sonoma"],
     },
+    "version": ["4.15.0 x64", "4.14.3 x64", "4.13.1 x64", "4.12.2 x64"],
 }
 
 
@@ -144,51 +125,6 @@ class AccountUtil:
         }
         return orm.Account(**params)
 
-    @staticmethod
-    def infer_country_from_phone(phone: str | None) -> str:
-        if phone:
-            normalized = "".join(ch for ch in phone if ch.isdigit())
-            if normalized:
-                try:
-                    parsed = phonenumbers.parse(f"+{normalized}")
-                    code = phonenumbers.region_code_for_number(parsed)
-                    if code:
-                        return code
-                except Exception:
-                    pass
-        return "US"
-
-    @classmethod
-    def random_client_profile(cls) -> dict[str, str]:
-        return {
-            "device_model": random.choice(CFG["profile"]["device_models"]),
-            "system_version": random.choice(CFG["profile"]["system_versions"]),
-            "app_version": random.choice(CFG["profile"]["app_versions"]),
-        }
-
-    @classmethod
-    def from_telethon_string(
-        cls,
-        session_string: str,
-        phone: str | None = None,
-        twofa: str | None = None,
-        country: str | None = None,
-    ) -> Self:
-        profile = cls.random_client_profile()
-        normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
-        resolved_country = country or cls.infer_country_from_phone(normalized_phone)
-        return cls(
-            app_id=CFG["id"],
-            app_hash=CFG["app_hash"],
-            device_model=profile["device_model"],
-            system_version=profile["system_version"],
-            app_version=profile["app_version"],
-            twofa=twofa or "",
-            country=resolved_country,
-            phone=normalized_phone or "00000000000",
-            session_string=session_string,
-        )
-
     @classmethod
     def from_orm(cls, orm_account: orm.Account) -> Self:
         params = {
@@ -212,8 +148,11 @@ class AccountUtil:
         if not result["phone"].isdigit():
             raise ValueError("Имя файла не является номером телефона")
 
-        result["country"] = cls.infer_country_from_phone(result["phone"])
-        fallback_profile = cls.random_client_profile()
+        phone = phonenumbers.parse(f"+{result['phone']}")
+        country_code = phonenumbers.region_code_for_number(phone)
+        result["country"] = country_code
+
+        device = None
 
         content = await file.json.read_text()
         data = json.loads(content)
@@ -226,27 +165,18 @@ class AccountUtil:
                     break
             if not value:
                 if field == "device_model":
-                    value = fallback_profile["device_model"]
+                    device = random.choice(list(CFG["system"].keys()))
+                    value = device
                 elif field == "system_version":
-                    value = fallback_profile["system_version"]
+                    if not device:
+                        device = random.choice(list(CFG["system"].keys()))
+                    value = random.choice(CFG["system"][device])
                 elif field == "app_version":
-                    value = fallback_profile["app_version"]
+                    value = random.choice(CFG["version"])
                 elif field == "app_id":
-                    value = CFG["id"]
+                    value = str(CFG["app_id"])
                 elif field == "app_hash":
                     value = CFG["app_hash"]
-                elif field == "twofa":
-                    value = ""
-
-            if field == "app_id":
-                try:
-                    value = int(value)
-                except (TypeError, ValueError):
-                    value = CFG["id"]
-            elif field == "app_hash":
-                value = str(value)
-            elif field in {"device_model", "system_version", "app_version", "twofa"}:
-                value = str(value)
 
             result[field] = value
 
