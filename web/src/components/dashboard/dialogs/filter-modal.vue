@@ -6,8 +6,7 @@
         :label="activeFiltersCount"
         color="primary"
         size="xs"
-        class="absolute -top-1 -right-1"
-      />
+        class="absolute -top-1 -right-1" />
     </UButton>
     <template #body>
       <USelectMenu
@@ -17,9 +16,7 @@
         class="w-full mb-4"
         virtualize
         value-key="id"
-        label-key="name"
-      />
-
+        label-key="name" />
       <USelectMenu
         placeholder="Выберите аккаунт"
         v-model="accountId"
@@ -27,9 +24,7 @@
         class="w-full mb-4"
         virtualize
         value-key="id"
-        label-key="name"
-      />
-
+        label-key="name" />
       <USelectMenu
         placeholder="Выберите рассылку"
         v-model="mailingId"
@@ -37,18 +32,15 @@
         class="w-full mb-4"
         virtualize
         value-key="id"
-        label-key="name"
-      />
-
+        label-key="name" />
       <USelectMenu
-        placeholder="Выберите recipient"
+        placeholder="Выберите юзера"
         v-model="recipientId"
         :items="recipients"
-        class="w-full"
+        class="w-full mb-8"
         virtualize
         value-key="id"
-        label-key="username"
-      />
+        label-key="username" />
     </template>
     <template #footer>
       <div class="flex justify-end gap-2">
@@ -59,7 +51,6 @@
     </template>
   </UModal>
 </template>
-
 <script setup lang="ts">
 import type { AccountListOut, MailingListOut, ProjectBase, DialogIn, RecipientListOut } from '@/types/openapi'
 import { computed, onMounted, ref } from 'vue'
@@ -111,7 +102,7 @@ onMounted(async () => {
 
 const open = ref(false)
 
-function onSubmit() {
+function onSubmit () {
   const payload: DialogIn = {
     projectId: projectId.value ?? null, // конвертируем undefined в null для API
     accountId: accountId.value ?? null,
@@ -123,7 +114,7 @@ function onSubmit() {
   open.value = false
 }
 
-function onReset() {
+function onReset () {
   projectId.value = undefined
   accountId.value = undefined
   mailingId.value = undefined

@@ -69,6 +69,7 @@ async def debug_heartbeat_for_user(user_id: int):
             m
             for m in project.mailings
             if m.status in (orm.MailingStatus.RUNNING, orm.MailingStatus.DRAFT)
+            and m.active is True
         ]
 
         if not mailings:
@@ -85,7 +86,12 @@ async def debug_heartbeat_for_user(user_id: int):
             active=True,
             status=orm.AccountStatus.GOOD,
             busy=False,
-        ).all()
+        ).filter(Q(lease_expires_at__lt=now) | Q(lease_expires_at__isnull=True))
+
+        if project.premium_required:
+            all_accounts = all_accounts.filter(premium=True)
+
+        all_accounts = await all_accounts.all()
 
         if not all_accounts:
             print("❌ Нет свободных аккаунтов")
