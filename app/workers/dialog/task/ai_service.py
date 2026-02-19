@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 from models import orm
 from utils import openrouter
 from utils.functions import normalize_dashes
+from utils.logger import Logger
 from utils.notify import BotNotify
 from utils.prompt import (
     DEFAULT_SKIP_OPTIONS,
@@ -19,7 +20,6 @@ from utils.prompt import (
 )
 from utils.schedule import TOOLS, ToolContext
 from workers.dialog.task.telegram_service import TelegramService
-from utils.logger import Logger
 
 
 class AIService:
@@ -107,9 +107,12 @@ class AIService:
 
         for msg in reversed(messages):
             if msg["role"] == "user":
-                msg["content"] += f"\n{name_addon}"
                 status_addon = await get_status_addon()
                 msg["content"] += f"\n{status_addon}"
+
+                if name_addon and name_addon.strip() != "":
+                    msg["content"] += f"\n\n#NAMES:\n{name_addon}"
+
                 if project.use_calendar and status == orm.DialogStatus.CLOSING:
                     calendar_addon = await get_calendar_addon(self.user)
                     msg["content"] += f"\n\n{calendar_addon}"

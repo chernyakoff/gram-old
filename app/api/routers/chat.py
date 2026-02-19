@@ -2,7 +2,6 @@ import logging
 import random
 
 from fastapi import APIRouter, Depends, HTTPException
-
 from pydantic import BaseModel
 
 from api.dto.chat import ChatIn, ChatOut, MessageRole, ToolEvent
@@ -107,7 +106,9 @@ async def test_reminders(data: TestRemindersIn, user=Depends(get_current_user)):
     The frontend can append it as an assistant message and set status to closing.
     """
 
-    project = await orm.Project.filter(id=data.project_id, user_id=user.id).get_or_none()
+    project = await orm.Project.filter(
+        id=data.project_id, user_id=user.id
+    ).get_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -121,8 +122,12 @@ async def test_reminders(data: TestRemindersIn, user=Depends(get_current_user)):
     parsed = booked_slot_key.split("__", 2)
     start_iso = parsed[1] if len(parsed) == 3 else ""
 
-    morning_sent = (await orm.Settings.fetch(user.id, "test.morning-reminder-sent") or "").strip() == "1"
-    meeting_sent = (await orm.Settings.fetch(user.id, "test.meeting-reminder-sent") or "").strip() == "1"
+    morning_sent = (
+        await orm.Settings.fetch(user.id, "test.morning-reminder-sent") or ""
+    ).strip() == "1"
+    meeting_sent = (
+        await orm.Settings.fetch(user.id, "test.meeting-reminder-sent") or ""
+    ).strip() == "1"
 
     if (not morning_sent) and (project.morning_reminder or "").strip():
         template = (project.morning_reminder or "").strip()
@@ -323,14 +328,14 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     else:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
+                STATUS_ADDON = await get_status_addon()
+                msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 name_addon = (
                     await orm.Settings.fetch(user.id, "test.name-addon") or ""
                 ).strip()
                 if name_addon:
-                    msg.text = f"{msg.text}\n{name_addon}"
+                    msg.text = f"{msg.text}\n\n#NAMES:\n{name_addon}"
 
-                STATUS_ADDON = await get_status_addon()
-                msg.text = f"{msg.text}\n{STATUS_ADDON}"
                 if project.use_calendar and chat.status == DialogStatus.CLOSING:
                     CALENDAR_ADDON = await get_calendar_addon(user)
                     # Append calendar instructions; do not overwrite the user's message.
