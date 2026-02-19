@@ -1,15 +1,18 @@
 import asyncio
+import os
 import re
 import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from typing import cast
 from uuid import uuid4
 
 from aiopath import AsyncPath
 from hatchet_sdk import Context
 from pydantic import BaseModel
+from TGConvertor import SessionManager
 from telethon import TelegramClient
 from telethon.errors import PasswordHashInvalidError, SessionPasswordNeededError
 from telethon.sessions import StringSession
@@ -20,12 +23,11 @@ from tortoise.exceptions import IntegrityError
 
 from models import orm
 from queries.accounts import set_main_photo
-from utils.account import AccountIn, AccountUtil
+from utils.account import AccountFile, AccountIn, AccountUtil
 from utils.functions import clear_dir, pick
 from utils.logger import StreamLogger
 from utils.proxy_pool import ProxyPool
 from utils.s3 import AsyncS3Client
-from workers.base.accounts.utils import get_account_files
 from workers.base.client import hatchet
 
 """ 
@@ -204,6 +206,79 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
         await set_main_photo(account_in.id)
 
 
+def discover_account_sources(tmp_dir: AsyncPath) -> tuple[list[AccountFile], list[AsyncPath]]:
+    session_files: list[AccountFile] = []
+    tdata_folders: list[AsyncPath] = []
+    seen_tdata: set[str] = set()
+
+    for root, dirs, files in os.walk(str(tmp_dir)):
+        root_path = Path(root)
+
+        if "tdata" in dirs:
+            tdata_path = root_path / "tdata"
+            tdata_key = str(tdata_path.resolve())
+            if tdata_key not in seen_tdata:
+                seen_tdata.add(tdata_key)
+                tdata_folders.append(AsyncPath(tdata_path))
+
+        for filename in files:
+            if not filename.endswith(".session"):
+                continue
+
+            session_path = root_path / filename
+            json_path = session_path.with_suffix(".json")
+            if json_path.exists():
+                session_files.append(
+                    AccountFile(
+                        session=AsyncPath(session_path),
+                        json=AsyncPath(json_path),
+                    )
+                )
+
+    return session_files, tdata_folders
+
+
+async def collect_accounts(tmp_dir: AsyncPath, logger: StreamLogger) -> list[AccountUtil]:
+    session_files, tdata_folders = discover_account_sources(tmp_dir)
+
+    if not session_files and not tdata_folders:
+        return []
+
+    if session_files:
+        await logger.info(f"Найдено session+json аккаунтов: {len(session_files)}")
+    if tdata_folders:
+        await logger.info(f"Найдено tdata папок: {len(tdata_folders)}")
+
+    accounts: list[AccountUtil] = []
+
+    for file in session_files:
+        try:
+            account = await AccountUtil.instance(file)
+            accounts.append(account)
+        except Exception as e:
+            await logger.error(
+                f"Не удалось прочитать аккаунт из файлов {file.session.name} и {file.json.name}: {e}"
+            )
+
+    for tdata_dir in tdata_folders:
+        source_name = tdata_dir.parent.name
+        phone = "".join(re.findall(r"\d+", source_name)) or None
+        try:
+            manager = await SessionManager.from_tdata_folder(tdata_dir)
+            session_string = manager.to_telethon_string()
+            account = AccountUtil.from_telethon_string(
+                session_string=session_string,
+                phone=phone,
+            )
+            accounts.append(account)
+        except Exception as e:
+            await logger.error(
+                f"Не удалось конвертировать tdata {tdata_dir}: {e}"
+            )
+
+    return accounts
+
+
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
@@ -215,12 +290,20 @@ async def save_account(
     client = account.create_client(proxy)
     try:
         await client.connect()
+        account_label = account.phone
         if not await client.is_user_authorized():
-            await logger.error(f"{account.phone} вылетел из сессии")
+            await logger.error(f"{account_label} вылетел из сессии")
 
             return
 
         me = await client.get_me(input_peer=False)
+        if me and me.phone:
+            normalized_phone = "".join(ch for ch in me.phone if ch.isdigit())
+            if normalized_phone:
+                account.phone = normalized_phone
+                account.country = AccountUtil.infer_country_from_phone(normalized_phone)
+                account_label = normalized_phone
+
         params = pick(
             ["id", "username", "first_name", "last_name", "premium"],
             me.to_dict(),
@@ -241,9 +324,9 @@ async def save_account(
         try:
             await orm_account.save()
             saved_id = orm_account.id  # <-- сохраняем, но НЕ возвращаем здесь
-            await logger.success(account.phone)
+            await logger.success(account_label)
         except IntegrityError:
-            await logger.error(f"{account.phone} уже есть в базе")
+            await logger.error(f"{account_label} уже есть в базе")
             return None
         finally:
             # Даже если уже есть в базе — освободим прокси
@@ -252,7 +335,7 @@ async def save_account(
         try:
             await save_photos(client, account_in)
         except Exception as e:
-            await logger.error(f"{account.phone} {e}")
+            await logger.error(f"{account_label} {e}")
 
         return saved_id
     except Exception as e:
@@ -293,34 +376,24 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         return
 
     try:
-        files = await get_account_files(tmp_dir)
+        accounts = await collect_accounts(tmp_dir, logger)
     except Exception as e:
-        await logger.error(f"Не удалось прочитать файлы аккаунтов из архива: {e}")
+        await logger.error(f"Не удалось прочитать аккаунты из архива: {e}")
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         await clear_dir(tmp_dir)
         return
 
-    if not files:
+    if not accounts:
         await logger.error(
-            "Аккаунты не найдены: в архиве должны быть пары файлов .session и .json."
+            "Аккаунты не найдены: загрузите пары .session+.json или папки tdata."
         )
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         await clear_dir(tmp_dir)
         return
 
-    await logger.info(f"Найдено {len(files)} аккаунтов")
-
-    accounts = []
-    for file in files:
-        try:
-            account = await AccountUtil.instance(file)
-            accounts.append(account)
-        except Exception as e:
-            await logger.error(
-                f"Не удалось прочитать аккаунт из файлов {file.session.name} и {file.json.name}: {e}"
-            )
+    await logger.info(f"Подготовлено аккаунтов к проверке: {len(accounts)}")
 
     proxy_pool = ProxyPool(input.user_id)
 
