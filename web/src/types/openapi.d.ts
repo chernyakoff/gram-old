@@ -145,6 +145,7 @@ export interface components {
             projectId?: number | null;
             accountId?: number | null;
             mailingId?: number | null;
+            recipientId?: number | null;
         };
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
@@ -362,6 +363,10 @@ export interface components {
             failures: number;
             account?: components["schemas"]["EmbedAccountOut"] | null;
         };
+        RecipientListOut: {
+            id: number;
+            username: string;
+        };
         ScheduleCreateIn: {
             name: string;
             timezone: string;
@@ -419,6 +424,9 @@ export interface components {
         SynonimizeOut: {
             text: string;
             error?: string | null;
+        };
+        TestRemindersIn: {
+            projectId: number;
         };
         ToggleDayIn: {
             day: number;
@@ -555,6 +563,7 @@ export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
+export type RecipientListOut = components['schemas']['RecipientListOut'];
 export type ScheduleCreateIn = components['schemas']['ScheduleCreateIn'];
 export type ScheduleIn = components['schemas']['ScheduleIn'];
 export type ScheduleMetaOut = components['schemas']['ScheduleMetaOut'];
@@ -565,6 +574,7 @@ export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
+export type TestRemindersIn = components['schemas']['TestRemindersIn'];
 export type ToggleDayIn = components['schemas']['ToggleDayIn'];
 export type ToolEvent = components['schemas']['ToolEvent'];
 export type UserBasicOut = components['schemas']['UserBasicOut'];

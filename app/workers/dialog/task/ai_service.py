@@ -118,7 +118,7 @@ class AIService:
                     msg["content"] += f"\n\n{calendar_addon}"
                 break
         try:
-            if project.use_calendar:
+            if project.use_calendar and status == orm.DialogStatus.CLOSING:
                 ctx = ToolContext(self.user, dialog)
                 tool_handlers = {
                     "get_slots": ctx.get_slots,

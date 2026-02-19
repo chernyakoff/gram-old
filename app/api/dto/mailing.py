@@ -24,6 +24,11 @@ class MailingListOut(Serializer):
     name: str
 
 
+class RecipientListOut(Serializer):
+    id: int
+    username: str
+
+
 class MailingIn(Serializer):
     name: str
     project_id: int

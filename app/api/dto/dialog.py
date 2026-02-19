@@ -12,6 +12,7 @@ class DialogIn(BaseModel):
     project_id: Optional[int] = Field(None, description="ID проекта")
     account_id: Optional[int] = Field(None, description="ID аккаунта")
     mailing_id: Optional[int] = Field(None, description="ID рассылки")
+    recipient_id: Optional[int] = Field(None, description="ID recipient")
 
     def to_filter_q(self, user_id: int) -> Q:
         q = Q(
@@ -25,6 +26,9 @@ class DialogIn(BaseModel):
 
         if self.mailing_id:
             q &= Q(mailing_id=self.mailing_id)
+
+        if self.recipient_id:
+            q &= Q(recipient_id=self.recipient_id)
 
         return q
 

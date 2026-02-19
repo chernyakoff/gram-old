@@ -17,6 +17,7 @@ async def _get_dialogs(
     project_id: int | None = None,
     account_id: int | None = None,
     mailing_id: int | None = None,
+    recipient_id: int | None = None,
 ) -> list[dict]:
     return await Tortoise.get_connection("default").execute_query_dict(
         """
@@ -39,6 +40,7 @@ WHERE ml.user_id = $1
   AND ($2::int IS NULL OR ml.project_id = $2)
   AND ($3::bigint IS NULL OR d.account_id = $3)
   AND ($4::int IS NULL OR ml.id = $4)
+  AND ($5::bigint IS NULL OR r.id = $5)
 GROUP BY 
     d.id,
     d.status,
@@ -56,6 +58,7 @@ ORDER BY
             project_id,
             account_id,
             mailing_id,
+            recipient_id,
         ],
     )
 

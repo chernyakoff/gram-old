@@ -4,7 +4,7 @@ from tortoise.expressions import Q
 from tortoise.functions import Count
 
 from models import orm
-from api.dto.mailing import MailingIn, MailingListOut, MailingOut
+from api.dto.mailing import MailingIn, MailingListOut, MailingOut, RecipientListOut
 from api.routers.auth import get_current_user
 
 router = APIRouter(prefix="/mailings", tags=["mailings"])
@@ -42,6 +42,19 @@ async def delete_mailings(id: list[int] = Query(...), user=Depends(get_current_u
 @router.get("/list", response_model=list[MailingListOut])
 async def get_mailing_list(user=Depends(get_current_user)):
     return await MailingListOut.from_queryset(orm.Mailing.filter(user_id=user.id))
+
+
+@router.get("/recipients/list", response_model=list[RecipientListOut])
+async def get_recipient_list(user=Depends(get_current_user)):
+    qs = (
+        orm.Recipient.filter(
+            mailing__project__user_id=user.id,
+            mailing__user_id=user.id,
+            dialog__isnull=False,
+        )
+        .order_by("username", "id")
+    )
+    return await RecipientListOut.from_queryset(qs)
 
 
 class MailingToggleIn(BaseModel):

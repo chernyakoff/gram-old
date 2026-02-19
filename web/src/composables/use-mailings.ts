@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 import { useApi } from '@/composables/use-api'
-import type { MailingListOut, MailingOut, MailingToggleIn } from '@/types/openapi'
+import type { MailingListOut, MailingOut, MailingToggleIn, RecipientListOut } from '@/types/openapi'
 import type { MailingFormSchema } from '@/schemas/mailings'
 
 export function useMailings() {
@@ -32,6 +32,10 @@ export function useMailings() {
     return await api<MailingListOut[]>('mailings/list', { method: 'GET' })
   }
 
+  async function getRecipientList() {
+    return await api<RecipientListOut[]>('mailings/recipients/list', { method: 'GET' })
+  }
+
   async function toggle(id: number, value: boolean) {
     return await api<MailingToggleIn>(`mailings/${id}/toggle`, {
       method: 'PATCH',
@@ -39,5 +43,5 @@ export function useMailings() {
     })
   }
 
-  return { create, get, del, list, toggle, mailings, loading, error, success }
+  return { create, get, del, list, getRecipientList, toggle, mailings, loading, error, success }
 }
