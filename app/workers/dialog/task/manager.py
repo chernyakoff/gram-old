@@ -1188,10 +1188,7 @@ class DialogManager:
             if already_sent:
                 continue
 
-            # Проверяем что это диалог из текущего проекта
             dialog = meeting.dialog
-            if dialog.project_id != self.project.id:
-                continue
 
             reminder_text = self._format_meeting_reminder(
                 self.project.morning_reminder, meeting
@@ -1242,10 +1239,7 @@ class DialogManager:
             if already_sent:
                 continue
 
-            # Проверяем что это диалог из текущего проекта
             dialog = meeting.dialog
-            if dialog.project_id != self.project.id:
-                continue
 
             # Форматируем текст напоминания с временем встречи
             reminder_text = self._format_meeting_reminder(

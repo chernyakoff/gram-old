@@ -7,6 +7,8 @@ import aiohttp
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import types
+from telethon.errors import YouBlockedUserError
+from telethon.tl.functions.contacts import UnblockRequest
 from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
 from telethon.tl.types import (
     DataJSON,
@@ -44,6 +46,20 @@ class BuyPremiumOut(BaseModel):
     status: Literal["error", "success"]
     message: Optional[str] = None
     verification_url: Optional[str] = None
+
+
+async def ensure_premium_bot_unblocked(client, logger: StreamLogger):
+    """
+    PremiumBot может быть в блоке (Stop and Block Bot), из-за чего оплата не стартует.
+    Делаем best-effort разблокировку перед отправкой /start.
+    """
+    try:
+        premium_bot_entity = await client.get_input_entity(PREMIUM_BOT)
+        await client(UnblockRequest(id=premium_bot_entity))
+        await logger.info("PremiumBot разблокирован (или уже был разблокирован)")
+    except Exception as e:
+        # Не прерываем flow: возможны нестабильные кейсы резолва сущности/сети.
+        await logger.warning(f"Не удалось заранее разблокировать PremiumBot: {e}")
 
 
 async def tokenize_card(public_token: str, card: CardDetails):
@@ -132,7 +148,15 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
             return BuyPremiumOut(status="error", message="На этом аккаунте уже есть premium")
 
         # получаем invoice message
-        await client.send_message(PREMIUM_BOT, "/start")
+        await ensure_premium_bot_unblocked(client, logger)
+        try:
+            await client.send_message(PREMIUM_BOT, "/start")
+        except YouBlockedUserError:
+            await logger.warning(
+                "PremiumBot заблокирован на момент отправки /start, пробуем разблокировать повторно"
+            )
+            await ensure_premium_bot_unblocked(client, logger)
+            await client.send_message(PREMIUM_BOT, "/start")
         await asyncio.sleep(2)
         messages = await client.get_messages(PREMIUM_BOT, limit=4)
         if not messages:
