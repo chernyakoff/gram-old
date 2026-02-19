@@ -1,4 +1,6 @@
 import asyncio
+import httpx
+import phonenumbers  # type: ignore
 import re
 import tempfile
 import zipfile
@@ -18,6 +20,7 @@ from telethon.tl.types.users import UserFull
 from telethon.types import Message
 from tortoise.exceptions import IntegrityError
 
+from config import config
 from models import orm
 from queries.accounts import set_main_photo
 from utils.account import AccountIn, AccountUtil
@@ -158,6 +161,26 @@ class AccountsUploadIn(BaseModel):
     s3path: str
 
 
+class TgSessionsAccount(BaseModel):
+    source_name: str
+    app_id: int
+    app_hash: str
+    session: str
+    device_model: str
+    system_version: str
+    app_version: str
+
+
+class TgSessionsConvertError(BaseModel):
+    source_name: str
+    error: str
+
+
+class TgSessionsConvertResponse(BaseModel):
+    accounts: list[TgSessionsAccount]
+    errors: list[TgSessionsConvertError]
+
+
 async def unzip_from_s3(file_id: str) -> AsyncPath:
     tmp_dir = AsyncPath(tempfile.mkdtemp())
 
@@ -176,6 +199,71 @@ async def unzip_from_s3(file_id: str) -> AsyncPath:
                 await member_path.write_bytes(file_data)
 
     return tmp_dir
+
+
+def _extract_phone(source_name: str) -> str | None:
+    phone = re.sub(r"\D", "", source_name)
+    return phone or None
+
+
+def _resolve_country(phone: str) -> str | None:
+    try:
+        parsed = phonenumbers.parse(f"+{phone}")
+        return phonenumbers.region_code_for_number(parsed)
+    except phonenumbers.NumberParseException:
+        return None
+
+
+async def convert_tdata_from_s3(
+    s3path: str, logger: StreamLogger
+) -> list[AccountUtil]:
+    async with AsyncS3Client() as s3:  # type: ignore
+        archive_bytes = await s3.get(s3path)
+
+    url = f"{config.tg_sessions.url.rstrip('/')}/"
+    filename = s3path.rsplit("/", maxsplit=1)[-1] or "accounts.zip"
+    files = {"file": (filename, archive_bytes, "application/zip")}
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+        response = await client.post(url, files=files)
+        response.raise_for_status()
+
+    payload = TgSessionsConvertResponse.model_validate(response.json())
+
+    for item in payload.errors:
+        await logger.error(f"tdata conversion [{item.source_name}]: {item.error}")
+
+    converted_accounts: list[AccountUtil] = []
+    for item in payload.accounts:
+        phone = _extract_phone(item.source_name)
+        if not phone:
+            await logger.error(
+                f"tdata conversion [{item.source_name}]: folder name must contain phone digits"
+            )
+            continue
+
+        country = _resolve_country(phone)
+        if not country:
+            await logger.error(
+                f"tdata conversion [{item.source_name}]: could not resolve country by phone"
+            )
+            continue
+
+        converted_accounts.append(
+            AccountUtil(
+                app_id=item.app_id,
+                app_hash=item.app_hash,
+                device_model=item.device_model,
+                system_version=item.system_version,
+                app_version=item.app_version,
+                twofa="",
+                country=country,
+                phone=phone,
+                session_string=item.session,
+            )
+        )
+
+    return converted_accounts
 
 
 async def save_photos(client: TelegramClient, account_in: AccountIn):
@@ -225,6 +313,11 @@ async def save_account(
             ["id", "username", "first_name", "last_name", "premium"],
             me.to_dict(),
         )
+        if me.phone:
+            account.phone = me.phone
+            country = _resolve_country(me.phone)
+            if country:
+                account.country = country
         response = await client(GetFullUserRequest("me"))  # type: ignore
         response = cast(UserFull, response)
         params["about"] = response.full_user.about
@@ -301,26 +394,36 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         await clear_dir(tmp_dir)
         return
 
-    if not files:
-        await logger.error(
-            "Аккаунты не найдены: в архиве должны быть пары файлов .session и .json."
+    accounts: list[AccountUtil] = []
+    if files:
+        await logger.info(f"Найдено {len(files)} аккаунтов")
+        for file in files:
+            try:
+                account = await AccountUtil.instance(file)
+                accounts.append(account)
+            except Exception as e:
+                await logger.error(
+                    f"Не удалось прочитать аккаунт из файлов {file.session.name} и {file.json.name}: {e}"
+                )
+    else:
+        await logger.info(
+            "Пары .session/.json не найдены, пробую конвертацию tdata через tg-sessions"
         )
+        try:
+            accounts = await convert_tdata_from_s3(input.s3path, logger)
+        except Exception as e:
+            await logger.error(f"Не удалось конвертировать tdata через tg-sessions: {e}")
+            async with AsyncS3Client() as s3:  # type: ignore
+                await s3.delete(input.s3path)
+            await clear_dir(tmp_dir)
+            return
+
+    if not accounts:
+        await logger.error("Аккаунты не найдены или не удалось подготовить к сохранению.")
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         await clear_dir(tmp_dir)
         return
-
-    await logger.info(f"Найдено {len(files)} аккаунтов")
-
-    accounts = []
-    for file in files:
-        try:
-            account = await AccountUtil.instance(file)
-            accounts.append(account)
-        except Exception as e:
-            await logger.error(
-                f"Не удалось прочитать аккаунт из файлов {file.session.name} и {file.json.name}: {e}"
-            )
 
     proxy_pool = ProxyPool(input.user_id)
 

@@ -33,3 +33,6 @@ web:
 openrouter:
   manager_api_key: "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"
   proxy: ""
+
+tg_sessions:
+  url: "http://tg-sessions:8000"

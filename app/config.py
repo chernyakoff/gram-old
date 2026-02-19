@@ -62,6 +62,10 @@ class OpenRouter(BaseModel):
     proxy: str
 
 
+class TgSessions(BaseModel):
+    url: str
+
+
 class Postgres(BaseModel):
     dsn: PostgresDsn = Field()
 
@@ -82,6 +86,7 @@ class Settings(BaseModel):
     hatchet: Hatchet
     ipinfo: IpInfo
     openrouter: OpenRouter
+    tg_sessions: TgSessions
 
     @classmethod
     def create(cls, path: str | Path = "config.yml") -> Self:
