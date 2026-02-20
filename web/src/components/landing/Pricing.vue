@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Check } from 'lucide-vue-next'
 import Button from './Button.vue'
 import Modal from './Modal.vue'
@@ -8,33 +8,125 @@ import { useForms } from '@/composables/use-forms'
 
 const { sendCallback } = useForms()
 
-const plans: PricingPlan[] = [
+interface PlanCheckoutData {
+  basePrice: number
+  baseLink: string
+  promoCode: string
+  promoPrice: number
+  promoLink: string
+}
+
+type PricingPlanWithCheckout = PricingPlan & {
+  id: 'solo' | 'support' | 'turnkey'
+  checkout: PlanCheckoutData
+}
+
+const offerUrl =
+  'https://docs.google.com/document/d/1C9ysgrThiuSsWRSUjqG_9NXnFREn9FIQZymr_nGIJIs/edit?tab=t.0'
+
+const plans: PricingPlanWithCheckout[] = [
   {
+    id: 'solo',
     name: 'ВСЁ САМ',
     price: '34 900 ₽',
     period: '',
     description: 'Включает в себя',
     features: ['1 год', '1 проект', 'До 20 аккаунтов'],
-    buttonText: 'Получить доступ',
+    buttonText: 'Купить',
+    checkout: {
+      basePrice: 34900,
+      baseLink: 'https://auth.robokassa.ru/merchant/Invoice/p0kN-6cXw0mP9BwpFhb1yw',
+      promoCode: 'SAM5',
+      promoPrice: 29900,
+      promoLink: 'https://auth.robokassa.ru/merchant/Invoice/9qtxYdbgmU-4jQFgcXuipg',
+    },
   },
   {
+    id: 'support',
     name: 'СОПРОВОЖДЕНИЕ',
-    price: '59 900 ₽',
+    price: '54 900 ₽',
     period: '',
     description: 'Включает в себя',
     features: ['1 год', 'до 3 проектов', 'До 60 аккаунтов', 'Доступ к сервису ECHO в подарок'],
     isPopular: true,
-    buttonText: 'Получить доступ',
+    buttonText: 'Купить',
+    checkout: {
+      basePrice: 54900,
+      baseLink: 'https://auth.robokassa.ru/merchant/Invoice/XVzDyjQRl0qpOJb1SvsLlQ',
+      promoCode: 'SUP10',
+      promoPrice: 44900,
+      promoLink: 'https://auth.robokassa.ru/merchant/Invoice/S3XWwY2TzUm7oNNOO6l5XA',
+    },
   },
   {
+    id: 'turnkey',
     name: 'ПОД КЛЮЧ',
     price: '89 900 ₽',
     period: '',
     description: 'Включает в себя',
     features: ['ПОЛНАЯ УПАКОВКА', 'БЕЗЛИМИТНЫЙ ТАРИФ'],
-    buttonText: 'Обсудить условия',
+    buttonText: 'Купить',
+    checkout: {
+      basePrice: 89900,
+      baseLink: 'https://auth.robokassa.ru/merchant/Invoice/ajXCBjRvD0OhavR_brQcQg',
+      promoCode: 'KEY15',
+      promoPrice: 74900,
+      promoLink: 'https://auth.robokassa.ru/merchant/Invoice/aLUPwm5KVk2C9uSY_AXL3A',
+    },
   },
 ]
+
+const showPurchaseModal = ref(false)
+const selectedPlan = ref<PricingPlanWithCheckout | null>(null)
+const promoCodeInput = ref('')
+const offerAccepted = ref(false)
+
+const normalizedPromoCode = computed(() => promoCodeInput.value.trim().toUpperCase())
+
+const currentCheckout = computed(() => {
+  if (!selectedPlan.value) {
+    return null
+  }
+
+  const isPromoApplied = normalizedPromoCode.value === selectedPlan.value.checkout.promoCode
+  const price = isPromoApplied
+    ? selectedPlan.value.checkout.promoPrice
+    : selectedPlan.value.checkout.basePrice
+  const link = isPromoApplied
+    ? selectedPlan.value.checkout.promoLink
+    : selectedPlan.value.checkout.baseLink
+
+  return {
+    price,
+    link,
+    isPromoApplied,
+  }
+})
+
+const formattedCheckoutPrice = computed(() => {
+  if (!currentCheckout.value) {
+    return ''
+  }
+
+  return `${new Intl.NumberFormat('ru-RU').format(currentCheckout.value.price)} ₽`
+})
+
+const canGoToPayment = computed(() => Boolean(currentCheckout.value?.link && offerAccepted.value))
+
+const openPurchaseModal = (plan: PricingPlanWithCheckout) => {
+  selectedPlan.value = plan
+  promoCodeInput.value = ''
+  offerAccepted.value = false
+  showPurchaseModal.value = true
+}
+
+const goToPayment = () => {
+  if (!canGoToPayment.value || !currentCheckout.value) {
+    return
+  }
+
+  window.location.href = currentCheckout.value.link
+}
 
 const showCallbackModal = ref(false)
 const showConsentText = ref(false)
@@ -156,24 +248,18 @@ const handleSubmit = async () => {
             </li>
           </ul>
 
-          <a
-            href="https://t.me/Maksim_Belichenko"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="block"
+          <Button
+            :variant="plan.isPopular ? 'primary' : 'outline'"
+            :class="[
+              'w-full transition-all duration-300',
+              plan.isPopular
+                ? 'bg-gradient-to-r from-primary-600 to-accent-600 border-none shadow-lg shadow-primary-900/40 hover:shadow-primary-500/40 hover:from-primary-500 hover:to-accent-500'
+                : 'border-slate-600 text-slate-300 hover:text-white hover:bg-slate-800/50 hover:border-primary-500/50 hover:shadow-lg hover:shadow-primary-900/20',
+            ]"
+            @click="openPurchaseModal(plan)"
           >
-            <Button
-              :variant="plan.isPopular ? 'primary' : 'outline'"
-              :class="[
-                'w-full transition-all duration-300',
-                plan.isPopular
-                  ? 'bg-gradient-to-r from-primary-600 to-accent-600 border-none shadow-lg shadow-primary-900/40 hover:shadow-primary-500/40 hover:from-primary-500 hover:to-accent-500'
-                  : 'border-slate-600 text-slate-300 hover:text-white hover:bg-slate-800/50 hover:border-primary-500/50 hover:shadow-lg hover:shadow-primary-900/20',
-              ]"
-            >
-              {{ plan.buttonText }}
-            </Button>
-          </a>
+            {{ plan.buttonText }}
+          </Button>
         </div>
       </div>
 
@@ -216,6 +302,57 @@ const handleSubmit = async () => {
         </div>
       </div>
     </div>
+
+    <UModal v-model:open="showPurchaseModal" :title="selectedPlan ? `Тариф: ${selectedPlan.name}` : 'Покупка тарифа'">
+      <template #body>
+        <div class="space-y-5">
+          <div class="rounded-2xl border border-primary-500/30 bg-primary-500/10 px-5 py-4 text-center">
+            <p class="text-sm uppercase tracking-[0.16em] text-primary-300">К оплате</p>
+            <p class="mt-2 text-4xl font-extrabold text-white">{{ formattedCheckoutPrice }}</p>
+            <p
+              v-if="currentCheckout?.isPromoApplied"
+              class="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-emerald-300"
+            >
+              Промокод применен
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-slate-200">Промокод</label>
+            <UInput
+              v-model="promoCodeInput"
+              placeholder="Введите промокод"
+              size="xl"
+              class="w-full"
+            />
+          </div>
+
+          <a
+            :href="offerUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex text-sm text-primary-300 hover:text-primary-200 underline underline-offset-4"
+          >
+            Договор оферты
+          </a>
+
+          <UCheckbox v-model="offerAccepted" label="Согласен с условиями оферты" />
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="w-full flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <UButton color="neutral" variant="ghost" @click="showPurchaseModal = false">Отмена</UButton>
+          <UButton
+            color="primary"
+            :disabled="!canGoToPayment"
+            @click="goToPayment"
+          >
+            Купить
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <Modal :is-open="showCallbackModal" title="Оставьте контакты" @close="closeCallbackModal">
       <form class="space-y-6" @submit.prevent="handleSubmit">

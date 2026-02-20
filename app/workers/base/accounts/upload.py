@@ -203,7 +203,8 @@ async def unzip_from_s3(file_id: str) -> AsyncPath:
 
 def _extract_phone(source_name: str) -> str | None:
     phone = re.sub(r"\D", "", source_name)
-    return phone or None
+    # Avoid treating values like "acc1" as a real phone number.
+    return phone if len(phone) >= 8 else None
 
 
 def _resolve_country(phone: str) -> str | None:
@@ -215,7 +216,7 @@ def _resolve_country(phone: str) -> str | None:
 
 
 async def convert_tdata_from_s3(
-    s3path: str, logger: StreamLogger
+    user_id: int, s3path: str, logger: StreamLogger
 ) -> list[AccountUtil]:
     async with AsyncS3Client() as s3:  # type: ignore
         archive_bytes = await s3.get(s3path)
@@ -233,21 +234,30 @@ async def convert_tdata_from_s3(
     for item in payload.errors:
         await logger.error(f"tdata conversion [{item.source_name}]: {item.error}")
 
+    fallback_country: str | None = await (
+        orm.Proxy.filter(user_id=user_id, active=True)
+        .order_by("failures", "id")
+        .values_list("country", flat=True)
+        .first()
+    )
+
     converted_accounts: list[AccountUtil] = []
     for item in payload.accounts:
         phone = _extract_phone(item.source_name)
-        if not phone:
-            await logger.error(
-                f"tdata conversion [{item.source_name}]: folder name must contain phone digits"
-            )
-            continue
 
-        country = _resolve_country(phone)
+        country = _resolve_country(phone) if phone else None
         if not country:
-            await logger.error(
-                f"tdata conversion [{item.source_name}]: could not resolve country by phone"
+            if not fallback_country:
+                await logger.error(
+                    f"tdata conversion [{item.source_name}]: could not resolve country by phone and no active proxies found for fallback"
+                )
+                continue
+            country = fallback_country
+            await logger.info(
+                f"tdata conversion [{item.source_name}]: country fallback to proxy country {country}"
             )
-            continue
+
+        account_phone = phone or item.source_name[:32]
 
         converted_accounts.append(
             AccountUtil(
@@ -258,7 +268,7 @@ async def convert_tdata_from_s3(
                 app_version=item.app_version,
                 twofa="",
                 country=country,
-                phone=phone,
+                phone=account_phone,
                 session_string=item.session,
             )
         )
@@ -410,7 +420,7 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
             "Пары .session/.json не найдены, пробую конвертацию tdata через tg-sessions"
         )
         try:
-            accounts = await convert_tdata_from_s3(input.s3path, logger)
+            accounts = await convert_tdata_from_s3(input.user_id, input.s3path, logger)
         except Exception as e:
             await logger.error(f"Не удалось конвертировать tdata через tg-sessions: {e}")
             async with AsyncS3Client() as s3:  # type: ignore
