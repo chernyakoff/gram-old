@@ -234,12 +234,12 @@ async def convert_tdata_from_s3(
     for item in payload.errors:
         await logger.error(f"tdata conversion [{item.source_name}]: {item.error}")
 
-    fallback_country: str | None = await (
+    fallback_proxy = await (
         orm.Proxy.filter(user_id=user_id, active=True)
         .order_by("failures", "id")
-        .values_list("country", flat=True)
         .first()
     )
+    fallback_country: str | None = fallback_proxy.country if fallback_proxy else None
 
     converted_accounts: list[AccountUtil] = []
     for item in payload.accounts:
