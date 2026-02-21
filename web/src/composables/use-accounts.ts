@@ -8,14 +8,19 @@ import type {
   AccountOut,
   AccountStateOut,
   AccountsCheckIn,
+  AccountsGenerateIn,
   BindProjectIn,
   BuyPremiumOut,
   CardDetails,
   PremiumConfirmIn,
   PremiumConfirmOut,
+
   SetLimitIn,
   WorkflowOut,
 } from '@/types/openapi'
+
+export type GenerateGender = 'any' | 'male' | 'female'
+
 
 export function useAccounts() {
   const accounts = ref<AccountOut[]>([])
@@ -82,6 +87,10 @@ export function useAccounts() {
     return await api(`accounts/check`, { method: 'POST', body })
   }
 
+  async function generate(body: AccountsGenerateIn): Promise<WorkflowOut> {
+    return await api(`accounts/generate`, { method: 'POST', body })
+  }
+
   async function list() {
     return await api<AccountListOut[]>('accounts/list', { method: 'GET' })
   }
@@ -98,6 +107,7 @@ export function useAccounts() {
     state,
     update,
     check,
+    generate,
     get,
     del,
     accounts,

@@ -20,7 +20,3 @@ class ProjectShortOut(ProjectBase):
 
 class SynonimizeIn(BaseModel):
     text: str
-
-
-class SynonimizeOut(BaseModel):
-    text: str

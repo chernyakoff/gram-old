@@ -142,7 +142,7 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
     return response
 
 
-@router.post("/{id}/premium/confirm")
+@router.post("/{id}/premium/confirm", response_model=PremiumConfirmOut)
 async def confirm_premium_purchase(
     id: int, data: PremiumConfirmIn, user=Depends(get_current_user)
 ):
@@ -208,5 +208,16 @@ async def stop_premium(id: int, user=Depends(get_current_user)):
     ref = await tasks.stop_premium.aio_run_no_wait(
         input=models.StopPremiumIn(account_id=id)
     )
+    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    return {"id": ref.workflow_run_id}
+
+
+@router.post("/generate", response_model=WorkflowOut)
+async def generate(data: models.AccountsGenerateIn, user=Depends(get_current_user)):
+    accounts = await orm.Account.filter(
+        id__in=data.ids, user_id=user.id, busy=False
+    ).all()
+    data.ids = [a.id for a in accounts]
+    ref = await tasks.accounts_generate.aio_run_no_wait(input=data)
     asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
     return {"id": ref.workflow_run_id}

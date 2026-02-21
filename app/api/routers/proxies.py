@@ -7,7 +7,6 @@ from models import orm
 from api.dto.common import WorkflowOut
 from api.dto.proxy import (
     ProxiesBulkCreateIn,
-    ProxiesCheckIn,
     ProxiesCountryIn,
     ProxyOut,
 )
@@ -62,7 +61,7 @@ async def change_country(
 
 
 @router.post("/check", response_model=WorkflowOut)
-async def check(data: ProxiesCheckIn, user=Depends(get_current_user)):
+async def check(data: models.ProxiesCheckIn, user=Depends(get_current_user)):
     proxies = await orm.Proxy.filter(id__in=data.ids, user_id=user.id).all()
     ids = [p.id for p in proxies]
     ref = await tasks.proxies_check.aio_run_no_wait(

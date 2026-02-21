@@ -15,6 +15,7 @@
         <div class="mr-auto text-sm text-muted">
           {{ accountsCountLabel }}
         </div>
+        <AccountsBulkActionsMenu :selected-ids="selectedIds" @completed="refresh" />
         <UDropdownMenu
           :items="columnVisibilityItems"
           :content="dropdownContent">
@@ -25,10 +26,6 @@
             trailing-icon="i-lucide-chevron-down"
             aria-label="Columns select dropdown" />
         </UDropdownMenu>
-        <SetLimitmodal :selected-ids="selectedIds" @close="refresh" />
-        <CheckModal :selected-ids="selectedIds" @completed="refresh" />
-        <BindProjectModal :selected-ids="selectedIds" @close="refresh" />
-        <DeleteAccountsModal :selected-ids="selectedIds" @close="refresh" />
       </div>
       <UTable
         ref="table"
@@ -110,8 +107,7 @@
               <template v-if="isInHold(row.original)">
                 <p
                   class="font-medium text-muted whitespace-nowrap"
-                  :title="`Отлежка до ${holdUntilLabel(row.original) ?? '---'}`">
-                  💤 {{ holdRemainingLabel(row.original) ?? '---' }}
+                  :title="`Отлежка до ${holdUntilLabel(row.original) ?? '---'}`"> 💤 {{ holdRemainingLabel(row.original) ?? '---' }}
                 </p>
               </template>
               <template v-else>
@@ -149,15 +145,12 @@
   <PremiumDrawer v-if="selectedAccountId !== null" v-model:open="premiumDrawerOpen" :accountId="selectedAccountId" :key="selectedAccountId" @completed="refresh" />
 </template>
 <script setup lang="ts">
-import DeleteAccountsModal from '@/components/dashboard/accounts/delete-modal.vue'
 import AddAccountsModal from '@/components/dashboard/accounts/add-modal.vue'
-import BindProjectModal from '@/components/dashboard/accounts/project-modal.vue'
-import SetLimitmodal from '@/components/dashboard/accounts/limit-modal.vue'
-import CheckModal from '@/components/dashboard/accounts/check-modal.vue'
 import AccountDrawer from '@/components/dashboard/accounts/drawer.vue'
 import PremiumDrawer from '@/components/dashboard/accounts/premium-drawer.vue'
 import StopPremiumModal from '@/components/dashboard/accounts/stop-premium-modal.vue'
 import AccountStatusBadge from '@/components/dashboard/accounts/status-badge.vue'
+import AccountsBulkActionsMenu from '@/components/dashboard/accounts/bulk-actions-menu.vue'
 
 import { useAccounts } from '@/composables/use-accounts'
 import { useTitle, useLocalStorage } from '@vueuse/core'
@@ -186,7 +179,7 @@ const nowMs = ref(Date.now())
 // а слоты завязаны на nowMs (отлежка).
 const holdTick = computed(() => Math.floor(nowMs.value / NOW_TICK_MS))
 let lastNowUpdateMs = 0
-function maybeUpdateNowMs() {
+function maybeUpdateNowMs () {
   if (HOLD_MS <= 0) return
   const t = Date.now()
   if (t - lastNowUpdateMs >= NOW_TICK_MS) {
@@ -195,33 +188,33 @@ function maybeUpdateNowMs() {
   }
 }
 
-function toMs(value: string | Date | null | undefined): number | null {
+function toMs (value: string | Date | null | undefined): number | null {
   if (!value) return null
   const d = value instanceof Date ? value : new Date(value)
   const t = d.getTime()
   return Number.isNaN(t) ? null : t
 }
 
-function holdUntilMs(account: AccountOut): number | null {
+function holdUntilMs (account: AccountOut): number | null {
   if (HOLD_MS <= 0) return null
   const created = toMs(account.createdAt)
   if (created === null) return null
   return created + HOLD_MS
 }
 
-function isInHold(account: AccountOut): boolean {
+function isInHold (account: AccountOut): boolean {
   const until = holdUntilMs(account)
   if (until === null) return false
   return nowMs.value < until
 }
 
-function holdUntilLabel(account: AccountOut): string | null {
+function holdUntilLabel (account: AccountOut): string | null {
   const until = holdUntilMs(account)
   if (until === null) return null
   return formatDateTimeDDMMYY_HHMM(until)
 }
 
-function holdRemainingLabel(account: AccountOut): string | null {
+function holdRemainingLabel (account: AccountOut): string | null {
   const until = holdUntilMs(account)
   if (until === null) return null
   const remainingMs = until - nowMs.value
@@ -671,7 +664,7 @@ const dateDDMMYY = new Intl.DateTimeFormat('ru-RU', {
   year: '2-digit',
 })
 
-function formatDateDDMMYY(value: string | Date | null | undefined): string {
+function formatDateDDMMYY (value: string | Date | null | undefined): string {
   if (!value) return '---'
   const d = value instanceof Date ? value : new Date(value)
   // Guard against invalid dates
@@ -679,7 +672,7 @@ function formatDateDDMMYY(value: string | Date | null | undefined): string {
   return dateDDMMYY.format(d)
 }
 
-function formatDateTimeDDMMYY_HHMM(value: number | string | Date | null | undefined): string {
+function formatDateTimeDDMMYY_HHMM (value: number | string | Date | null | undefined): string {
   const ms =
     typeof value === 'number'
       ? value
@@ -696,7 +689,7 @@ function formatDateTimeDDMMYY_HHMM(value: number | string | Date | null | undefi
   return `${dateDDMMYY.format(d)} ${hh}:${mm}`
 }
 
-function formatRemainingHHMM(remainingMs: number): string {
+function formatRemainingHHMM (remainingMs: number): string {
   const totalMinutes = Math.max(0, Math.floor(remainingMs / 60_000))
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60

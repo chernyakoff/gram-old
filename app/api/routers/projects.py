@@ -412,13 +412,6 @@ async def update_file(
 # documents
 
 
-class ProjectDocumentIn(BaseModel):
-    filename: str
-    file_size: int
-    storage_path: str
-    content_type: str
-
-
 class ProjectDocumentOut(Serializer):
     id: int
 
@@ -435,7 +428,7 @@ class ProjectDocumentOut(Serializer):
 
 @router.post("/{id}/documents", response_model=WorkflowOut)
 async def save_documents(
-    id: int, data: list[ProjectDocumentIn], user=Depends(get_current_user)
+    id: int, data: list[models.ProjectDocument], user=Depends(get_current_user)
 ):
     project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
     if not project:
@@ -454,10 +447,8 @@ async def save_documents(
             },
         )
 
-    documents = [models.ProjectDocument(**d.model_dump()) for d in data]
-
     ref = await tasks.save_documents.aio_run_no_wait(
-        input=models.ProjectDocumentsIn(project_id=id, documents=documents)
+        input=models.ProjectDocumentsIn(project_id=id, documents=data)
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
     return {"id": ref.workflow_run_id}

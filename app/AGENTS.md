@@ -11,3 +11,7 @@
 
 - Never run/build/restart `base` or `dialog` containers without an explicit user request in the current chat.
 - If such action may be needed, ask for confirmation first.
+
+## Hatchet Stubs
+
+- When adding a new task in any worker, run `./task cli sync` to regenerate Hatchet stubs and models.

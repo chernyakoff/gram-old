@@ -4,12 +4,13 @@ from pydantic import BaseModel, ConfigDict
 from tortoise import BaseDBAsyncClient
 
 from config import get_worker_config, init_db, shutdown_db
-from workers.base.client import hatchet
 from workers.base.accounts.check import accounts_check
+from workers.base.accounts.generate import accounts_generate
 from workers.base.accounts.premium import buy_premium
 from workers.base.accounts.stop_premium import stop_premium
 from workers.base.accounts.update import accounts_update
 from workers.base.accounts.upload import accounts_upload
+from workers.base.client import hatchet
 from workers.base.documents.task import save_documents
 from workers.base.heartbeat.task import heartbeat
 from workers.base.nightly.task import nightly
@@ -35,6 +36,7 @@ async def lifespan() -> AsyncGenerator[LifespanContext, None]:
         print("Cleaning up DB...")
         await shutdown_db()
 
+
 worker_config = get_worker_config("base")
 
 worker = hatchet.worker(
@@ -45,6 +47,7 @@ worker = hatchet.worker(
         accounts_upload,
         accounts_update,
         accounts_check,
+        accounts_generate,
         proxies_check,
         buy_premium,
         generate_prompt,

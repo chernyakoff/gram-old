@@ -2,6 +2,7 @@ import ast
 import copy
 import inspect
 import typing
+import warnings
 from pathlib import Path
 
 import astor
@@ -152,7 +153,13 @@ def generate_models(cfg, stubs_data):
 
         with open(file_path, "r", encoding="utf-8") as f:
             source = f.read()
-        tree = ast.parse(source)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"invalid escape sequence",
+                category=SyntaxWarning,
+            )
+            tree = ast.parse(source, filename=str(file_path))
 
         # находим класс
         class_node = next(

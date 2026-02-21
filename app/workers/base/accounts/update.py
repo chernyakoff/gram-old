@@ -1,4 +1,5 @@
 import asyncio
+import random
 from datetime import timedelta
 from io import BytesIO
 
@@ -77,73 +78,143 @@ def normalize_username(username: str | None) -> str:
     return u
 
 
+def _build_username_candidate(base: str, suffix: str = "") -> str:
+    """
+    Telegram username max length is 32.
+    If suffix is present, truncate base to keep final candidate within limit.
+    """
+
+    if not base:
+        return ""
+    max_base_len = 32 - len(suffix)
+    if max_base_len <= 0:
+        return ""
+    trimmed = base[:max_base_len]
+    return f"{trimmed}{suffix}"
+
+
+def _username_candidates(base_username: str) -> list[str]:
+    """
+    Candidate order:
+    1) original
+    2) +2 digits (years 71..99 and 00..07, randomized)
+    3) +3 digits (random)
+    4) +4 digits (random)
+    """
+
+    base = normalize_username(base_username)
+    if not base:
+        return [""]
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def add(candidate: str):
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            candidates.append(candidate)
+
+    add(_build_username_candidate(base))
+
+    years = [f"{n:02d}" for n in range(71, 100)] + [f"{n:02d}" for n in range(0, 8)]
+    random.shuffle(years)
+    for suffix in years:
+        add(_build_username_candidate(base, suffix))
+
+    three_digits = random.sample(range(100, 1000), 100)
+    for n in three_digits:
+        add(_build_username_candidate(base, f"{n:03d}"))
+
+    four_digits = random.sample(range(1000, 10000), 100)
+    for n in four_digits:
+        add(_build_username_candidate(base, f"{n:04d}"))
+
+    return candidates
+
+
 async def update_username(
     client: TelegramClient,
     username: str,
     orm_account: orm.Account,
     logger: StreamLogger,
 ) -> bool:
-    username = normalize_username(username)
-    try:
-        await client(UpdateUsernameRequest(username=username))
-        orm_account.username = username or None  # type: ignore
-        await orm_account.save()
-        await logger.success("username обновлен")
-        return True
-    except UsernameOccupiedError as e:
-        await logger.error("username занят")
-        await logger.tech(
-            "update_username occupied",
-            payload={"account_id": orm_account.id, "username": username},
-            exc=e,
-        )
+    base_username = normalize_username(username)
+    candidates = _username_candidates(base_username)
+    if not candidates:
+        await logger.error("username пустой")
         return False
-    except UsernameInvalidError as e:
-        await logger.error("username некорректный")
-        await logger.tech(
-            "update_username invalid",
-            payload={"account_id": orm_account.id, "username": username},
-            exc=e,
-        )
-        return False
-    except UsernameNotModifiedError as e:
-        orm_account.username = username or None  # type: ignore
-        await orm_account.save()
-        await logger.info("username уже установлен")
-        await logger.tech(
-            "update_username not modified",
-            payload={"account_id": orm_account.id, "username": username},
-            exc=e,
-        )
-        return True
-    except FloodWaitError as e:
-        await logger.error(f"слишком часто меняли username, подождите {e.seconds} сек")
-        await logger.tech(
-            "update_username flood wait",
-            payload={
-                "account_id": orm_account.id,
-                "username": username,
-                "seconds": e.seconds,
-            },
-            exc=e,
-        )
-        return False
-    except RPCError as e:
-        await logger.error("ошибка Telegram при обновлении username")
-        await logger.tech(
-            "update_username rpc error",
-            payload={"account_id": orm_account.id, "username": username},
-            exc=e,
-        )
-        return False
-    except Exception as e:
-        await logger.error("ошибка обновления username")
-        await logger.tech(
-            "update_username failed",
-            payload={"account_id": orm_account.id, "username": username},
-            exc=e,
-        )
-        return False
+
+    for candidate in candidates:
+        try:
+            await client(UpdateUsernameRequest(username=candidate))
+            orm_account.username = candidate or None  # type: ignore
+            await orm_account.save()
+            await logger.success("username обновлен")
+            if candidate != base_username:
+                await logger.info(
+                    "username скорректирован из-за занятости",
+                    payload={
+                        "account_id": orm_account.id,
+                        "requested": base_username,
+                        "applied": candidate,
+                    },
+                )
+            return True
+        except UsernameOccupiedError as e:
+            await logger.tech(
+                "update_username occupied",
+                payload={"account_id": orm_account.id, "username": candidate},
+                exc=e,
+            )
+            continue
+        except UsernameInvalidError as e:
+            await logger.tech(
+                "update_username invalid",
+                payload={"account_id": orm_account.id, "username": candidate},
+                exc=e,
+            )
+            continue
+        except UsernameNotModifiedError as e:
+            orm_account.username = candidate or None  # type: ignore
+            await orm_account.save()
+            await logger.info("username уже установлен")
+            await logger.tech(
+                "update_username not modified",
+                payload={"account_id": orm_account.id, "username": candidate},
+                exc=e,
+            )
+            return True
+        except FloodWaitError as e:
+            await logger.error(f"слишком часто меняли username, подождите {e.seconds} сек")
+            await logger.tech(
+                "update_username flood wait",
+                payload={
+                    "account_id": orm_account.id,
+                    "username": candidate,
+                    "seconds": e.seconds,
+                },
+                exc=e,
+            )
+            return False
+        except RPCError as e:
+            await logger.error("ошибка Telegram при обновлении username")
+            await logger.tech(
+                "update_username rpc error",
+                payload={"account_id": orm_account.id, "username": candidate},
+                exc=e,
+            )
+            return False
+        except Exception as e:
+            await logger.error("ошибка обновления username")
+            await logger.tech(
+                "update_username failed",
+                payload={"account_id": orm_account.id, "username": candidate},
+                exc=e,
+            )
+            return False
+
+    await logger.error("не удалось подобрать свободный username")
+    return False
 
 
 async def update_profile(

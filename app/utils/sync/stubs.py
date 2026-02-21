@@ -32,13 +32,14 @@ def _unwrap_validator(v: Any) -> type[BaseModel] | None:
 def iter_task_modules(tasks_package: str) -> list[str]:
     pkg = importlib.import_module(tasks_package)
     names: list[str] = []
+    skip_files = {"__init__.py", "__main__.py", "worker.py", "client.py"}
 
     # Namespace packages (no __init__.py) don't work well with pkgutil.walk_packages.
     # Scan filesystem instead.
     for root in list(getattr(pkg, "__path__", []) or []):
         root_path = Path(str(root))
         for py in root_path.rglob("*.py"):
-            if py.name == "__init__.py":
+            if py.name in skip_files:
                 continue
             rel = py.relative_to(root_path).with_suffix("")
             parts = ".".join(rel.parts)

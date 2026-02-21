@@ -60,6 +60,12 @@ export interface components {
         AccountsCheckIn: {
             accountIds: number[];
         };
+        AccountsGenerateIn: {
+            ids: number[];
+            gender: "any" | "male" | "female";
+            generateNames: boolean;
+            generateUsernames: boolean;
+        };
         AiModelIn: {
             id: string;
         };
@@ -255,6 +261,11 @@ export interface components {
         };
         PremiumConfirmIn: {
             purchased: boolean;
+        };
+        PremiumConfirmOut: {
+            status: string;
+            message?: string | null;
+            stopWorkflowId?: string | null;
         };
         PresignedIn: {
             path: string;
@@ -501,6 +512,7 @@ export type AccountStateOut = components['schemas']['AccountStateOut'];
 export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
+export type AccountsGenerateIn = components['schemas']['AccountsGenerateIn'];
 export type AiModelIn = components['schemas']['AiModelIn'];
 export type AiModelOut = components['schemas']['AiModelOut'];
 export type AppSettingIn = components['schemas']['AppSettingIn'];
@@ -544,6 +556,7 @@ export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
 export type PartnerOut = components['schemas']['PartnerOut'];
 export type PremiumConfirmIn = components['schemas']['PremiumConfirmIn'];
+export type PremiumConfirmOut = components['schemas']['PremiumConfirmOut'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
