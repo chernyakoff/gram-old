@@ -30,6 +30,16 @@ from api.routers.auth import get_current_user
 from api.routers.sse import watch_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def _is_docx_document(filename: str, content_type: str) -> bool:
+    ext = os.path.splitext(filename)[1].lower()
+    if ext == ".docx":
+        return True
+
+    ctype = (content_type or "").lower()
+    return "wordprocessingml" in ctype or "docx" in ctype
 
 
 @router.get("/", response_model=list[ProjectShortOut])
@@ -414,6 +424,7 @@ class ProjectDocumentOut(Serializer):
 
     filename: str
     file_size: int
+    chunks_count: Optional[int] = None
     url: str
     content_type: str
 
@@ -429,6 +440,19 @@ async def save_documents(
     project = await orm.Project.filter(user_id=user.id, id=id).get_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="not found")
+
+    invalid_files = [
+        d.filename for d in data if not _is_docx_document(d.filename, d.content_type)
+    ]
+    if invalid_files:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Поддерживаются только файлы DOCX",
+                "invalid_files": invalid_files,
+                "required_content_type": DOCX_MIME,
+            },
+        )
 
     documents = [models.ProjectDocument(**d.model_dump()) for d in data]
 

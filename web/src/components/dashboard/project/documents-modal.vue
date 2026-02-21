@@ -8,8 +8,9 @@
             v-model="state.files"
             multiple
             layout="list"
-            label="Загрузите файлы TXT, MD"
-            description="Не больше 20 МБ"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            label="Загрузите файлы DOCX"
+            description="Только DOCX, до 20 МБ."
             class="w-full mb-4"
           />
         </UFormField>
@@ -38,11 +39,28 @@ const { uploadAll, waitForAll } = useUploadStore()
 const { saveDocuments } = useProjects()
 
 const MAX_BYTES = 1024 * 1024 * 20 // 20 MB
+const SUPPORTED_DOCUMENT_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+const SUPPORTED_DOCUMENT_EXTENSIONS = ['docx']
+
+function hasSupportedDocumentType(file: File): boolean {
+  const fileMimeType = file.type.toLowerCase()
+  if (SUPPORTED_DOCUMENT_MIME_TYPES.includes(fileMimeType)) {
+    return true
+  }
+
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  return !!extension && SUPPORTED_DOCUMENT_EXTENSIONS.includes(extension)
+}
 
 // Схема для одного файла
 const _projectDocumentSchema = v.pipe(
   v.file('Выберите файл'),
-  v.mimeType(['text/plain'], 'Выберите TXT или MD'),
+  v.check(
+    hasSupportedDocumentType,
+    'Поддерживаются только файлы DOCX',
+  ),
   v.maxSize(MAX_BYTES, 'Файл ≤ 20MB'),
 )
 

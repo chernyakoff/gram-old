@@ -1,6 +1,4 @@
 import asyncio
-import httpx
-import phonenumbers  # type: ignore
 import re
 import tempfile
 import zipfile
@@ -9,6 +7,8 @@ from io import BytesIO
 from typing import cast
 from uuid import uuid4
 
+import httpx
+import phonenumbers  # type: ignore
 from aiopath import AsyncPath
 from hatchet_sdk import Context
 from pydantic import BaseModel
@@ -323,9 +323,9 @@ async def save_account(
             ["id", "username", "first_name", "last_name", "premium"],
             me.to_dict(),
         )
-        if me.phone:
-            account.phone = me.phone
-            country = _resolve_country(me.phone)
+        if me.phone:  # type: ignore
+            account.phone = me.phone  # type: ignore
+            country = _resolve_country(me.phone)  # type: ignore
             if country:
                 account.country = country
         response = await client(GetFullUserRequest("me"))  # type: ignore
@@ -422,14 +422,18 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         try:
             accounts = await convert_tdata_from_s3(input.user_id, input.s3path, logger)
         except Exception as e:
-            await logger.error(f"Не удалось конвертировать tdata через tg-sessions: {e}")
+            await logger.error(
+                f"Не удалось конвертировать tdata через tg-sessions: {e}"
+            )
             async with AsyncS3Client() as s3:  # type: ignore
                 await s3.delete(input.s3path)
             await clear_dir(tmp_dir)
             return
 
     if not accounts:
-        await logger.error("Аккаунты не найдены или не удалось подготовить к сохранению.")
+        await logger.error(
+            "Аккаунты не найдены или не удалось подготовить к сохранению."
+        )
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         await clear_dir(tmp_dir)

@@ -281,6 +281,7 @@ export interface components {
             id: number;
             filename: string;
             fileSize: number;
+            chunksCount?: number | null;
             url: string;
             contentType: string;
         };

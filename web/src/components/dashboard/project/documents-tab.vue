@@ -37,7 +37,10 @@
     </UTable>
 
     <div class="flex justify-end mt-4">
-      <UploadDocumentsModal :project-id="projectId" @completed="refresh" />
+      <div class="flex flex-col items-end gap-1">
+        <UploadDocumentsModal :project-id="projectId" @completed="refresh" />
+        <span class="text-xs text-muted">Поддерживается только формат DOCX</span>
+      </div>
     </div>
   </div>
   <ConfirmModal
@@ -109,6 +112,14 @@ const columns: TableColumn<ProjectDocumentOut>[] = [
     header: 'Размер',
     cell: ({ row }) => {
       return formatBytes(row.getValue('fileSize'))
+    },
+  },
+  {
+    accessorKey: 'chunksCount',
+    header: 'Чанки',
+    cell: ({ row }) => {
+      const chunksCount = row.getValue('chunksCount') as number | null | undefined
+      return chunksCount ?? '—'
     },
   },
   {

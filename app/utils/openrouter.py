@@ -1,10 +1,17 @@
 import json
+import re
 from decimal import ROUND_DOWN, Decimal
 from functools import lru_cache
 from types import SimpleNamespace
 from typing import Any, Callable
 
 import httpx
+import tiktoken
+from langchain_core.documents import Document
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from openrouter import OpenRouter
 from openrouter.components import ChatGenerationTokenUsage
 from openrouter.operations import (
@@ -26,6 +33,20 @@ from utils.usd_rate import get_usd_rate
 DEFAULT_MODEL = "openai/gpt-5.2-chat"
 GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.5"
 EMBED_MODEL = "openai/text-embedding-3-small"
+NUMBERED_ITEM_RE = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)(?P<num>\d{1,4})(?P<delim>[.)])[ \t]+"
+)
+BULLET_ITEM_RE = re.compile(r"(?m)^(?P<indent>[ \t]*)(?:[-*+])[ \t]+")
+
+_enc = None
+
+
+def get_encoder():
+    # Lazy init: prevents network/download during module import.
+    global _enc
+    if _enc is None:
+        _enc = tiktoken.get_encoding("cl100k_base")
+    return _enc
 
 
 class AiError(Exception):
@@ -243,6 +264,205 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
         await charge_user_for_usage(user, model, usage, usd_rate)
 
     return str(content)
+
+
+def _split_by_list_items(
+    text: str,
+    *,
+    item_re: re.Pattern[str],
+    max_items_per_chunk: int,
+    min_tokens: int,
+    max_tokens: int,
+    tiktoken_len,
+) -> list[str]:
+    starts = [m.start() for m in item_re.finditer(text)]
+    if len(starts) < 2:
+        t = text.strip()
+        return [t] if t else []
+
+    blocks: list[str] = []
+    preface = text[: starts[0]].strip()
+    if preface:
+        blocks.append(preface)
+
+    items: list[str] = []
+    for i, s in enumerate(starts):
+        e = starts[i + 1] if i + 1 < len(starts) else len(text)
+        item = text[s:e].strip()
+        if item:
+            items.append(item)
+
+    packed: list[str] = []
+    cur_parts: list[str] = []
+    cur_tokens = 0
+    cur_items = 0
+
+    def flush():
+        nonlocal cur_parts, cur_tokens, cur_items
+        if cur_parts:
+            packed.append("\n\n".join(cur_parts).strip())
+        cur_parts = []
+        cur_tokens = 0
+        cur_items = 0
+
+    for item in items:
+        item_tokens = tiktoken_len(item)
+        if item_tokens > max_tokens:
+            flush()
+            packed.append(item)
+            continue
+
+        next_tokens = cur_tokens + (2 if cur_parts else 0) + item_tokens
+        should_flush = (
+            (cur_parts and next_tokens > max_tokens)
+            or (cur_items >= max_items_per_chunk)
+            or (cur_parts and cur_tokens >= min_tokens)
+        )
+        if should_flush:
+            flush()
+
+        cur_parts.append(item)
+        cur_tokens = cur_tokens + (2 if len(cur_parts) > 1 else 0) + item_tokens
+        cur_items += 1
+
+    flush()
+    blocks.extend([b for b in packed if b])
+    return blocks
+
+
+def chunk_markdown(
+    text: str,
+    min_tokens: int = 200,
+    max_tokens: int = 700,
+    overlap: int = 120,
+) -> list[str]:
+    text = text.replace("\r\n", "\n").strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    if not text:
+        return []
+
+    def tiktoken_len(s: str) -> int:
+        return len(get_encoder().encode(s))
+
+    header_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=[
+            ("#", "h1"),
+            ("##", "h2"),
+            ("###", "h3"),
+            ("####", "h4"),
+            ("#####", "h5"),
+            ("######", "h6"),
+        ],
+        strip_headers=False,
+        return_each_line=False,
+    )
+    recursive_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=max_tokens,
+        chunk_overlap=overlap,
+        length_function=tiktoken_len,
+        separators=[
+            "\n\n",
+            "\n",
+            ". ",
+            "! ",
+            "? ",
+            "; ",
+            ": ",
+            ", ",
+            " ",
+            "",
+        ],
+    )
+
+    header_docs = header_splitter.split_text(text)
+    header_blocks: list[str] = []
+    for d in header_docs:
+        if isinstance(d, Document):
+            block = d.page_content.strip()
+        else:
+            block = str(d).strip()
+        if block:
+            header_blocks.append(block)
+    if not header_blocks:
+        header_blocks = [text]
+
+    blocks: list[str] = []
+    for b in header_blocks:
+        list_blocks = _split_by_list_items(
+            b,
+            item_re=NUMBERED_ITEM_RE,
+            max_items_per_chunk=4,
+            min_tokens=min_tokens,
+            max_tokens=max_tokens,
+            tiktoken_len=tiktoken_len,
+        )
+        if len(list_blocks) == 1:
+            list_blocks = _split_by_list_items(
+                b,
+                item_re=BULLET_ITEM_RE,
+                max_items_per_chunk=6,
+                min_tokens=min_tokens,
+                max_tokens=max_tokens,
+                tiktoken_len=tiktoken_len,
+            )
+        blocks.extend(list_blocks)
+
+    raw_chunks: list[str] = []
+    for b in blocks:
+        if tiktoken_len(b) <= max_tokens:
+            raw_chunks.append(b)
+        else:
+            raw_chunks.extend(recursive_splitter.split_text(b))
+
+    return [
+        c.strip()
+        for c in raw_chunks
+        if len(c.strip()) > 30 and re.search(r"[A-Za-zА-Яа-я0-9]", c)
+    ]
+
+
+async def embed_chunks(user: User, chunks: list[str], batch_size=32) -> list[list[float]]:
+    user = await add_openrouter_to_user(user)
+    model = await get_ai_model(EMBED_MODEL)
+    usd_rate = await get_usd_rate()
+
+    embeddings: list[list[float]] = []
+    async with _openrouter(api_key=user.or_api_key) as app:
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i : i + batch_size]
+
+            tokens_estimate = sum(len(get_encoder().encode(c)) for c in batch)
+            estimated_cost_usd = (
+                model.prompt_price * Decimal(tokens_estimate)
+            ) * Decimal("1.1")
+            estimated_cost_rub = estimated_cost_usd * usd_rate
+            estimated_cost_cents = int(estimated_cost_rub * 100)
+            if user.balance < estimated_cost_cents:
+                needed_rub = Decimal(estimated_cost_cents) / Decimal(100)
+                user_rub = Decimal(user.balance) / Decimal(100)
+                raise InsufficientBalance(
+                    f"Недостаточно средств. Нужно ~{needed_rub:.2f} ₽, есть {user_rub:.2f} ₽"
+                )
+
+            response = await app.embeddings.generate_async(
+                model=model.id,
+                input=batch,
+                encoding_format="float",
+            )
+
+            if not response or not response.data:  # type: ignore
+                raise OpenRouterResponseError("Пустой ответ от embeddings")
+
+            await charge_user_for_embedding_usage(
+                user,
+                model,
+                response.usage,  # type: ignore
+                usd_rate,
+            )
+
+            embeddings.extend([e.embedding for e in response.data])  # type: ignore
+
+    return embeddings
 
 
 async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
