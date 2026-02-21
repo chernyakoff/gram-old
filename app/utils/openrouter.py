@@ -465,7 +465,9 @@ async def embed_chunks(user: User, chunks: list[str], batch_size=32) -> list[lis
     return embeddings
 
 
-async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
+async def retrieve_chunks(
+    user: User, question: str, top_k: int = 5, project_id: int | None = None
+) -> list[str]:
     user = await add_openrouter_to_user(user)
     model = await get_ai_model(EMBED_MODEL)
     usd_rate = await get_usd_rate()
@@ -507,15 +509,22 @@ async def retrieve_chunks(user: User, question: str, top_k=5) -> list[str]:
 
     query_vector = "[" + ",".join(f"{x:.8f}" for x in query_embedding) + "]"
 
-    top_k = int(top_k)
+    top_k = max(1, int(top_k))
+    params: list[object] = [query_vector]
+    where_clause = ""
+    if project_id is not None:
+        where_clause = "WHERE project_id = $2"
+        params.append(int(project_id))
+
     rows = await Tortoise.get_connection("default").execute_query_dict(
         f"""
         SELECT content, metadata
         FROM knowledge_chunks
+        {where_clause}
         ORDER BY embedding <=> $1::vector
         LIMIT {top_k}
     """,
-        [query_vector],
+        params,
     )
 
     return [r["content"] for r in rows]

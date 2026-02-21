@@ -12,8 +12,7 @@
         tbody: '[&>tr]:last:[&>td]:border-b-0',
         th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
         td: 'border-b border-default',
-      }"
-    >
+      }">
       <template #actions-cell="{ row }">
         <div class="flex items-center gap-2">
           <UButton
@@ -23,32 +22,22 @@
             icon="lucide:download"
             download
             target="_blank"
-            external
-          />
-
+            external />
           <UButton
             title="Удалить"
             variant="ghost"
             icon="lucide:trash"
-            @click="openDeleteModal(row.original as ProjectDocumentOut)"
-          />
+            @click="openDeleteModal(row.original as ProjectDocumentOut)" />
         </div>
       </template>
     </UTable>
-
     <div class="flex justify-end mt-4">
       <div class="flex flex-col items-end gap-1">
         <UploadDocumentsModal :project-id="projectId" @completed="refresh" />
-        <span class="text-xs text-muted">Поддерживается только формат DOCX</span>
       </div>
     </div>
   </div>
-  <ConfirmModal
-    v-model="isConfirmModalOpen"
-    title="Подтверждение удаления"
-    :description="`Вы уверены, что хотите удалить '${selectedItem?.filename}'?`"
-    @confirm="handleDelete"
-  />
+  <ConfirmModal v-model="isConfirmModalOpen" title="Подтверждение удаления" :description="`Вы уверены, что хотите удалить '${selectedItem?.filename}'?`" @confirm="handleDelete" />
 </template>
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
@@ -78,12 +67,12 @@ const refresh = async () => {
   documents.value = response
 }
 
-function openDeleteModal(item: ProjectDocumentOut) {
+function openDeleteModal (item: ProjectDocumentOut) {
   selectedItem.value = item
   isConfirmModalOpen.value = true
 }
 
-async function handleDelete() {
+async function handleDelete () {
   if (selectedItem.value) {
     await deleteDocument(projectId, selectedItem.value.id)
     await refresh()

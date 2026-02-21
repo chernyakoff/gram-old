@@ -92,7 +92,10 @@ class AIService:
         if await orm.ProjectDocument.filter(project_id=project.id).count() > 0:
             for msg in reversed(history):
                 if msg["role"] == "user":
-                    chunks = await openrouter.retrieve_chunks(self.user, msg["content"])
+                    chunks = await openrouter.retrieve_chunks(
+                        self.user, msg["content"], project_id=project.id
+                    )
+                    break
 
         if chunks:
             system_prompt = f"""

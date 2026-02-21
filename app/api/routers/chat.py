@@ -357,7 +357,10 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if await orm.ProjectDocument.filter(project_id=chat.project_id).count() > 0:
         for msg in reversed(chat.messages):
             if msg.role == MessageRole.user:
-                chunks = await retrieve_chunks(user, msg.text)
+                chunks = await retrieve_chunks(
+                    user, msg.text, project_id=chat.project_id
+                )
+                break
 
     if chunks:
         prompt = f"""
