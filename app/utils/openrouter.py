@@ -31,7 +31,7 @@ from utils.usd_rate import get_usd_rate
 
 # enc = tiktoken.get_encoding("cl100k_base")
 DEFAULT_MODEL = "openai/gpt-5.2-chat"
-GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.6"
+GENERATE_PROMPT_MODEL = "anthropic/claude-sonnet-4.5"
 EMBED_MODEL = "openai/text-embedding-3-small"
 NUMBERED_ITEM_RE = re.compile(
     r"(?m)^(?P<indent>[ \t]*)(?P<num>\d{1,4})(?P<delim>[.)])[ \t]+"
