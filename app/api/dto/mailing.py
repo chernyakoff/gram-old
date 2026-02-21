@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pydantic import BaseModel
 from tortoise_serializer import Serializer
 
 from models import orm
@@ -27,6 +28,11 @@ class MailingListOut(Serializer):
 class RecipientListOut(Serializer):
     id: int
     username: str
+
+
+class MailingChangeProjectIn(BaseModel):
+    mailing_id: int
+    project_id: int
 
 
 class MailingIn(Serializer):

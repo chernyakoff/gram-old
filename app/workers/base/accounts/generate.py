@@ -256,23 +256,9 @@ generate_usernames={str(input.generate_usernames).lower()}
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
-    await logger.tech(
-        "TODO_REMOVE_DEBUG accounts_generate llm messages",
-        payload={
-            "marker": "TODO_REMOVE_DEBUG",
-            "messages": messages,
-        },
-    )
 
     try:
         raw = await openrouter.create_response(user, messages, max_tokens=4000, timeout_min=5)
-        await logger.tech(
-            "TODO_REMOVE_DEBUG accounts_generate llm response",
-            payload={
-                "marker": "TODO_REMOVE_DEBUG",
-                "raw_response": raw,
-            },
-        )
     except Exception as e:
         await logger.error(f"ошибка генерации имен/username: {e}")
         return [

@@ -58,7 +58,9 @@
           </div>
         </template>
         <template #project-cell="{ row }">
-          {{ row.original.project?.name ?? 'не назначен' }}
+          <div class="project-cell-text" lang="ru">
+            {{ row.original.project?.name ?? 'не назначен' }}
+          </div>
         </template>
         <template #premium-cell="{ row }">
           <div
@@ -570,6 +572,12 @@ const columns: TableColumn<AccountOut>[] = [
     accessorKey: 'project',
     header: ({ column }) => getHeader(column, 'Проект'),
     sortingFn: projectSortingFn,
+    meta: {
+      class: {
+        th: 'w-[200px] max-w-[200px]',
+        td: 'w-[200px] max-w-[200px] whitespace-normal break-words [overflow-wrap:anywhere] hyphens-auto',
+      },
+    },
     enableHiding: false,
 
   },
@@ -696,3 +704,12 @@ function formatRemainingHHMM (remainingMs: number): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 </script>
+
+<style scoped>
+.project-cell-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+}
+</style>

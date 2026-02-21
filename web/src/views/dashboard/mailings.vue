@@ -26,44 +26,47 @@
             tbody: '[&>tr]:last:[&>td]:border-b-0',
             th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
             td: 'border-b border-default',
-          }"
-        >
+          }">
           <template #status-cell="{ row }">
             <UBadge
               class="opacity-80"
               :label="getStatusInfo(row.original.status).label"
-              :color="getStatusInfo(row.original.status).color"
-            />
+              :color="getStatusInfo(row.original.status).color" />
           </template>
           <template #actions-cell="{ row }">
             <div class="flex items-center justify-end gap-2">
               <USwitch
                 title="Вкл/Выкл"
                 :modelValue="row.original.active"
-                @update:modelValue="(val: boolean) => toggleActive(row.original, val)"
-              />
+                @update:modelValue="(val: boolean) => toggleActive(row.original, val)" />
+              <UButton
+                variant="ghost"
+                icon="clarity:clone-line"
+                title="Перенести в другой проект"
+                @click="openProjectModal(row.original as MailingOut)" />
               <UButton
                 variant="ghost"
                 icon="bx:trash"
                 title="Удалить рассылку"
-                @click="openDeleteModal(row.original as MailingOut)"
-              />
+                @click="openDeleteModal(row.original as MailingOut)" />
             </div>
           </template>
         </UTable>
       </div>
     </template>
   </UDashboardPanel>
-  <ConfirmModal
-    v-model="isConfirmModalOpen"
-    title="Подтверждение удаления"
-    :description="`Вы уверены, что хотите удалить '${selectedItem?.name}'?`"
-    @confirm="handleDelete"
-  />
+  <ConfirmModal v-model="isConfirmModalOpen" title="Подтверждение удаления" :description="`Вы уверены, что хотите удалить '${selectedItem?.name}'?`" @confirm="handleDelete" />
+  <ProjectModal
+    v-model:open="isProjectModalOpen"
+    :mailing-id="selectedTransferItem?.id"
+    :current-project-id="selectedTransferItem?.project.id"
+    :pending-count="selectedPendingCount"
+    @close="refresh" />
 </template>
 <script setup lang="ts">
 import { useTitle } from '@vueuse/core'
 import AddMailingModal from '@/components/dashboard/mailings/add-modal.vue'
+import ProjectModal from '@/components/dashboard/mailings/project-modal.vue'
 import ConfirmModal from '@/components/shared/confirm-modal.vue'
 import { useMailings } from '@/composables/use-mailings'
 import { onMounted, ref } from 'vue'
@@ -73,8 +76,11 @@ const title = 'Рассылки'
 useTitle(title)
 
 const isConfirmModalOpen = ref(false)
+const isProjectModalOpen = ref(false)
 
 const selectedItem = ref<MailingOut>()
+const selectedTransferItem = ref<MailingOut>()
+const selectedPendingCount = ref(0)
 
 const { mailings, get, loading, del, toggle } = useMailings()
 
@@ -87,7 +93,7 @@ const refresh = () => {
   get()
 }
 
-async function handleDelete() {
+async function handleDelete () {
   if (selectedItem.value) {
     await del([selectedItem.value.id])
     await get()
@@ -101,14 +107,23 @@ const statusMap = {
   cancelled: { label: 'Отменёна', color: 'error' },
 } as const
 
-function openDeleteModal(item: MailingOut) {
+function openDeleteModal (item: MailingOut) {
   selectedItem.value = item
   isConfirmModalOpen.value = true
 }
 
+function openProjectModal (item: MailingOut) {
+  selectedTransferItem.value = item
+  selectedPendingCount.value = Math.max(
+    (item.totalCount ?? 0) - (item.sentCount ?? 0) - (item.failedCount ?? 0),
+    0,
+  )
+  isProjectModalOpen.value = true
+}
+
 type Status = keyof typeof statusMap
 
-function getStatusInfo(status: string) {
+function getStatusInfo (status: string) {
   return statusMap[status as Status] ?? { label: 'Неизвестно', color: 'default' }
 }
 

@@ -210,6 +210,10 @@ export interface components {
             status: "success" | "error";
             message: string;
         };
+        MailingChangeProjectIn: {
+            mailingId: number;
+            projectId: number;
+        };
         MailingIn: {
             name: string;
             projectId: number;
@@ -282,7 +286,7 @@ export interface components {
         ProjectCreateIn: {
             name: string;
         };
-        ProjectDocumentIn: {
+        ProjectDocument: {
             filename: string;
             fileSize: number;
             storagePath: string;
@@ -544,6 +548,7 @@ export type IntervalIn = components['schemas']['IntervalIn'];
 export type IntervalOut = components['schemas']['IntervalOut'];
 export type LicenseIn = components['schemas']['LicenseIn'];
 export type LicenseOut = components['schemas']['LicenseOut'];
+export type MailingChangeProjectIn = components['schemas']['MailingChangeProjectIn'];
 export type MailingIn = components['schemas']['MailingIn'];
 export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];
@@ -561,7 +566,7 @@ export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
 export type ProjectCreateIn = components['schemas']['ProjectCreateIn'];
-export type ProjectDocumentIn = components['schemas']['ProjectDocumentIn'];
+export type ProjectDocument = components['schemas']['ProjectDocument'];
 export type ProjectDocumentOut = components['schemas']['ProjectDocumentOut'];
 export type ProjectFileIn = components['schemas']['ProjectFileIn'];
 export type ProjectFileOut = components['schemas']['ProjectFileOut'];

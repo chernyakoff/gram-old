@@ -61,7 +61,7 @@ const openDelete = ref(false)
 const items = computed<DropdownMenuItem[][]>(() => [
   [
     {
-      label: 'Проверить аккаунты',
+      label: 'Проверить',
       icon: 'bx:search-alt',
       onSelect: () => {
         openCheck.value = true

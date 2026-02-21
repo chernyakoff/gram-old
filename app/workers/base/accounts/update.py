@@ -97,9 +97,10 @@ def _username_candidates(base_username: str) -> list[str]:
     """
     Candidate order:
     1) original
-    2) +2 digits (years 71..99 and 00..07, randomized)
-    3) +3 digits (random)
-    4) +4 digits (random)
+    2) +_YY (years 71..99 and 00..07, randomized)
+    3) +YY (years 71..99 and 00..07, randomized)
+    4) +3 digits (random)
+    5) +4 digits (random)
     """
 
     base = normalize_username(base_username)
@@ -117,6 +118,10 @@ def _username_candidates(base_username: str) -> list[str]:
     add(_build_username_candidate(base))
 
     years = [f"{n:02d}" for n in range(71, 100)] + [f"{n:02d}" for n in range(0, 8)]
+    random.shuffle(years)
+    for suffix in years:
+        add(_build_username_candidate(base, f"_{suffix}"))
+
     random.shuffle(years)
     for suffix in years:
         add(_build_username_candidate(base, suffix))
