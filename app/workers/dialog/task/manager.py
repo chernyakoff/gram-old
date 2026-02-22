@@ -207,6 +207,13 @@ class DialogManager:
         - дата последнего сообщения в окне [now-7d, now-1d]
         - follow-up ещё не отправлялся (followed_up_at IS NULL)
         """
+        if not self._is_within_project_send_window():
+            self.logger.info(
+                "Follow-up пропущен: текущее время вне окна отправки "
+                f"{self.project.send_time_start:02d}:00-{self.project.send_time_end:02d}:00"
+            )
+            return 0
+
         now = tz.now()
         from_time = now - timedelta(days=7)
         to_time = now - timedelta(days=1)
@@ -277,6 +284,26 @@ class DialogManager:
                 continue
 
         return sent_count
+
+    def _is_within_project_send_window(self, now: datetime | None = None) -> bool:
+        """
+        Проверяет, попадает ли текущий час в окно отправки проекта.
+        Поддерживает окна через полночь, например 22 -> 6.
+        """
+        current = now or tz.now()
+        current_hour = current.hour
+        start = self.project.send_time_start
+        end = self.project.send_time_end
+
+        # 0-length/полные сутки считаем как "всегда можно отправлять".
+        if start == end:
+            return True
+
+        if start < end:
+            return start <= current_hour < end
+
+        # Окно через полночь: [start, 24) U [0, end)
+        return current_hour >= start or current_hour < end
 
     async def _process_system_messages_for_dialog(self, dialog: orm.Dialog) -> bool:
         """
