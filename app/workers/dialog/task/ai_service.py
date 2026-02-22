@@ -14,6 +14,7 @@ from utils.prompt import (
     ProjectSkipOptions,
     analyze_dialog_status,
     build_prompt_v2,
+    create_follow_up_message as build_follow_up_message,
     get_active_status,
     get_calendar_addon,
     get_status_addon,
@@ -27,6 +28,12 @@ class AIService:
 
     def __init__(self, user: orm.User):
         self.user = user
+
+    async def create_follow_up_message(
+        self, dialog_messages: list[orm.Message]
+    ) -> str | None:
+        history = self._build_history(dialog_messages)
+        return await build_follow_up_message(history, user=self.user)
 
     async def get_response_with_status(
         self,

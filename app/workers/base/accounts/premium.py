@@ -144,8 +144,10 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
         me = await client.get_me()
         me = cast(types.User, me)
-        if me.premium:
-            return BuyPremiumOut(status="error", message="На этом аккаунте уже есть premium")
+        if me.premium:  # type: ignore
+            return BuyPremiumOut(
+                status="error", message="На этом аккаунте уже есть premium"
+            )
 
         # получаем invoice message
         await ensure_premium_bot_unblocked(client, logger)

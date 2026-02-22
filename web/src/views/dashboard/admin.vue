@@ -1,74 +1,77 @@
 <template>
-    <UDashboardPanel id="admin">
-        <template #header>
-            <UDashboardNavbar :title="title" :ui="{ right: 'gap-3' }">
-                <template #leading>
-                    <UDashboardSidebarCollapse />
-                </template>
-                <template #right>
-                    <div v-if="!limitedAdminMode" class="flex items-center gap-4 text-sm">
-                        <div> OpenRouter: <span class="font-semibold">{{ balance.openrouter }} ₽</span>
-                        </div>
-                        <div> Пользователи: <span class="font-semibold">{{ balance.users }} ₽</span>
-                        </div>
-                    </div>
-                </template>
-            </UDashboardNavbar>
+  <UDashboardPanel id="admin">
+    <template #header>
+      <UDashboardNavbar :title="title" :ui="{ right: 'gap-3' }">
+        <template #leading>
+          <UDashboardSidebarCollapse />
         </template>
-        <template #body>
-            <div class="w-full max-w-4xl mx-auto md:min-w-[800px] px-4">
-                <UAlert
-                    v-if="limitedAdminMode"
-                    class="mb-4"
-                    color="warning"
-                    variant="soft"
-                    title="Режим имперсонации"
-                    description="Сейчас вы вошли как пользователь. Для безопасности доступны только действия по переключению/выходу из имперсонации." />
-                <UTabs
-                    :key="tabsKey"
-                    :items="tabs"
-                    variant="link"
-                    :ui="{ trigger: 'grow' }"
-                    :unmount-on-hide="false"
-                    class="gap-4">
-                    <template #license>
-                        <AdminLicenseForm />
-                    </template>
-                    <template #impersonate>
-                        <AdminImpersonateForm />
-                    </template>
-                    <template #balance>
-                        <AdminBalanceForm />
-                    </template>
-                    <template #dialogs>
-                        <AdminDialogsForm />
-                    </template>
-                    <template #prompts>
-                        <UTabs :items="promptTabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
-                            <template #system>
-                                <AdminPromptForm label="Системный" path="prompt.system" />
-                            </template>
-                            <template #generator>
-                                <AdminPromptForm label="Генератор" path="prompt.generator" />
-                            </template>
-                            <template #randomizer>
-                                <AdminPromptForm label="Рандомизатор" path="prompt.randomizer" />
-                            </template>
-                            <template #firstTouch>
-                                <AdminPromptForm label="Касание" path="prompt.firstTouch" />
-                            </template>
-                            <template #findStatus>
-                                <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
-                            </template>
-                            <template #calendar>
-                                <AdminPromptForm label="Календарь" path="prompt.calendar" />
-                            </template>
-                        </UTabs>
-                    </template>
-                </UTabs>
+        <template #right>
+          <div v-if="!limitedAdminMode" class="flex items-center gap-4 text-sm">
+            <div> OpenRouter: <span class="font-semibold">{{ balance.openrouter }} ₽</span>
             </div>
+            <div> Пользователи: <span class="font-semibold">{{ balance.users }} ₽</span>
+            </div>
+          </div>
         </template>
-    </UDashboardPanel>
+      </UDashboardNavbar>
+    </template>
+    <template #body>
+      <div class="w-full max-w-4xl mx-auto md:min-w-[800px] px-4">
+        <UAlert
+          v-if="limitedAdminMode"
+          class="mb-4"
+          color="warning"
+          variant="soft"
+          title="Режим имперсонации"
+          description="Сейчас вы вошли как пользователь. Для безопасности доступны только действия по переключению/выходу из имперсонации." />
+        <UTabs
+          :key="tabsKey"
+          :items="tabs"
+          variant="link"
+          :ui="{ trigger: 'grow' }"
+          :unmount-on-hide="false"
+          class="gap-4">
+          <template #license>
+            <AdminLicenseForm />
+          </template>
+          <template #impersonate>
+            <AdminImpersonateForm />
+          </template>
+          <template #balance>
+            <AdminBalanceForm />
+          </template>
+          <template #dialogs>
+            <AdminDialogsForm />
+          </template>
+          <template #prompts>
+            <UTabs :items="promptTabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
+              <template #system>
+                <AdminPromptForm label="Системный" path="prompt.system" />
+              </template>
+              <template #generator>
+                <AdminPromptForm label="Генератор" path="prompt.generator" />
+              </template>
+              <template #randomizer>
+                <AdminPromptForm label="Рандомизатор" path="prompt.randomizer" />
+              </template>
+              <template #firstTouch>
+                <AdminPromptForm label="Касание" path="prompt.firstTouch" />
+              </template>
+              <template #findStatus>
+                <AdminPromptForm label="Поиск статуса" path="prompt.findStatus" />
+              </template>
+              <template #calendar>
+                <AdminPromptForm label="Календарь" path="prompt.calendar" />
+              </template>
+              <template #followup>
+                <AdminPromptForm label="Фоллоу ап" path="prompt.followup" />
+              </template>
+            </UTabs>
+          </template>
+        </UTabs>
+      </div>
+    </template>
+  </UDashboardPanel>
 </template>
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui'
@@ -86,34 +89,35 @@ import { useAuth } from '@/composables/use-auth'
 const title = 'Админка'
 
 const allTabs = [
-    { label: 'Лицензии', icon: 'bx:badge-check', slot: 'license' as const },
-    { label: 'Баланс', icon: 'bx:user', slot: 'balance' as const },
-    { label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const },
-    { label: 'Скачать диалоги', icon: 'bx:download', slot: 'dialogs' as const },
-    { label: 'Промпты', icon: 'bx:brain', slot: 'prompts' as const },
+  { label: 'Лицензии', icon: 'bx:badge-check', slot: 'license' as const },
+  { label: 'Баланс', icon: 'bx:user', slot: 'balance' as const },
+  { label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const },
+  { label: 'Скачать диалоги', icon: 'bx:download', slot: 'dialogs' as const },
+  { label: 'Промпты', icon: 'bx:brain', slot: 'prompts' as const },
 ] satisfies TabsItem[]
 
 const { user, isImpersonated } = useAuth()
 const limitedAdminMode = computed(() => isImpersonated.value || user.value?.role !== 'ADMIN')
 
 const tabs = computed<TabsItem[]>(() => {
-    if (limitedAdminMode.value) {
-        // If items list shrinks/expands, UTabs can keep stale active value.
-        // We remount UTabs via `tabsKey`, and also keep the list minimal in impersonation mode.
-        return [{ label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const }] satisfies TabsItem[]
-    }
-    return allTabs
+  if (limitedAdminMode.value) {
+    // If items list shrinks/expands, UTabs can keep stale active value.
+    // We remount UTabs via `tabsKey`, and also keep the list minimal in impersonation mode.
+    return [{ label: 'Юзер-логин', icon: 'bx:user', slot: 'impersonate' as const }] satisfies TabsItem[]
+  }
+  return allTabs
 })
 
 const tabsKey = computed(() => (limitedAdminMode.value ? 'admin-tabs-limited' : 'admin-tabs-full'))
 
 const promptTabs = [
-    { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
-    { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
-    { label: 'Касание', icon: 'bx:bxs-hand', slot: 'firstTouch' as const },
-    { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
-    { label: 'Поиск статуса', icon: 'bx:search-alt', slot: 'findStatus' as const },
-    { label: 'Календарь', icon: 'bx:bxs-calendar', slot: 'calendar' as const },
+  { label: 'Системный', icon: 'bx:cog', slot: 'system' as const },
+  { label: 'Генератор', icon: 'bx:bxs-edit-alt', slot: 'generator' as const },
+  { label: 'Касание', icon: 'bx:bxs-hand', slot: 'firstTouch' as const },
+  { label: 'Рандомизатор', icon: 'bx:dice-5', slot: 'randomizer' as const },
+  { label: 'Поиск статуса', icon: 'bx:search-alt', slot: 'findStatus' as const },
+  { label: 'Календарь', icon: 'bx:bxs-calendar', slot: 'calendar' as const },
+  { label: 'Фоллоу ап', icon: 'carbon:follow-up-work-order', slot: 'followup' as const },
 ] satisfies TabsItem[]
 
 useTitle(title)
@@ -121,13 +125,13 @@ useTitle(title)
 const { getBalance } = useAdmin()
 
 const balance = reactive<GetBalanceOut>({
-    openrouter: 0,
-    users: 0,
+  openrouter: 0,
+  users: 0,
 })
 
 onMounted(async () => {
-    if (limitedAdminMode.value) return
-    const response = await getBalance()
-    Object.assign(balance, response)
+  if (limitedAdminMode.value) return
+  const response = await getBalance()
+  Object.assign(balance, response)
 })
 </script>

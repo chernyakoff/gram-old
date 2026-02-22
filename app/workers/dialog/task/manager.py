@@ -199,6 +199,85 @@ class DialogManager:
 
         return dialogs_with_system, dialogs_with_replies
 
+    async def check_and_send_follow_ups(self) -> int:
+        """
+        При старте сессии отправляет follow-up сообщения:
+        - диалог этого аккаунта в статусе ENGAGE/OFFER
+        - последнее сообщение от ACCOUNT
+        - дата последнего сообщения в окне [now-7d, now-1d]
+        - follow-up ещё не отправлялся (followed_up_at IS NULL)
+        """
+        now = tz.now()
+        from_time = now - timedelta(days=7)
+        to_time = now - timedelta(days=1)
+
+        dialogs = await orm.Dialog.filter(
+            account_id=self.account.id,
+            finished_at__isnull=True,
+            status__in=[orm.DialogStatus.ENGAGE, orm.DialogStatus.OFFER],
+            followed_up_at__isnull=True,
+        ).prefetch_related("recipient")
+
+        if not dialogs:
+            return 0
+
+        sent_count = 0
+
+        for dialog in dialogs:
+            try:
+                messages = await orm.Message.filter(dialog=dialog, ui_only=False).order_by(
+                    "created_at"
+                )
+                if not messages:
+                    continue
+
+                last_message = messages[-1]
+                if last_message.sender != orm.MessageSender.ACCOUNT:
+                    continue
+                if last_message.created_at < from_time or last_message.created_at > to_time:
+                    continue
+
+                follow_up_text = await self.ai_service.create_follow_up_message(messages)
+                if not follow_up_text:
+                    self.logger.info(
+                        f"[{dialog.recipient.username}] Follow-up пропущен: AI не вернул текст"
+                    )
+                    continue
+
+                msg = await self.telegram_service.send_message(
+                    dialog.recipient, follow_up_text
+                )
+                if not msg:
+                    self.logger.warning(
+                        f"[{dialog.recipient.username}] Follow-up не отправлен"
+                    )
+                    continue
+
+                await orm.Message.create(
+                    dialog=dialog,
+                    sender=orm.MessageSender.ACCOUNT,
+                    tg_message_id=msg.id,
+                    text=follow_up_text,
+                )
+
+                dialog.followed_up_at = tz.now()
+                await dialog.save(update_fields=["followed_up_at"])
+
+                # Даём дополнительное окно на ответ после follow-up.
+                self.session_timer.add(WAIT_FOR_REPLY_MINUTES)
+                sent_count += 1
+                self.logger.info(
+                    f"[{dialog.recipient.username}] ✅ Follow-up отправлен"
+                )
+                await asyncio.sleep(random.randint(3, 7))
+            except Exception as e:
+                self.logger.error(
+                    f"[{dialog.recipient.username}] Ошибка отправки follow-up: {e}"
+                )
+                continue
+
+        return sent_count
+
     async def _process_system_messages_for_dialog(self, dialog: orm.Dialog) -> bool:
         """
         Проверяет и отправляет system-сообщения для конкретного диалога.

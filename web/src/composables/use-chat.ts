@@ -195,6 +195,48 @@ export function useChat() {
     }
   }
 
+  async function sendFollowUp(projectId: number) {
+    if (!projectId) return
+
+    status.value = 'submitted'
+    error.value = null
+    try {
+      const data = await api<ChatOut>('chat/', {
+        method: 'POST',
+        body: {
+          projectId,
+          messages: [...toApiMessages(), { role: 'user', text: '/fu' }],
+          status: dialogStatus.value,
+        },
+      })
+      dialogStatus.value = data.status
+
+      if (data?.warnings?.length) {
+        for (const w of data.warnings) {
+          messages.value.push(
+            toUIMessage({ role: 'system', text: warningToText(w) }, dialogStatus.value),
+          )
+        }
+      }
+
+      if (data?.text) {
+        messages.value.push(
+          toUIMessage(
+            { role: 'assistant', text: stripLegacyToolBlock(data.text) },
+            dialogStatus.value,
+          ),
+        )
+      } else {
+        status.value = 'error'
+        error.value = 'Сервер вернул пустой ответ'
+      }
+    } catch (e: unknown) {
+      error.value = getErrorValue(e)
+    } finally {
+      status.value = 'ready'
+    }
+  }
+
   async function startWithPrompt(projectId: number) {
     if (!projectId) return
 
@@ -248,5 +290,5 @@ export function useChat() {
     dialogStatus.value = 'init'
   }
 
-  return { messages, status, error, dialogStatus, sendMessage, startWithPrompt, reset }
+  return { messages, status, error, dialogStatus, sendMessage, sendFollowUp, startWithPrompt, reset }
 }

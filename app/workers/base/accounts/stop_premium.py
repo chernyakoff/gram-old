@@ -15,11 +15,11 @@ from telethon.tl.types import (
 from tortoise import timezone as tz
 from tortoise.transactions import in_transaction
 
-from workers.base.client import hatchet
 from models import orm
 from utils.account import AccountUtil
-from utils.proxy_pool import ProxyPool
 from utils.logger import StreamLogger
+from utils.proxy_pool import ProxyPool
+from workers.base.client import hatchet
 
 PREMIUM_BOT = "PremiumBot"
 
@@ -70,13 +70,15 @@ async def stop_premium_inline(
                 await logger.info(text)
 
                 if text and any(m in text for m in nothing_to_stop_markers):
-                    await logger.info("Nothing to stop: recurring уже отключен для этого аккаунта")
+                    await logger.info(
+                        "Nothing to stop: recurring уже отключен для этого аккаунта"
+                    )
                     return "noop"
 
                 mk = getattr(msg, "reply_markup", None)
                 if mk and isinstance(mk, (ReplyKeyboardMarkup, ReplyInlineMarkup)):
                     clicked = False
-                    for (ri, ci) in AUTO_STOP_POSITIONS:
+                    for ri, ci in AUTO_STOP_POSITIONS:
                         try:
                             await msg.click(ri, ci)
                             await logger.info(f"Нажата кнопка [{ri},{ci}]")
@@ -88,7 +90,9 @@ async def stop_premium_inline(
                     if clicked:
                         continue
                     # keyboard exists but we couldn't click expected positions
-                    await logger.warning("Не удалось нажать кнопку PremiumBot по ожидаемой позиции")
+                    await logger.warning(
+                        "Не удалось нажать кнопку PremiumBot по ожидаемой позиции"
+                    )
                     return "error"
 
                 # no keyboard -> chain likely finished
@@ -194,7 +198,7 @@ async def _stop_premium(
 
         me = await client.get_me()
         me = cast(types.User, me)
-        if not me.premium:
+        if not me.premium:  # type: ignore
             await logger.info("Premium отсутствует на аккаунте: отменять нечего")
             return "no_premium"
 

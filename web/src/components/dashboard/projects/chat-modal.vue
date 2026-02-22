@@ -80,7 +80,7 @@
         <template #prompt>
           <UChatPrompt
             ref="promptRef"
-            placeholder="Введите своё сообщение"
+            placeholder="Введите сообщение (команда /fu для follow-up)"
             v-model="input"
             icon="i-lucide-search"
             variant="naked"
@@ -169,8 +169,13 @@ function toolDebugResult(message: any): string {
 
 async function handleSubmit (e: Event) {
   e.preventDefault()
-  if (input.value.trim() && id) {
-    await chat.sendMessage(id, input.value)
+  const text = input.value.trim()
+  if (text && id) {
+    if (text.toLowerCase() === '/fu') {
+      await chat.sendFollowUp(id)
+    } else {
+      await chat.sendMessage(id, text)
+    }
     input.value = ''
 
     await nextTick()

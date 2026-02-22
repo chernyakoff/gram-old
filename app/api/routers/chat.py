@@ -20,6 +20,7 @@ from utils.prompt import (
     ProjectSkipOptions,
     analyze_dialog_status,
     build_prompt_v2,
+    create_follow_up_message,
     get_active_status,
     get_calendar_addon,
     get_name_addon,
@@ -96,6 +97,10 @@ def _format_test_meeting_reminder(template: str, start_iso: str) -> str:
 
 class TestRemindersIn(BaseModel):
     project_id: int
+
+
+def _to_history(messages: list) -> list[dict]:
+    return [{"role": m.role.value, "content": m.text} for m in messages]
 
 
 @router.post("/test-reminders", response_model=ChatOut)
@@ -270,6 +275,22 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if not project.first_message:
         return ChatOut(text="В проекте отсутсвует первое сообщение", status=chat.status)
 
+    if (
+        chat.messages
+        and chat.messages[-1].role == MessageRole.user
+        and chat.messages[-1].text.strip().lower() == "/fu"
+    ):
+        # Slash command for prompt test chat. Do not pass "/fu" to the model context.
+        history = _to_history(chat.messages[:-1])
+        response = await create_follow_up_message(history, user=user)
+        if not response:
+            return ChatOut(
+                text="Follow-up не сгенерирован",
+                status=chat.status,
+                warnings=["AI не вернул follow-up сообщение"],
+            )
+        return ChatOut(text=normalize_dashes(response), status=chat.status)
+
     # Test chat hygiene: every time the client starts a new test run (messages=[]),
     # reset reminder chain flags and in-memory booking state.
     if not chat.messages:
@@ -292,7 +313,7 @@ async def chat(chat: ChatIn, user=Depends(get_current_user)):
     if chat.messages:
         new_status = await analyze_dialog_status(
             user,
-            [{"role": m.role.value, "content": m.text} for m in chat.messages],
+            _to_history(chat.messages),
             chat.status,
         )
         if not new_status:

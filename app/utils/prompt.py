@@ -49,6 +49,10 @@ async def get_status_addon() -> str:
     return await AppSettings.fetch("prompt.system")
 
 
+async def get_followup_prompt() -> str:
+    return await AppSettings.fetch("prompt.followup")
+
+
 async def get_calendar_addon(user: User) -> str:
     prompt = await AppSettings.fetch("prompt.calendar")
     schedule = await UserSchedule.get_default_for_user(user)
@@ -201,6 +205,29 @@ async def analyze_dialog_status(
             return DialogStatus(response.strip().lower())
         except:
             return status
+
+
+async def create_follow_up_message(
+    history: list[dict], user: User | None = None
+) -> str | None:
+    if user is None:
+        return None
+
+    prompt = await get_followup_prompt()
+    if not prompt or not prompt.strip():
+        return None
+
+    messages = [{"role": "system", "content": prompt}] + history
+    response = await openrouter.create_response(user, messages, timeout_min=5)
+    text = (response or "").strip()
+
+    if not text:
+        return None
+
+    if text.upper() in {"NONE", "NULL", "SKIP"}:
+        return None
+
+    return text
 
 
 def validate_prompt(prompt: Prompt | None, skip_option: ProjectSkipOptions) -> bool:

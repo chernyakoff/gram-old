@@ -457,6 +457,7 @@ class Dialog(Model):
     status = fields.CharEnumField(DialogStatus, default=DialogStatus.INIT)
     started_at = fields.DatetimeField(auto_now_add=True, db_index=True)
     finished_at = fields.DatetimeField(null=True)
+    followed_up_at = fields.DatetimeField(null=True)
 
     messages: fields.ReverseRelation["Message"]
     meeting: fields.ReverseRelation["Meeting"]
