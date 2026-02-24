@@ -16,6 +16,37 @@ from api.dto.user import UserLoginIn, UserLoginOut, UserMeOut, UserOut
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _is_secure_cookie() -> bool:
+    if config.api.url:
+        return config.api.url.startswith("https")
+    return config.web.url.startswith("https")
+
+
+def _cookie_samesite() -> str:
+    return "none" if _is_secure_cookie() else "lax"
+
+
+def _refresh_cookie_options() -> dict:
+    options = {
+        "httponly": True,
+        "samesite": _cookie_samesite(),
+        "secure": _is_secure_cookie(),
+        "max_age": config.api.jwt.refresh_expire_days * 24 * 60 * 60,
+        "path": "/",
+    }
+    if config.auth.cookie_domain:
+        options["domain"] = config.auth.cookie_domain
+    return options
+
+
+def set_refresh_cookie_value(response: Response, refresh_token: str):
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        **_refresh_cookie_options(),
+    )
+
+
 def validate_telegram_data(data: dict):
     received_hash = data.pop("hash", None)
     auth_date = data.get("auth_date")
@@ -97,14 +128,14 @@ def decode_token(token: str) -> dict:
 
 def set_refresh_cookie(response: Response, user_id: int):
     refresh_token = create_refresh_token({"sub": str(user_id)})
-    response.set_cookie(
+    set_refresh_cookie_value(response, refresh_token)
+
+
+def clear_refresh_cookie(response: Response):
+    response.delete_cookie(
         key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        samesite="none" if config.web.url.startswith("https") else "lax",
-        secure=True if config.web.url.startswith("https") else False,
-        max_age=config.api.jwt.refresh_expire_days * 24 * 60 * 60,
         path="/",
+        domain=config.auth.cookie_domain,
     )
 
 
@@ -264,7 +295,7 @@ async def me(user=Depends(get_current_user), authorization: str = Header(...)):
 
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie(key="refresh_token", path="/")
+    clear_refresh_cookie(response)
     return {"status": "ok"}
 
 
@@ -307,15 +338,7 @@ async def refresh_token_endpoint(
                 "impersonated": True,
             }
         )
-        response.set_cookie(
-            key="refresh_token",
-            value=new_refresh,
-            httponly=True,
-            samesite="none" if config.web.url.startswith("https") else "lax",
-            secure=True if config.web.url.startswith("https") else False,
-            max_age=config.api.jwt.refresh_expire_days * 24 * 60 * 60,
-            path="/",
-        )
+        set_refresh_cookie_value(response, new_refresh)
     else:
         access_token = create_access_token({"sub": str(user.id)})
         set_refresh_cookie(response, user.id)

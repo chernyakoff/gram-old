@@ -30,6 +30,14 @@ api:
 web:
   url: "https://lidorub.online"
 
+auth:
+  cors_origins:
+    - "https://lidorub.online"
+    - "https://content.lidorub.online"
+    - "https://tg.lidorub.online"
+    - "https://auth.lidorub.online"
+  cookie_domain: ".lidorub.online"
+
 openrouter:
   manager_api_key: "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"
   proxy: "socks5://niM1Bv1s:tbrA9EWJ@172.120.17.109:64193"
