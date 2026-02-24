@@ -12,8 +12,8 @@ from api.routers.auth import (
     create_impersonation_tokens,
     get_real_user,
     set_refresh_cookie,
-    set_refresh_cookie_value,
 )
+from config import config
 from models import orm
 from models.orm import DialogStatus, MessageSender
 from utils import openrouter
@@ -74,7 +74,15 @@ async def impersonate(
 
     access, refresh = create_impersonation_tokens(user.id, admin.id)
 
-    set_refresh_cookie_value(response, refresh)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh,
+        httponly=True,
+        samesite="none" if config.web.url.startswith("https") else "lax",
+        secure=config.web.url.startswith("https"),
+        max_age=config.api.jwt.refresh_expire_days * 24 * 60 * 60,
+        path="/",
+    )
 
     return ImpersonateOut(access=access)
 

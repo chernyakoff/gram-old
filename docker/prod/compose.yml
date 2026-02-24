@@ -102,7 +102,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=web"
-      - "traefik.http.routers.neuro-api.rule=Host(`api.lidorub.online`) || Host(`auth.lidorub.online`)"
+      - "traefik.http.routers.neuro-api.rule=Host(`api.lidorub.online`)"
       - "traefik.http.routers.neuro-api.entrypoints=websecure"
       - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.neuro-api.loadbalancer.server.port=8833"

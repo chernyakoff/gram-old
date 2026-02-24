@@ -30,12 +30,6 @@ api:
 web:
   url: "http://localhost:5173"
 
-auth:
-  cors_origins:
-    - "http://localhost:5173"
-    - "http://localhost:5273"
-  cookie_domain: null
-
 openrouter:
   manager_api_key: "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"
   proxy: "socks5://niM1Bv1s:tbrA9EWJ@172.120.17.109:64193"

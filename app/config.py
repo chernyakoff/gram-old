@@ -37,11 +37,6 @@ class Web(BaseModel):
     url: str
 
 
-class Auth(BaseModel):
-    cors_origins: list[str] = Field(default_factory=list)
-    cookie_domain: str | None = None
-
-
 class Hatchet(BaseModel):
     token: str
     host_port: str
@@ -87,7 +82,6 @@ class Settings(BaseModel):
     api: Api
     s3: S3Config
     web: Web
-    auth: Auth = Field(default_factory=Auth)
     postgres: Postgres
     hatchet: Hatchet
     ipinfo: IpInfo
