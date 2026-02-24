@@ -1,98 +1,18 @@
 import json
 from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from tortoise import Tortoise
 
-from api.routers.auth import (
-    admin_required,
-    create_impersonation_tokens,
-    get_real_user,
-    set_refresh_cookie,
-)
-from config import config
+from api.routers.auth import admin_required
 from models import orm
 from models.orm import DialogStatus, MessageSender
 from utils import openrouter
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-class LicenseIn(BaseModel):
-    username: str
-    days: int
-
-
-class LicenseOut(BaseModel):
-    status: Literal["success", "error"]
-    message: str
-
-
-class ImpersonateIn(BaseModel):
-    username: str
-
-
-class ImpersonateOut(BaseModel):
-    access: str
-
-
-@router.post(
-    "/license", response_model=LicenseOut, dependencies=[Depends(admin_required)]
-)
-async def extend_license(data: LicenseIn):
-    username = data.username.removeprefix("https://t.me/").removeprefix("@")
-    user = await orm.User.get_or_none(username=username)
-    if not user:
-        return LicenseOut(status="error", message="Пользователь не найден")
-
-    await user.extend_license(data.days)
-
-    display_date = user.license_end_date.strftime("%d.%m.%Y")
-
-    return LicenseOut(status="success", message=f"Выписана лицензия до {display_date}")
-
-
-@router.post(
-    "/impersonate",
-    response_model=ImpersonateOut,
-    dependencies=[Depends(admin_required)],
-)
-async def impersonate(
-    data: ImpersonateIn, response: Response, admin=Depends(get_real_user)
-):
-    username = data.username.removeprefix("https://t.me/").removeprefix("@")
-    user = await orm.User.get_or_none(username=username)
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot impersonate yourself")
-
-    access, refresh = create_impersonation_tokens(user.id, admin.id)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh,
-        httponly=True,
-        samesite="none" if config.web.url.startswith("https") else "lax",
-        secure=config.web.url.startswith("https"),
-        max_age=config.api.jwt.refresh_expire_days * 24 * 60 * 60,
-        path="/",
-    )
-
-    return ImpersonateOut(access=access)
-
-
-@router.post("/stop-impersonate")
-async def stop_impersonate(response: Response, admin=Depends(admin_required)):
-    # Restore admin refresh cookie (if any impersonation was active). This keeps the admin logged in
-    # without forcing a full re-login.
-    set_refresh_cookie(response, admin.id)
-    return {"status": "ok"}
 
 
 class AppSettingIn(BaseModel):
@@ -120,30 +40,6 @@ async def upsert_setting(data: AppSettingIn):
         raise HTTPException(status_code=404, detail="Invalid path")
 
     await orm.AppSettings.upsert(data.path, data.value)
-
-
-class BalanceIn(BaseModel):
-    username: str
-    amount: int
-
-
-class BalanceOut(BaseModel):
-    status: Literal["success", "error"]
-    message: str
-
-
-@router.post(
-    "/balance", response_model=BalanceOut, dependencies=[Depends(admin_required)]
-)
-async def add_balance(data: BalanceIn):
-    username = data.username.removeprefix("https://t.me/").removeprefix("@")
-    user = await orm.User.get_or_none(username=username)
-    if not user:
-        return BalanceOut(status="error", message="Пользователь не найден")
-
-    await user.add_balance(data.amount)
-
-    return BalanceOut(status="success", message=f"Баланс пополнен на {data.amount} руб")
 
 
 class GetBalanceOut(BaseModel):

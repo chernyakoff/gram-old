@@ -29,7 +29,7 @@ class UserOut(Serializer):
     role: str
     balance: int
     has_license: bool
-    ref_code: str
+    ref_code: str | None
 
     @classmethod
     async def resolve_role(cls, instance: orm.User, context: ContextType):

@@ -36,3 +36,8 @@ openrouter:
 
 tg_sessions:
   url: "http://tg-sessions:8000"
+
+neurousers:
+  url: "http://localhost:8834"
+  internal_token: "CHANGE_ME_USER_SYNC_TOKEN"
+  timeout_seconds: 10.0

@@ -1,3 +1,5 @@
+name: neurogram-dev
+
 services:
   postgres:
     image: pgvector/pgvector:pg15
@@ -15,6 +17,7 @@ services:
       - dev
 
   base:
+    profiles: ["workers"]
     build:
       context: ../..
       dockerfile: app/workers/base/Dockerfile
@@ -37,6 +40,7 @@ services:
       - web
 
   dialog:
+    profiles: ["workers"]
     build:
       context: ../..
       dockerfile: app/workers/dialog/Dockerfile
@@ -73,6 +77,8 @@ services:
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["uv", "run", "python", "-m", "api.dev"]
     depends_on:
       - postgres
@@ -94,7 +100,6 @@ services:
       - ./config.yml:/app/config.yml
     depends_on:
       - api
-      - base
     networks:
       - dev
       - web

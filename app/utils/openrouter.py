@@ -1,5 +1,6 @@
 import json
 import re
+from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 from functools import lru_cache
 from types import SimpleNamespace
@@ -21,12 +22,17 @@ from openrouter.operations import (
 
 # import tiktoken  # type: ignore
 from tortoise import Tortoise
-from tortoise.exceptions import DoesNotExist
-from tortoise.expressions import F
-from tortoise.transactions import in_transaction
 
 from config import config
 from models.orm import AiModel, User
+from utils.neurousers_api import (
+    CreateUserRequest,
+    InternalDebitBalanceRequest,
+    InternalSetOpenRouterRequest,
+    InternalUserStateRequest,
+    NeuroUsersApiError,
+    NeuroUsersClient,
+)
 from utils.usd_rate import get_usd_rate
 
 # enc = tiktoken.get_encoding("cl100k_base")
@@ -69,6 +75,15 @@ class OpenRouterResponseError(AiError):
     pass
 
 
+@dataclass
+class OpenRouterUserState:
+    user_id: int
+    balance_kopecks: int
+    api_key: str
+    api_hash: str | None
+    model: str
+
+
 @lru_cache(maxsize=1)
 def _shared_openrouter_httpx_clients() -> tuple[httpx.Client, httpx.AsyncClient]:
     # Use explicit proxy settings rather than mutating process-wide env vars.
@@ -92,16 +107,16 @@ async def create_raw_response(
     max_tokens: int = 3000,
     timeout_min: int = 5,
 ):
-    user = await add_openrouter_to_user(user)
-    model = await get_ai_model(user.or_model)
+    state = await add_openrouter_to_user(user)
+    model = await get_ai_model(state.model)
     usd_rate = await get_usd_rate()
 
-    await check_balance_before_request(user, model, max_tokens, usd_rate)
+    await check_balance_before_request(state.balance_kopecks, model, max_tokens, usd_rate)
 
     try:
-        async with _openrouter(api_key=user.or_api_key) as app:
+        async with _openrouter(api_key=state.api_key) as app:
             response = await app.chat.send_async(
-                model=user.or_model,
+                model=state.model,
                 messages=messages,
                 tools=tools,
                 max_tokens=max_tokens,
@@ -117,7 +132,7 @@ async def create_raw_response(
     if not usage:
         raise OpenRouterResponseError("Нет usage в ответе")
 
-    await charge_user_for_usage(user, model, usage, usd_rate)
+    await charge_user_for_usage(user_id=user.id, model=model, usage=usage, usd_rate=usd_rate)
 
     return response.choices[0].message
 
@@ -199,18 +214,17 @@ async def create_response_with_tools(
 async def create_response(
     user: User, input: Any, max_tokens: int = 3000, timeout_min: int = 5
 ) -> str:
-    # атомарно добавляем ключ/модель
-    user = await add_openrouter_to_user(user)
+    state = await add_openrouter_to_user(user)
 
-    model = await get_ai_model(user.or_model)  # type: ignore
+    model = await get_ai_model(state.model)
     usd_rate = await get_usd_rate()
 
-    await check_balance_before_request(user, model, max_tokens, usd_rate)
+    await check_balance_before_request(state.balance_kopecks, model, max_tokens, usd_rate)
 
     try:
-        async with _openrouter(api_key=user.or_api_key) as app:  # type: ignore
+        async with _openrouter(api_key=state.api_key) as app:
             response = await app.chat.send_async(
-                model=user.or_model,
+                model=state.model,
                 messages=input,
                 max_tokens=max_tokens,
                 timeout_ms=timeout_min * 60 * 1000,
@@ -228,23 +242,22 @@ async def create_response(
     if not usage:
         raise OpenRouterResponseError("Нет usage в ответе")
 
-    # атомарное списание баланса
-    await charge_user_for_usage(user, model, usage, usd_rate)
+    await charge_user_for_usage(user_id=user.id, model=model, usage=usage, usd_rate=usd_rate)
 
     return str(content)
 
 
 async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) -> str:
-    user = await add_openrouter_to_user(user)
+    state = await add_openrouter_to_user(user)
 
     model = await get_ai_model(GENERATE_PROMPT_MODEL)
     usd_rate = await get_usd_rate()
 
     estimated_tokens = 20000
-    await check_balance_before_request(user, model, estimated_tokens, usd_rate)
+    await check_balance_before_request(state.balance_kopecks, model, estimated_tokens, usd_rate)
 
     try:
-        async with _openrouter(api_key=user.or_api_key) as app:
+        async with _openrouter(api_key=state.api_key) as app:
             response = await app.chat.send_async(
                 model=model.id,
                 messages=[{"role": "user", "content": metaprompt}],
@@ -261,7 +274,7 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
     usage = response.usage
 
     if usage:
-        await charge_user_for_usage(user, model, usage, usd_rate)
+        await charge_user_for_usage(user_id=user.id, model=model, usage=usage, usd_rate=usd_rate)
 
     return str(content)
 
@@ -424,12 +437,13 @@ def chunk_markdown(
 async def embed_chunks(
     user: User, chunks: list[str], batch_size=32
 ) -> list[list[float]]:
-    user = await add_openrouter_to_user(user)
+    state = await add_openrouter_to_user(user)
     model = await get_ai_model(EMBED_MODEL)
     usd_rate = await get_usd_rate()
+    current_balance = state.balance_kopecks
 
     embeddings: list[list[float]] = []
-    async with _openrouter(api_key=user.or_api_key) as app:
+    async with _openrouter(api_key=state.api_key) as app:
         for i in range(0, len(chunks), batch_size):
             batch = chunks[i : i + batch_size]
 
@@ -439,9 +453,9 @@ async def embed_chunks(
             ) * Decimal("1.1")
             estimated_cost_rub = estimated_cost_usd * usd_rate
             estimated_cost_cents = int(estimated_cost_rub * 100)
-            if user.balance < estimated_cost_cents:
+            if current_balance < estimated_cost_cents:
                 needed_rub = Decimal(estimated_cost_cents) / Decimal(100)
-                user_rub = Decimal(user.balance) / Decimal(100)
+                user_rub = Decimal(current_balance) / Decimal(100)
                 raise InsufficientBalance(
                     f"Недостаточно средств. Нужно ~{needed_rub:.2f} ₽, есть {user_rub:.2f} ₽"
                 )
@@ -455,11 +469,12 @@ async def embed_chunks(
             if not response or not response.data:  # type: ignore
                 raise OpenRouterResponseError("Пустой ответ от embeddings")
 
-            await charge_user_for_embedding_usage(
-                user,
-                model,
-                response.usage,  # type: ignore
-                usd_rate,
+            current_balance = await charge_user_for_embedding_usage(
+                user_id=user.id,
+                model=model,
+                usage=response.usage,  # type: ignore
+                usd_rate=usd_rate,
+                current_balance_kopecks=current_balance,
             )
 
             embeddings.extend([e.embedding for e in response.data])  # type: ignore
@@ -470,9 +485,10 @@ async def embed_chunks(
 async def retrieve_chunks(
     user: User, question: str, top_k: int = 5, project_id: int | None = None
 ) -> list[str]:
-    user = await add_openrouter_to_user(user)
+    state = await add_openrouter_to_user(user)
     model = await get_ai_model(EMBED_MODEL)
     usd_rate = await get_usd_rate()
+    current_balance = state.balance_kopecks
 
     # Fast, conservative estimate to prevent outbound requests when balance is clearly insufficient.
     estimated_tokens = max(1, len(question) // 3)
@@ -481,15 +497,15 @@ async def retrieve_chunks(
     )
     estimated_cost_rub = estimated_cost_usd * usd_rate
     estimated_cost_cents = int(estimated_cost_rub * 100)
-    if user.balance < estimated_cost_cents:
+    if current_balance < estimated_cost_cents:
         needed_rub = Decimal(estimated_cost_cents) / Decimal(100)
-        user_rub = Decimal(user.balance) / Decimal(100)
+        user_rub = Decimal(current_balance) / Decimal(100)
         raise InsufficientBalance(
             f"Недостаточно средств. Нужно ~{needed_rub:.2f} ₽, есть {user_rub:.2f} ₽"
         )
 
     try:
-        async with _openrouter(api_key=user.or_api_key) as app:
+        async with _openrouter(api_key=state.api_key) as app:
             response = await app.embeddings.generate_async(
                 model=EMBED_MODEL,
                 input=[question],
@@ -505,7 +521,13 @@ async def retrieve_chunks(
     usage = getattr(response, "usage", None) or SimpleNamespace(
         prompt_tokens=estimated_tokens
     )
-    await charge_user_for_embedding_usage(user, model, usage, usd_rate)
+    await charge_user_for_embedding_usage(
+        user_id=user.id,
+        model=model,
+        usage=usage,
+        usd_rate=usd_rate,
+        current_balance_kopecks=current_balance,
+    )
 
     query_embedding = data[0].embedding
 
@@ -535,53 +557,75 @@ async def retrieve_chunks(
 # ----------------- ПОТОКОБЕЗОПАСНЫЕ ВСПОМОГАТЕЛЬНЫЕ -----------------
 
 
-async def add_openrouter_to_user(user: User) -> User:
-    """
-    Потокобезопасное добавление модели и API ключа OpenRouter.
-    Используем транзакцию и select_for_update.
-    """
-    # Fast path: most callers already have these fields on the in-memory user.
-    # Keep the DB/lock path only for the "needs provisioning" case.
-    if getattr(user, "or_model", None) and getattr(user, "or_api_key", None):
-        return user
-
-    async with in_transaction() as conn:
+async def add_openrouter_to_user(user: User) -> OpenRouterUserState:
+    async with NeuroUsersClient() as client:
         try:
-            # блокируем пользователя для обновления
-            db_user = (
-                await User.filter(id=user.id).using_db(conn).select_for_update().get()
+            state = await client.internal_get_user_state(
+                InternalUserStateRequest(user_id=user.id)
             )
-        except DoesNotExist:
-            raise ValueError(f"Пользователь с id={user.id} не найден")
+        except NeuroUsersApiError as exc:
+            # First run fallback: if user is absent in neurousers, upsert it from local profile.
+            if " -> 404:" not in str(exc):
+                raise
+            await client.create_or_update_user(
+                CreateUserRequest(
+                    id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    photo_url=user.photo_url,
+                    role=int(user.role),
+                )
+            )
+            state = await client.internal_get_user_state(
+                InternalUserStateRequest(user_id=user.id)
+            )
 
-        changed = False
+        api_key = state.api_key
+        api_hash = state.api_hash
+        model = state.model
 
-        if not db_user.or_model:
-            db_user.or_model = DEFAULT_MODEL
-            changed = True
+        if model is None:
+            model = DEFAULT_MODEL
 
-        if not db_user.or_api_key:
+        if api_key is None:
             try:
-                key = await create_key(db_user.display_name)
+                key = await create_key(user.display_name)
             except Exception as e:
                 raise OpenRouterKeyError("Не удалось создать API ключ") from e
+            api_key = key.key
+            api_hash = key.data.hash
 
-            db_user.or_api_key = key.key
-            db_user.or_api_hash = key.data.hash
-            changed = True
-
-        if changed:
-            await db_user.save(update_fields=["or_model", "or_api_key", "or_api_hash"])
-
-        return db_user
+        if (
+            state.model != model
+            or state.api_key != api_key
+            or state.api_hash != api_hash
+        ):
+            state = await client.internal_set_openrouter_settings(
+                InternalSetOpenRouterRequest(
+                    user_id=user.id,
+                    model=model,
+                    api_key=api_key,
+                    api_hash=api_hash,
+                )
+            )
+    if not api_key or not model:
+        raise OpenRouterKeyError("OpenRouter settings are incomplete")
+    return OpenRouterUserState(
+        user_id=user.id,
+        balance_kopecks=state.balance_kopecks,
+        api_key=api_key,
+        api_hash=api_hash,
+        model=model,
+    )
 
 
 async def charge_user_for_usage(
-    user: User,
+    user_id: int,
     model: AiModel,
     usage: ChatGenerationTokenUsage,
     usd_rate: Decimal,
-):
+) -> int:
     prompt_cost = model.prompt_price * Decimal(usage.prompt_tokens or 0)
     completion_cost = model.completion_price * Decimal(usage.completion_tokens or 0)
 
@@ -590,28 +634,34 @@ async def charge_user_for_usage(
     total_cents = int(total_rub * 100)
 
     if total_cents <= 0:
-        return
+        return 0
 
-    updated = await User.filter(id=user.id, balance__gte=total_cents).update(
-        balance=F("balance") - total_cents
-    )
-    if not updated:
+    async with NeuroUsersClient() as client:
+        debited = await client.internal_debit_balance(
+            InternalDebitBalanceRequest(
+                user_id=user_id,
+                amount_kopecks=total_cents,
+            )
+        )
+    if debited.status != "ok":
         raise InsufficientBalance("Недостаточно средств для списания")
+    return debited.balance_kopecks or 0
 
 
 async def charge_user_for_embedding_usage(
-    user: User,
+    user_id: int,
     model: AiModel,
     usage,
     usd_rate: Decimal,
-):
+    current_balance_kopecks: int | None = None,
+) -> int:
     if usage is None:
-        return
+        return current_balance_kopecks or 0
 
     prompt_tokens = usage.prompt_tokens or 0
 
     if prompt_tokens <= 0:
-        return
+        return current_balance_kopecks or 0
 
     # embeddings тарифицируются ТОЛЬКО по prompt_tokens
     prompt_cost = model.prompt_price * Decimal(prompt_tokens)
@@ -621,27 +671,34 @@ async def charge_user_for_embedding_usage(
     total_cents = int(total_rub * 100)
 
     if total_cents <= 0:
-        return
+        return current_balance_kopecks or 0
 
-    updated = await User.filter(
-        id=user.id,
-        balance__gte=total_cents,
-    ).update(balance=F("balance") - total_cents)
+    async with NeuroUsersClient() as client:
+        debited = await client.internal_debit_balance(
+            InternalDebitBalanceRequest(
+                user_id=user_id,
+                amount_kopecks=total_cents,
+            )
+        )
 
-    if not updated:
+    if debited.status != "ok":
         raise InsufficientBalance("Недостаточно средств для списания")
+    return debited.balance_kopecks or 0
 
 
 async def check_balance_before_request(
-    user: User, model: AiModel, max_tokens: int, usd_rate: Decimal
+    balance_kopecks: int,
+    model: AiModel,
+    max_tokens: int,
+    usd_rate: Decimal,
 ):
     estimated_cost_usd = (model.completion_price * Decimal(max_tokens)) * Decimal("1.1")
     estimated_cost_rub = estimated_cost_usd * usd_rate
     estimated_cost_cents = int(estimated_cost_rub * 100)
 
-    if user.balance < estimated_cost_cents:
+    if balance_kopecks < estimated_cost_cents:
         needed_rub = Decimal(estimated_cost_cents) / Decimal(100)
-        user_rub = Decimal(user.balance) / Decimal(100)
+        user_rub = Decimal(balance_kopecks) / Decimal(100)
         raise InsufficientBalance(
             f"Недостаточно средств. Нужно ~{needed_rub:.2f} ₽, есть {user_rub:.2f} ₽"
         )

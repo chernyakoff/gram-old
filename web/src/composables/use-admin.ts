@@ -10,14 +10,14 @@ import type {
 } from '@/types/openapi'
 
 export function useAdmin() {
-  const { api, apiBlob, loading, error, success } = useApi()
+  const { api, apiUsers, apiBlob, loading, error, success } = useApi()
 
   async function license(body: LicenseIn) {
-    return await api<LicenseOut>(`admin/license`, { method: 'POST', body })
+    return await apiUsers<LicenseOut>(`admin/license`, { method: 'POST', body })
   }
 
   async function addBalance(body: BalanceIn): Promise<BalanceOut> {
-    return await api<BalanceOut>(`admin/balance`, { method: 'POST', body })
+    return await apiUsers<BalanceOut>(`admin/balance`, { method: 'POST', body })
   }
 
   async function getBalance(): Promise<GetBalanceOut> {

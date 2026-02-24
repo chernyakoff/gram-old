@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Self
 
 import yaml
-from pydantic import BaseModel, Field, PostgresDsn, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, Field, PostgresDsn, SecretStr
 from tortoise import BaseDBAsyncClient, Tortoise
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,12 @@ class TgSessions(BaseModel):
     url: str
 
 
+class NeuroUsers(BaseModel):
+    url: AnyHttpUrl = Field(default="http://localhost:8834")
+    internal_token: SecretStr = Field(default=SecretStr("CHANGE_ME_USER_SYNC_TOKEN"))
+    timeout_seconds: float = Field(default=10.0, ge=1.0, le=120.0)
+
+
 class Postgres(BaseModel):
     dsn: PostgresDsn = Field()
 
@@ -87,6 +93,7 @@ class Settings(BaseModel):
     ipinfo: IpInfo
     openrouter: OpenRouter
     tg_sessions: TgSessions
+    neurousers: NeuroUsers = Field(default_factory=NeuroUsers)
 
     @classmethod
     def create(cls, path: str | Path = "config.yml") -> Self:

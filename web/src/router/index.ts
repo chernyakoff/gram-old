@@ -63,6 +63,19 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
+  const accessTokenFromQuery =
+    typeof to.query.access_token === 'string' ? to.query.access_token : null
+  if (accessTokenFromQuery) {
+    auth.setAccessToken(accessTokenFromQuery)
+    const { access_token: _ignored, ...restQuery } = to.query
+    return next({
+      path: to.path,
+      query: restQuery,
+      hash: to.hash,
+      replace: true,
+    })
+  }
+
   // --------------------------
   // 2️⃣ ПОДТЯГИВАЕМ ПОЛЬЗОВАТЕЛЯ
   // --------------------------

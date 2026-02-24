@@ -36,3 +36,8 @@ openrouter:
 
 tg_sessions:
   url: "http://tg-sessions:8000"
+
+neurousers:
+  url: "https://users.lidorub.online"
+  internal_token: "s70@dxw31Q6SbYVR2"
+  timeout_seconds: 10.0

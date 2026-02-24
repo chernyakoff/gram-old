@@ -17,13 +17,19 @@ export const useAuthStore = defineStore('auth', () => {
   const isImpersonated = computed(() => user.value?.impersonated ?? false)
 
   
-  const { api } = useApi()
+  const { apiUsers } = useApi()
 
   function clearLocalSession() {
     user.value = null
     accessToken.value = null
     localStorage.removeItem('accessToken')
     stopBalancePolling()
+  }
+
+  function setAccessToken(token: string) {
+    accessToken.value = token
+    localStorage.setItem('accessToken', token)
+    startBalancePolling()
   }
 
   let logoutInFlight: Promise<void> | null = null
@@ -36,13 +42,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
     
   
-    const data = await api<UserLoginOut>('auth', {
+    const data = await apiUsers<UserLoginOut>('auth', {
       method: 'POST',
       body: user,
     })
     
-    accessToken.value = data.accessToken
-    localStorage.setItem('accessToken', data.accessToken)
+    setAccessToken(data.accessToken)
     
     localStorage.removeItem('inviteRefCode')
     await fetchUser()
@@ -56,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     logoutInFlight = (async () => {
       clearLocalSession()
       try {
-        await api('auth/logout', { method: 'POST' })
+        await apiUsers('auth/logout', { method: 'POST' })
       } catch {
         // ignore errors
       }
@@ -75,11 +80,10 @@ export const useAuthStore = defineStore('auth', () => {
 
     refreshInFlight = (async () => {
       try {
-        const data = await api<UserLoginOut>('auth/refresh', {
+        const data = await apiUsers<UserLoginOut>('auth/refresh', {
           method: 'POST',
         })
-        accessToken.value = data.accessToken
-        localStorage.setItem('accessToken', data.accessToken)
+        setAccessToken(data.accessToken)
         return true
       } catch {
         // Important: don't call server logout here; on refresh failure this can create request storms.
@@ -96,22 +100,21 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    const me = await api<UserMeOut>('auth/me')
+    const me = await apiUsers<UserMeOut>('auth/me')
     user.value = me
   }
 
   async function impersonate(data: ImpersonateIn) {
-    const result = await api<ImpersonateOut>('admin/impersonate', {
+    const result = await apiUsers<ImpersonateOut>('admin/impersonate', {
       method: 'POST',
       body: data,
     })
-    accessToken.value = result.access
-    localStorage.setItem('accessToken', result.access)
+    setAccessToken(result.access)
     await fetchUser()
   }
 
   async function stopImpersonate() {
-    await api('admin/stop-impersonate', { method: 'POST' })
+    await apiUsers('admin/stop-impersonate', { method: 'POST' })
     // После остановки имперсонации нужно обновить токены
     await refreshTokens()
     await fetchUser()
@@ -148,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     login,
     logout,
+    setAccessToken,
     refreshTokens,
     fetchUser,
     impersonate,

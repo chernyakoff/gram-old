@@ -1,3 +1,5 @@
+name: neurogram-prod
+
 services:
   postgres:
     image: pgvector/pgvector:pg15
@@ -174,8 +176,10 @@ volumes:
   uv-venv-base: {}
   uv-venv-dialog: {}
   uv-venv-api: {}
-  postgres-data-dev: {}
-  minio-data: {}
+  postgres-data-dev:
+    name: prod_postgres-data-dev
+  minio-data:
+    name: prod_minio-data
 
 networks:
   hatchet:
