@@ -1,5 +1,5 @@
 postgres:
-  dsn: "postgres://postgres:postgres@postgres:5432/neurogram"
+  dsn: "postgres://postgres:postgres@neuro-postgres:5432/neurogram"
 
 hatchet:
   host_port: "hatchet-engine:7070"

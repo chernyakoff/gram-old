@@ -75,7 +75,7 @@ import { usePartners } from '@/composables/use-partners';
 import type { PartnerOut } from '@/types/openapi';
 import { useTitle } from '@vueuse/core'
 import { useClipboard } from '@vueuse/core'
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const title = 'Настройки - Партнерка'
 useTitle(title)
@@ -85,7 +85,7 @@ const toast = useToast()
 const { copy, isSupported } = useClipboard()
 
 const copied = ref(false)
-const refLink = `${import.meta.env.WEB_URL}/r/${user.value?.refCode}`
+const refLink = computed(() => `${import.meta.env.WEB_URL}/r/${user.value?.refCode ?? ''}`)
 
 const { getPartners } = usePartners()
 
@@ -115,7 +115,7 @@ const copyLink = async () => {
     return
   }
 
-  await copy(refLink)
+  await copy(refLink.value)
   copied.value = true
 
 
