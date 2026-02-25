@@ -6,6 +6,7 @@ from tortoise.expressions import Q
 
 from models import orm
 from utils.cyclopts import create_app
+from utils.neurousers_api import NeuroUsersClient, InternalUserStateRequest, NeuroUsersApiError
 
 app = create_app("heartbeat", "холостой прогон тика heartbeat")
 
@@ -47,14 +48,26 @@ async def debug_heartbeat_for_user(user_id: int):
     print(f"[DEBUG] Now: {now}")
     print("=" * 80)
 
+    try:
+        async with NeuroUsersClient() as client:
+            state = await client.internal_get_user_state(
+                InternalUserStateRequest(user_id=user_id)
+            )
+    except NeuroUsersApiError as exc:
+        print(f"❌ Не удалось получить баланс пользователя из users: {exc}")
+        return
+
+    if state.balance_kopecks <= 1000:
+        print("❌ Недостаточно баланса (users service)")
+        return
+
     projects = await orm.Project.filter(
         status=True,
         user_id=user_id,
-        user__balance__gt=1000,
     ).prefetch_related("mailings", "user")
 
     if not projects:
-        print("❌ Нет активных проектов или недостаточно баланса")
+        print("❌ Нет активных проектов")
         return
 
     for project in projects:

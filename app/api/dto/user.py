@@ -1,9 +1,5 @@
 from pydantic import BaseModel
-from tortoise import timezone as tz
-from tortoise_serializer import ContextType, Serializer
-
-from models import orm
-
+from tortoise_serializer import Serializer
 
 class UserLoginIn(BaseModel):
     id: int
@@ -22,24 +18,6 @@ class UserLoginOut(BaseModel):
 
 class UserOut(Serializer):
     id: int
-    username: str | None
-    first_name: str | None
-    last_name: str | None
-    photo_url: str | None
-    role: str
-    balance: int
-    has_license: bool
-    ref_code: str | None
-
-    @classmethod
-    async def resolve_role(cls, instance: orm.User, context: ContextType):
-        return instance.role.name
-
-    @classmethod
-    async def resolve_has_license(
-        cls, instance: orm.User, context: ContextType
-    ) -> bool:
-        return bool(instance.license_end_date and instance.license_end_date > tz.now())
 
 
 class UserMeOut(UserOut):

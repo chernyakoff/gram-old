@@ -28,7 +28,7 @@ async def sync_users(limit: int = 0, offset: int = 0, dry_run: bool = False):
 
     if dry_run:
         for user in users:
-            print(f"[dim]DRY-RUN[/dim] id={user.id} username={user.username}")
+            print(f"[dim]DRY-RUN[/dim] id={user.id}")
         return
 
     async with NeuroUsersClient() as client:
@@ -37,17 +37,6 @@ async def sync_users(limit: int = 0, offset: int = 0, dry_run: bool = False):
                 result = await client.create_or_update_user(
                     CreateUserRequest(
                         id=user.id,
-                        username=user.username,
-                        first_name=user.first_name,
-                        last_name=user.last_name,
-                        photo_url=user.photo_url,
-                        role=int(user.role),
-                        license_end_date=user.license_end_date,
-                        balance=user.balance,
-                        ref_code=user.ref_code,
-                        or_api_key=user.or_api_key,
-                        or_api_hash=user.or_api_hash,
-                        or_model=user.or_model,
                     )
                 )
             except Exception as exc:

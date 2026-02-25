@@ -1,6 +1,4 @@
-import math
 from collections import defaultdict
-from datetime import timedelta
 from decimal import Decimal
 from enum import IntEnum, StrEnum, auto
 from typing import Self
@@ -27,11 +25,6 @@ class LicenseType(IntEnum):
     ПРЕМИУМ = 120
 
 
-class Role(IntEnum):
-    USER = 0
-    ADMIN = 7
-
-
 class TimestampMixin:
     created_at = fields.DatetimeField(null=True, auto_now_add=True)
     updated_at = fields.DatetimeField(
@@ -42,74 +35,21 @@ class TimestampMixin:
 
 class User(Model, TimestampMixin):
     id = fields.BigIntField(pk=True, generated=False)
-    username = fields.CharField(max_length=34, null=True, db_index=True)
-    first_name = fields.CharField(null=True, max_length=64)
-    last_name = fields.CharField(null=True, max_length=64)
-    photo_url = fields.CharField(max_length=256, null=True)
-    role = fields.IntEnumField(enum_type=Role, default=Role.USER)
-    license_end_date = fields.DatetimeField(null=True)
     settings: fields.ReverseRelation["Settings"]
     mailings = fields.ReverseRelation["Mailing"]
     projects = fields.ReverseRelation["Project"]
     meetings = fields.ReverseRelation["Meeting"]
-    balance = fields.BigIntField(default=0)
-    or_api_key = fields.CharField(max_length=256, null=True)
-    or_api_hash = fields.CharField(max_length=256, null=True)
-    or_model = fields.CharField(max_length=256, null=True)
-    ref_code = fields.CharField(max_length=8, null=True, unique=True)
-    referred_by: fields.ForeignKeyNullableRelation["User"] = fields.ForeignKeyField(
-        "models.User",
-        related_name="referrals",
-        null=True,
-        on_delete=fields.SET_NULL,
-    )
     schedules: fields.ReverseRelation["UserSchedule"]
-
-    async def extend_license(self, days: int) -> None:
-        """Продлевает лицензию на указанное число дней."""
-
-        now = tz.now()
-        if self.license_end_date is None or self.license_end_date < now:
-            self.license_end_date = now + timedelta(days=days)
-        else:
-            self.license_end_date += timedelta(days=days)
-
-        await self.save()
-
-    async def add_balance(self, rubles: int) -> None:
-        if rubles <= 0:
-            return  # или raise ValueError
-
-        self.balance += rubles * 100
-        await self.save()
-
-    @property
-    def days_left(self) -> int:
-        """Сколько дней осталось до конца лицензии."""
-        if not self.license_end_date:
-            return 0
-
-        now = tz.now()
-        delta = self.license_end_date - now
-
-        # если уже просрочена → 0
-        if delta.total_seconds() <= 0:
-            return 0
-
-        return math.ceil(delta.total_seconds() / 86400)
 
     @property
     def display_name(self) -> str:
-        if self.username:
-            return f"@{self.username}"
-        else:
-            return f"ID: {self.id}"
+        return f"ID: {self.id}"
 
     class Meta:
         table = "users"
 
     def __str__(self):
-        return f"{self.id} | {self.username}"
+        return f"{self.id}"
 
 
 class Settings(Model):

@@ -1,7 +1,7 @@
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Header, HTTPException, status
 
 from models import orm
-from utils.neurousers_api import NeuroUsersApiError, NeuroUsersClient
+from utils.neurousers_api import NeuroUsersApiError, NeuroUsersClient, UserMeResponse
 
 
 def _extract_bearer_token(authorization: str) -> str:
@@ -10,7 +10,7 @@ def _extract_bearer_token(authorization: str) -> str:
     return authorization.split(" ", 1)[1]
 
 
-async def _get_remote_me(authorization: str):
+async def _get_remote_me(authorization: str) -> UserMeResponse:
     token = _extract_bearer_token(authorization)
     try:
         async with NeuroUsersClient() as client:
@@ -24,25 +24,8 @@ async def _get_remote_me(authorization: str):
         raise HTTPException(502, "Auth provider unavailable") from exc
 
 
-async def _sync_local_user(me) -> orm.User:
-    if me.ref_code is None:
-        raise HTTPException(
-            status_code=502,
-            detail="Inconsistent auth provider response: user.ref_code is missing",
-        )
-
-    role = orm.Role.ADMIN if me.role.upper() == "ADMIN" else orm.Role.USER
-    user, _ = await orm.User.update_or_create(
-        id=me.id,
-        defaults={
-            "username": me.username,
-            "first_name": me.first_name,
-            "last_name": me.last_name,
-            "photo_url": me.photo_url,
-            "role": role,
-            "ref_code": me.ref_code,
-        },
-    )
+async def _sync_local_user(me: UserMeResponse) -> orm.User:
+    user, _ = await orm.User.get_or_create(id=me.id)
     return user
 
 
@@ -51,11 +34,9 @@ async def get_current_user(authorization: str = Header(...)) -> orm.User:
     return await _sync_local_user(me)
 
 
-async def get_real_user(authorization: str = Header(...)) -> orm.User:
-    return await get_current_user(authorization)
-
-
-def admin_required(user: orm.User = Depends(get_real_user)) -> orm.User:
-    if user.role != orm.Role.ADMIN:
+async def admin_required(authorization: str = Header(...)) -> orm.User:
+    me = await _get_remote_me(authorization)
+    role = (me.role or "").upper()
+    if role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
-    return user
+    return await _sync_local_user(me)

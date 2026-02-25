@@ -72,7 +72,7 @@
 <script setup lang="ts">
 import { useAuth } from '@/composables/use-auth';
 import { usePartners } from '@/composables/use-partners';
-import type { PartnerOut } from '@/types/openapi';
+import type { PartnerOut } from '@/types/openapi-users';
 import { useTitle } from '@vueuse/core'
 import { useClipboard } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue';

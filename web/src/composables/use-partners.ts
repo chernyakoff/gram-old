@@ -1,14 +1,12 @@
 import { useApi } from '@/composables/use-api'
-import type { PartnerOut } from '@/types/openapi'
+import type { PartnerOut } from '@/types/openapi-users'
 
 export function usePartners() {
-  const { api, loading, error, success } = useApi()
+  const { apiUsers, loading, error, success } = useApi()
 
-  
   async function getPartners(): Promise<PartnerOut> {
-    return await api<PartnerOut>(`partners`, { method: 'GET' })
+    return await apiUsers<PartnerOut>('partners/', { method: 'GET' })
   }
-
 
   return {
     getPartners,

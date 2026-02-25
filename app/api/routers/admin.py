@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
@@ -11,6 +12,7 @@ from api.routers.auth import admin_required
 from models import orm
 from models.orm import DialogStatus, MessageSender
 from utils import openrouter
+from utils.neurousers_api import NeuroUsersApiError, NeuroUsersClient, InternalUserStateRequest
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -49,9 +51,33 @@ class GetBalanceOut(BaseModel):
 
 async def get_users_balance():
     rows = await Tortoise.get_connection("default").execute_query_dict(
-        "SELECT SUM(balance) as total FROM users"
+        'SELECT "id" FROM "users"'
     )
-    return (Decimal(rows[0]["total"]) / Decimal(100)).quantize(
+    user_ids = [int(row["id"]) for row in rows]
+    if not user_ids:
+        return Decimal("0.00")
+
+    semaphore = asyncio.Semaphore(20)
+
+    async def _fetch_balance(client: NeuroUsersClient, user_id: int) -> int:
+        async with semaphore:
+            try:
+                state = await client.internal_get_user_state(
+                    InternalUserStateRequest(user_id=user_id)
+                )
+            except NeuroUsersApiError as exc:
+                if " -> 404:" in str(exc):
+                    return 0
+                raise
+            return state.balance_kopecks
+
+    async with NeuroUsersClient() as client:
+        balances = await asyncio.gather(
+            *[_fetch_balance(client, user_id) for user_id in user_ids]
+        )
+
+    total_kopecks = sum(balances)
+    return (Decimal(total_kopecks) / Decimal(100)).quantize(
         Decimal("0.00"), rounding=ROUND_DOWN
     )
 
@@ -77,11 +103,11 @@ def fmt_time(dt: datetime | None) -> str | None:
     return dt.strftime("%H:%M")
 
 
-async def get_user_dialogs_by_username(
-    username: str, status: Optional[DialogStatus] = None
+async def get_user_dialogs_by_user_id(
+    user_id: int, status: Optional[DialogStatus] = None
 ) -> list[dict[str, Any]]:
     qs = (
-        orm.Dialog.filter(account__user__username=username)
+        orm.Dialog.filter(account__user_id=user_id)
         .select_related(
             "account",
             "account__project",
@@ -136,13 +162,13 @@ async def get_user_dialogs_by_username(
 
 
 class DialogsDownloadIn(BaseModel):
-    username: str
+    user_id: int
     status: Optional[DialogStatus] = None
 
 
 @router.post("/dialogs", dependencies=[Depends(admin_required)])
 async def get_dialogs(data: DialogsDownloadIn):
-    dialogs = await get_user_dialogs_by_username(data.username, data.status)
+    dialogs = await get_user_dialogs_by_user_id(data.user_id, data.status)
 
     content = json.dumps(dialogs, ensure_ascii=False, indent=2)
 
@@ -150,7 +176,7 @@ async def get_dialogs(data: DialogsDownloadIn):
         content=content.encode("utf-8"),
         media_type="application/json",
         headers={
-            "Content-Disposition": f'attachment; filename="dialogs_{data.username}.json"',
+            "Content-Disposition": f'attachment; filename="dialogs_{data.user_id}.json"',
             "Content-Length": str(len(content.encode("utf-8"))),  # Важно!
         },
     )

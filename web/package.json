@@ -16,7 +16,10 @@
     "format": "prettier --write src/",
     "predev": "node scripts/generate-env.js",
     "prebuild": "node scripts/generate-env.js",
-    "openapi-gen": "node scripts/openapi-gen.mjs http://localhost:8833/openapi.json ./src/types/openapi.d.ts"
+    "openapi-gen": "npm run openapi-gen:gram",
+    "openapi-gen:gram": "node scripts/openapi-gen.mjs http://localhost:8833/openapi.json ./src/types/openapi.d.ts",
+    "openapi-gen:users": "node scripts/openapi-gen.mjs http://localhost:8834/openapi.json ./src/types/openapi-users.d.ts",
+    "openapi-gen:all": "run-s openapi-gen:gram openapi-gen:users"
   },
   "dependencies": {
     "@nuxt/ui": "^4.3.0",

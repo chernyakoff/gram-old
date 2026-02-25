@@ -11,6 +11,7 @@ from tortoise.transactions import in_transaction
 
 from workers.base.client import hatchet
 from models import orm
+from utils.neurousers_api import NeuroUsersApiError, NeuroUsersClient, InternalUserStateRequest
 from utils.notify import notify_mailing_end
 from workers.base.accounts.stop_premium import StopPremiumIn
 
@@ -132,11 +133,38 @@ async def release_recipients():
 
 
 async def get_active_projects(min_balance: int = 1000) -> list[orm.Project]:
-    """Получить активные проекты, где у пользователя хватает баланса"""
-    return await orm.Project.filter(
-        status=True,
-        user__balance__gt=min_balance,
-    ).prefetch_related("mailings", "user")
+    """Получить активные проекты, где у пользователя хватает баланса в users-сервисе."""
+    projects = await orm.Project.filter(status=True).prefetch_related("mailings", "user")
+    if not projects:
+        return []
+
+    min_balance_kopecks = min_balance
+    cache: dict[int, bool] = {}
+
+    async def _has_sufficient_balance(client: NeuroUsersClient, user_id: int) -> bool:
+        cached = cache.get(user_id)
+        if cached is not None:
+            return cached
+        try:
+            state = await client.internal_get_user_state(
+                InternalUserStateRequest(user_id=user_id)
+            )
+            ok = state.balance_kopecks > min_balance_kopecks
+        except NeuroUsersApiError as exc:
+            if " -> 404:" in str(exc):
+                ok = False
+            else:
+                raise
+        cache[user_id] = ok
+        return ok
+
+    filtered: list[orm.Project] = []
+    async with NeuroUsersClient() as client:
+        for project in projects:
+            if await _has_sufficient_balance(client, project.user_id):
+                filtered.append(project)
+
+    return filtered
 
 
 def is_project_in_send_window(project: orm.Project, now) -> bool:
