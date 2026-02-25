@@ -15,7 +15,22 @@ async def lifespan(app: FastAPI):
     await shutdown_db()
 
 
-app = FastAPI(lifespan=lifespan)
+def _is_local_dev_env() -> bool:
+    url = (config.api.url or "").lower()
+    host = (config.api.host or "").lower()
+    return "localhost" in url or "127.0.0.1" in url or host in {"localhost", "127.0.0.1"}
+
+
+openapi_url = "/openapi.json" if _is_local_dev_env() else None
+docs_url = "/docs" if _is_local_dev_env() else None
+redoc_url = "/redoc" if _is_local_dev_env() else None
+
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
+)
 
 
 app.add_middleware(

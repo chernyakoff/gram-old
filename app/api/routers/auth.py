@@ -25,30 +25,24 @@ async def _get_remote_me(authorization: str):
 
 
 async def _sync_local_user(me) -> orm.User:
-    role = orm.Role.ADMIN if me.role.upper() == "ADMIN" else orm.Role.USER
-    user = await orm.User.get_or_none(id=me.id)
-    if user is None:
-        return await orm.User.create(
-            id=me.id,
-            username=me.username,
-            first_name=me.first_name,
-            last_name=me.last_name,
-            photo_url=me.photo_url,
-            role=role,
+    if me.ref_code is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Inconsistent auth provider response: user.ref_code is missing",
         )
 
-    await orm.User.filter(id=me.id).update(
-        username=me.username,
-        first_name=me.first_name,
-        last_name=me.last_name,
-        photo_url=me.photo_url,
-        role=role,
+    role = orm.Role.ADMIN if me.role.upper() == "ADMIN" else orm.Role.USER
+    user, _ = await orm.User.update_or_create(
+        id=me.id,
+        defaults={
+            "username": me.username,
+            "first_name": me.first_name,
+            "last_name": me.last_name,
+            "photo_url": me.photo_url,
+            "role": role,
+            "ref_code": me.ref_code,
+        },
     )
-    user.username = me.username
-    user.first_name = me.first_name
-    user.last_name = me.last_name
-    user.photo_url = me.photo_url
-    user.role = role
     return user
 
 
