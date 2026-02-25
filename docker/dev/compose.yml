@@ -37,6 +37,7 @@ services:
     networks:
       - hatchet
       - dev
+      - s3
       - web
 
   dialog:
@@ -60,6 +61,7 @@ services:
     networks:
       - hatchet
       - dev
+      - s3
       - web
 
   api:
@@ -85,6 +87,7 @@ services:
     networks:
       - hatchet
       - dev
+      - s3
       - web
 
   web:
@@ -104,31 +107,11 @@ services:
       - dev
       - web
 
-  minio:
-    build:
-      context: ./minio
-    container_name: neuro-minio
-    environment:
-      MINIO_ROOT_USER: mike
-      MINIO_ROOT_PASSWORD: gabun8374
-      S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
-      S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
-
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-    networks:
-      - dev
-      - web
-
 volumes:
   uv-venv-base: {}
   uv-venv-dialog: {}
   uv-venv-api: {}
   postgres-data-dev: {}
-  minio-data: {}
 
 networks:
   hatchet:
@@ -138,3 +121,6 @@ networks:
     driver: bridge
   dev:
     driver: bridge
+  s3:
+    external: true
+    name: neuro-s3-dev
