@@ -60,6 +60,9 @@ class DialogManager:
         self.project = project
         self.prompt = prompt
         self.account = account
+        # User relation may be lazy (QuerySet) when not prefetched.
+        # Use explicit identity object to avoid relation loading side effects.
+        self.user = orm.User(id=account.user_id)
         self.logger = logger
         self.stop_event = stop_event
 
@@ -72,7 +75,7 @@ class DialogManager:
             logger=self.logger,
         )
 
-        self.ai_service = AIService(self.account.user)
+        self.ai_service = AIService(self.user)
         self.telegram_service = TelegramService(client, logger)
 
     @staticmethod
