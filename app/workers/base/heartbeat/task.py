@@ -134,7 +134,7 @@ async def release_recipients():
 
 async def get_active_projects(min_balance: int = 1000) -> list[orm.Project]:
     """Получить активные проекты, где у пользователя хватает баланса в users-сервисе."""
-    projects = await orm.Project.filter(status=True).prefetch_related("mailings", "user")
+    projects = await orm.Project.filter(status=True).prefetch_related("mailings")
     if not projects:
         return []
 

@@ -96,9 +96,7 @@ async def renew_account_info(
 async def dialog_task(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     slogger = StreamLogger(ctx)
-    account = await orm.Account.get(id=input.account_id).prefetch_related(
-        "user", "proxy"
-    )
+    account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
     if not account:
         return
 

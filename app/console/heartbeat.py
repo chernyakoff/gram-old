@@ -64,7 +64,7 @@ async def debug_heartbeat_for_user(user_id: int):
     projects = await orm.Project.filter(
         status=True,
         user_id=user_id,
-    ).prefetch_related("mailings", "user")
+    ).prefetch_related("mailings")
 
     if not projects:
         print("❌ Нет активных проектов")
