@@ -309,6 +309,34 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
         await set_main_photo(account_in.id)
 
 
+async def _log_proxy_issue_for_upload(
+    account: AccountUtil, pool: ProxyPool, logger: StreamLogger
+) -> None:
+    logs = pool.get_logs(clear=True)
+    for log in logs:
+        await logger.tech(log.message, payload=log.payload)
+
+    mismatch_payload = next(
+        (
+            log.payload
+            for log in logs
+            if "Proxy country mismatch" in log.message and log.payload
+        ),
+        None,
+    )
+    if mismatch_payload:
+        account_country = mismatch_payload.get("account_country")
+        proxy_countries = mismatch_payload.get("proxy_countries")
+        if isinstance(proxy_countries, list):
+            proxy_countries = ", ".join(proxy_countries)
+        await logger.error(
+            f"{account.phone} нет прокси нужной страны: аккаунт={account_country}, доступны={proxy_countries}"
+        )
+        return
+
+    await logger.error(f"{account.phone} нет доступных прокси для страны аккаунта")
+
+
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
@@ -318,7 +346,7 @@ async def save_account(
 
     proxy = await pool.acquire_proxy(account.country)
     if not proxy:
-        await logger.from_proxy_pool(pool)
+        await _log_proxy_issue_for_upload(account, pool, logger)
         return
 
     client = account.create_client(proxy)
