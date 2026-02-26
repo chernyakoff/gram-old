@@ -7,6 +7,7 @@ from io import BytesIO
 from typing import cast
 from uuid import uuid4
 
+import aiosqlite
 import httpx
 import phonenumbers  # type: ignore
 from aiopath import AsyncPath
@@ -215,6 +216,12 @@ def _resolve_country(phone: str) -> str | None:
         return None
 
 
+async def convert_session(session_path: str):
+    async with aiosqlite.connect(session_path) as db:
+        await db.execute('ALTER TABLE "sessions" DROP COLUMN tmp_auth_key')
+        await db.commit()
+
+
 async def convert_tdata_from_s3(
     user_id: int, s3path: str, logger: StreamLogger
 ) -> list[AccountUtil]:
@@ -305,26 +312,46 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
-    proxy: orm.Proxy | None = None
-    client: TelegramClient | None = None
+    if await orm.Account.filter(user_id=user_id, phone=account.phone).exists():
+        await logger.info(f"{account.phone} уже есть в базе (precheck)")
+        return None
+
+    proxy = await pool.acquire_proxy(account.country)
+    if not proxy:
+        await logger.from_proxy_pool(pool)
+        return
+
+    client = account.create_client(proxy)
 
     try:
-        if await orm.Account.filter(user_id=user_id, phone=account.phone).exists():
-            await logger.info(f"{account.phone} уже есть в базе (precheck)")
-            return None
+        try:
+            await client.connect()
+        except Exception as e:
+            should_try_fix = (
+                "too many values to unpack (expected 5)" in str(e)
+                and account.session_file is not None
+            )
+            if not should_try_fix:
+                raise
 
-        proxy = await pool.acquire_proxy(account.country)
-        if not proxy:
-            await logger.from_proxy_pool(pool)
-            return None
+            try:
+                await convert_session(str(account.session_file))
+                await logger.info(
+                    f"{account.phone} исправил sessions.tmp_auth_key, повторяю подключение"
+                )
+            except Exception as fix_error:
+                await logger.error(
+                    f"{account.phone} не удалось исправить файл сессии: {fix_error}"
+                )
+                raise e
 
-        client = account.create_client(proxy)
+            await client.disconnect()  # type: ignore
+            await client.connect()
 
-        await client.connect()
         if not await client.is_user_authorized():
             await logger.error(f"{account.phone} вылетел из сессии")
 
-            return None
+            return
 
         me = await client.get_me(input_peer=False)
         params = pick(
@@ -368,13 +395,10 @@ async def save_account(
         return saved_id
     except Exception as e:
         await logger.error(f"{account.phone} {e}")
-        if proxy:
-            await pool.release_proxy_lock(proxy)
-        return None
+        await pool.release_proxy_lock(proxy)
 
     finally:
-        if client:
-            await client.disconnect()  # type: ignore
+        await client.disconnect()  # type: ignore
 
 
 async def _filter_accounts_for_upload(
