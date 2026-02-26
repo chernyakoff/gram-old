@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
@@ -28,8 +29,9 @@ class ProxyLogEntry:
 
 class ProxyPool:
     MAX_RETRIES = 5
+    RETRY_DELAY = 1.0
     MAX_FAILURES = 5
-    LOCK_TIMEOUT = 30  # секунд
+    LOCK_TIMEOUT = 180  # секунд
 
     def __init__(self, user_id: int):
         self.user_id = user_id
@@ -132,10 +134,30 @@ class ProxyPool:
         )
 
     async def release_proxy_lock(self, proxy: Proxy):
-        proxy.locked_until = None  # type: ignore
-        proxy.lock_session = None  # type: ignore
-        await proxy.save(update_fields=["locked_until", "lock_session"])
-        self._add_log(Status.INFO, "Proxy lock released", {"proxy_id": proxy.id})
+        lock_session = proxy.lock_session
+        if lock_session:
+            updated = await Proxy.filter(id=proxy.id, lock_session=lock_session).update(
+                locked_until=None, lock_session=None
+            )
+        else:
+            updated = await Proxy.filter(id=proxy.id, lock_session__isnull=True).update(
+                locked_until=None, lock_session=None
+            )
+
+        if updated:
+            proxy.locked_until = None  # type: ignore
+            proxy.lock_session = None  # type: ignore
+            self._add_log(
+                Status.INFO,
+                "Proxy lock released",
+                {"proxy_id": proxy.id, "lock_session": lock_session},
+            )
+        else:
+            self._add_log(
+                Status.WARNING,
+                "Skipped stale proxy unlock attempt",
+                {"proxy_id": proxy.id, "lock_session": lock_session},
+            )
 
     async def _assign_proxy(self, account: Account, proxy: Proxy):
         async with in_transaction() as conn:
@@ -144,9 +166,22 @@ class ProxyPool:
             await self.release_proxy_lock(proxy)
 
     async def acquire_proxy(self, country: str) -> Optional[Proxy]:
-        for _ in range(1, self.MAX_RETRIES + 1):
+        for attempt in range(1, self.MAX_RETRIES + 1):
             proxy = await self._get_free_proxy(country)
             if not proxy:
+                if attempt < self.MAX_RETRIES:
+                    self._add_log(
+                        Status.WARNING,
+                        "No free proxy right now, retrying",
+                        {
+                            "user_id": self.user_id,
+                            "country": country,
+                            "attempt": attempt,
+                            "max_retries": self.MAX_RETRIES,
+                        },
+                    )
+                    await asyncio.sleep(self.RETRY_DELAY)
+                    continue
                 self._add_log(
                     Status.ERROR,
                     "No available proxies for user/country",
