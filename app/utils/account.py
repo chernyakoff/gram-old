@@ -1,5 +1,6 @@
 import json
 import random
+import re
 from dataclasses import asdict, dataclass
 from typing import Any, Optional, Self
 
@@ -144,8 +145,9 @@ class AccountUtil:
     async def instance(cls, file: AccountFile) -> Self:
         result: dict[str, Any] = dict()
         result["session_file"] = file.session
-        result["phone"] = file.session.stem
-        if not result["phone"].isdigit():
+        normalized_phone = re.sub(r"\D", "", file.session.stem)
+        result["phone"] = normalized_phone
+        if not normalized_phone:
             raise ValueError("Имя файла не является номером телефона")
 
         phone = phonenumbers.parse(f"+{result['phone']}")
