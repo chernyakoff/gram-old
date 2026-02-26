@@ -305,22 +305,26 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
-    if await orm.Account.filter(user_id=user_id, phone=account.phone).exists():
-        await logger.info(f"{account.phone} уже есть в базе (precheck)")
-        return None
+    proxy: orm.Proxy | None = None
+    client: TelegramClient | None = None
 
-    proxy = await pool.acquire_proxy(account.country)
-    if not proxy:
-        await logger.from_proxy_pool(pool)
-        return
-
-    client = account.create_client(proxy)
     try:
+        if await orm.Account.filter(user_id=user_id, phone=account.phone).exists():
+            await logger.info(f"{account.phone} уже есть в базе (precheck)")
+            return None
+
+        proxy = await pool.acquire_proxy(account.country)
+        if not proxy:
+            await logger.from_proxy_pool(pool)
+            return None
+
+        client = account.create_client(proxy)
+
         await client.connect()
         if not await client.is_user_authorized():
             await logger.error(f"{account.phone} вылетел из сессии")
 
-            return
+            return None
 
         me = await client.get_me(input_peer=False)
         params = pick(
@@ -364,10 +368,13 @@ async def save_account(
         return saved_id
     except Exception as e:
         await logger.error(f"{account.phone} {e}")
-        await pool.release_proxy_lock(proxy)
+        if proxy:
+            await pool.release_proxy_lock(proxy)
+        return None
 
     finally:
-        await client.disconnect()  # type: ignore
+        if client:
+            await client.disconnect()  # type: ignore
 
 
 async def _filter_accounts_for_upload(
