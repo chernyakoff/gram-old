@@ -305,6 +305,10 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 async def save_account(
     user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
 ):
+    if await orm.Account.filter(user_id=user_id, phone=account.phone).exists():
+        await logger.info(f"{account.phone} уже есть в базе (precheck)")
+        return None
+
     proxy = await pool.acquire_proxy(account.country)
     if not proxy:
         await logger.from_proxy_pool(pool)
@@ -364,6 +368,47 @@ async def save_account(
 
     finally:
         await client.disconnect()  # type: ignore
+
+
+async def _filter_accounts_for_upload(
+    user_id: int, accounts: list[AccountUtil], logger: StreamLogger
+) -> list[AccountUtil]:
+    if not accounts:
+        return []
+
+    existing_phones = set(
+        await orm.Account.filter(
+            user_id=user_id, phone__in=[account.phone for account in accounts]
+        ).values_list("phone", flat=True)
+    )
+
+    selected: list[AccountUtil] = []
+    seen_phones: set[str] = set()
+    skipped_existing = 0
+    skipped_duplicates = 0
+
+    for account in accounts:
+        if account.phone in existing_phones:
+            skipped_existing += 1
+            await logger.info(f"{account.phone} уже есть в базе (precheck)")
+            continue
+
+        if account.phone in seen_phones:
+            skipped_duplicates += 1
+            await logger.warning(
+                f"{account.phone} пропущен: дубль номера в текущем архиве"
+            )
+            continue
+
+        seen_phones.add(account.phone)
+        selected.append(account)
+
+    if skipped_existing:
+        await logger.info(f"Пропущено существующих аккаунтов (precheck): {skipped_existing}")
+    if skipped_duplicates:
+        await logger.info(f"Пропущено дублей в архиве: {skipped_duplicates}")
+
+    return selected
 
 
 @hatchet.task(
@@ -434,6 +479,14 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         await logger.error(
             "Аккаунты не найдены или не удалось подготовить к сохранению."
         )
+        async with AsyncS3Client() as s3:  # type: ignore
+            await s3.delete(input.s3path)
+        await clear_dir(tmp_dir)
+        return
+
+    accounts = await _filter_accounts_for_upload(input.user_id, accounts, logger)
+    if not accounts:
+        await logger.info("Новых аккаунтов для загрузки нет: все уже есть в базе.")
         async with AsyncS3Client() as s3:  # type: ignore
             await s3.delete(input.s3path)
         await clear_dir(tmp_dir)

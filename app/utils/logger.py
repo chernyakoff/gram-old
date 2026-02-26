@@ -207,7 +207,9 @@ class StreamLogger:
             if log.status == Status.INFO:
                 await self.info(log.message, log.payload)
             elif log.status == Status.WARNING:
-                await self.warning(log.message, log.payload)
+                # Proxy pool warnings are often transient/retry noise.
+                # Keep them out of user-facing stream, but preserve in technical logs.
+                await self.tech(log.message, payload=log.payload)
             elif log.status == Status.ERROR:
                 await self.error(log.message, log.payload)
             elif log.status == Status.SUCCESS:

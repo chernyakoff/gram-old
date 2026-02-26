@@ -78,6 +78,25 @@ class ProxyPool:
             )
             return proxy
 
+    async def _get_free_proxy_countries(self) -> list[str]:
+        now = tz.now()
+        async with in_transaction() as conn:
+            rows = await conn.execute_query_dict(
+                """
+                SELECT DISTINCT p.country
+                FROM proxies p
+                WHERE p.user_id = $1
+                  AND p.active = TRUE
+                  AND (p.locked_until IS NULL OR p.locked_until < $2)
+                  AND p.id NOT IN (
+                      SELECT proxy_id FROM accounts WHERE proxy_id IS NOT NULL
+                  )
+                ORDER BY p.country
+                """,
+                [self.user_id, now],
+            )
+        return [row["country"] for row in rows if row.get("country")]
+
     async def _check_proxy(self, proxy: Proxy) -> bool:
         proxy_util = ProxyUtil.from_orm(proxy)
         ok = await proxy_util.check()
@@ -187,6 +206,21 @@ class ProxyPool:
                     "No available proxies for user/country",
                     {"user_id": self.user_id, "country": country},
                 )
+                free_proxy_countries = await self._get_free_proxy_countries()
+                if free_proxy_countries and country not in free_proxy_countries:
+                    self._add_log(
+                        Status.ERROR,
+                        (
+                            "Proxy country mismatch: "
+                            f"account_country={country}, "
+                            f"proxy_countries={','.join(free_proxy_countries)}"
+                        ),
+                        {
+                            "user_id": self.user_id,
+                            "account_country": country,
+                            "proxy_countries": free_proxy_countries,
+                        },
+                    )
                 return None
             else:
                 if await self._check_proxy(proxy):
