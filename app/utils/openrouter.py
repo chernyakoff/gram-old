@@ -570,6 +570,7 @@ async def add_openrouter_to_user(user: User) -> OpenRouterUserState:
             await client.create_or_update_user(
                 CreateUserRequest(
                     id=user.id,
+                    username=user.username,
                 )
             )
             state = await client.internal_get_user_state(

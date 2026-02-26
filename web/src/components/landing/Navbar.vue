@@ -204,8 +204,7 @@ onMounted(() => {
 
 const goToLogin = () => {
   isOpen.value = false
-  const runtimeUsersUrl = (window as unknown as { env?: Record<string, string> }).env?.USERS_URL
-  const usersUrl = import.meta.env.USERS_URL || runtimeUsersUrl || 'http://localhost:8834'
+  const usersUrl = import.meta.env.USERS_URL
   const returnTo = encodeURIComponent(`${window.location.origin}/app`)
   window.location.href = `${usersUrl.replace(/\/$/, '')}/login?return_to=${returnTo}`
 }

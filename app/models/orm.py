@@ -35,6 +35,7 @@ class TimestampMixin:
 
 class User(Model, TimestampMixin):
     id = fields.BigIntField(pk=True, generated=False)
+    username = fields.CharField(max_length=34, null=True, db_index=True)
     settings: fields.ReverseRelation["Settings"]
     mailings = fields.ReverseRelation["Mailing"]
     projects = fields.ReverseRelation["Project"]
@@ -43,13 +44,13 @@ class User(Model, TimestampMixin):
 
     @property
     def display_name(self) -> str:
-        return f"ID: {self.id}"
+        return f"@{self.username}" if self.username else f"ID: {self.id}"
 
     class Meta:
         table = "users"
 
     def __str__(self):
-        return f"{self.id}"
+        return f"{self.id} {self.username}"
 
 
 class Settings(Model):

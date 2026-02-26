@@ -67,8 +67,8 @@ class TgSessions(BaseModel):
 
 
 class NeuroUsers(BaseModel):
-    url: AnyHttpUrl = Field(default="http://localhost:8834")
-    internal_token: SecretStr = Field(default=SecretStr("CHANGE_ME_USER_SYNC_TOKEN"))
+    url: AnyHttpUrl
+    internal_token: SecretStr
     timeout_seconds: float = Field(default=10.0, ge=1.0, le=120.0)
 
 
@@ -93,7 +93,7 @@ class Settings(BaseModel):
     ipinfo: IpInfo
     openrouter: OpenRouter
     tg_sessions: TgSessions
-    neurousers: NeuroUsers = Field(default_factory=NeuroUsers)
+    neurousers: NeuroUsers
 
     @classmethod
     def create(cls, path: str | Path = "config.yml") -> Self:

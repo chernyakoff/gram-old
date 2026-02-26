@@ -102,6 +102,19 @@ class InternalSetOpenRouterRequest(BaseModel):
     model: str | None = None
 
 
+class InternalUsernamesRequest(BaseModel):
+    user_ids: list[int]
+
+
+class InternalUsernameResponse(BaseModel):
+    user_id: int
+    username: str | None
+
+
+class InternalUsernamesResponse(BaseModel):
+    items: list[InternalUsernameResponse]
+
+
 class InternalDebitBalanceRequest(BaseModel):
     user_id: int
     amount_kopecks: int
@@ -129,6 +142,7 @@ class NeuroUsersClient:
     - `admin_add_balance`: admin-only balance top-up (bearer token).
     - `internal_get_user_state`: read balance/openrouter settings by user id.
     - `internal_set_openrouter_settings`: update openrouter settings by user id.
+    - `internal_get_usernames`: read usernames by user ids.
     - `internal_debit_balance`: atomically debit user balance (kopecks).
     """
 
@@ -305,6 +319,18 @@ class NeuroUsersClient:
             json=payload.model_dump(exclude_none=True),
         )
         return InternalUserStateResponse.model_validate(data)
+
+    async def internal_get_usernames(
+        self,
+        payload: InternalUsernamesRequest,
+    ) -> InternalUsernamesResponse:
+        data = await self._request(
+            "POST",
+            "/admin/internal/usernames",
+            headers=self._internal_headers(),
+            json=payload.model_dump(),
+        )
+        return InternalUsernamesResponse.model_validate(data)
 
     async def internal_debit_balance(
         self,

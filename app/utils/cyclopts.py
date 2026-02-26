@@ -29,13 +29,10 @@ def run_app(
     for subapp in vars.load(path, App):
         app.command(subapp)
 
-    @app.meta.default
-    def _meta_default(*tokens: str):
-        if on_startup is not None:
-            result = on_startup()
-            if inspect.isawaitable(result):
-                asyncio.run(result)  # type: ignore
-        app(tokens)
+    if on_startup is not None:
+        result = on_startup()
+        if inspect.isawaitable(result):
+            asyncio.run(result)  # type: ignore
 
-    app.meta()
+    app()
     return app

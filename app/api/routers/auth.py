@@ -25,7 +25,10 @@ async def _get_remote_me(authorization: str) -> UserMeResponse:
 
 
 async def _sync_local_user(me: UserMeResponse) -> orm.User:
-    user, _ = await orm.User.get_or_create(id=me.id)
+    user, _ = await orm.User.get_or_create(id=me.id, defaults={"username": me.username})
+    if user.username != me.username:
+        user.username = me.username
+        await user.save(update_fields=["username"])
     return user
 
 
