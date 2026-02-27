@@ -534,17 +534,26 @@ def minutes_left_in_send_window(project: orm.Project, now) -> int:
     today = now.date()
     tzinfo = now.tzinfo
 
+    # UI допускает значение 24 как "до конца суток".
+    # datetime.time принимает только 0..23, поэтому нормализуем отдельно.
+    if end_h == 24:
+        end_date = today + timedelta(days=1)
+        end_time = time(0)
+    else:
+        end_date = today
+        end_time = time(end_h)
+
     if start_h <= end_h:
         # окно внутри суток
-        end_dt = datetime.combine(today, time(end_h), tzinfo=tzinfo)
+        end_dt = datetime.combine(end_date, end_time, tzinfo=tzinfo)
     else:
         # окно через полночь
         if now.hour >= start_h:
             end_dt = datetime.combine(
-                today + timedelta(days=1), time(end_h), tzinfo=tzinfo
+                today + timedelta(days=1), end_time, tzinfo=tzinfo
             )
         else:
-            end_dt = datetime.combine(today, time(end_h), tzinfo=tzinfo)
+            end_dt = datetime.combine(today, end_time, tzinfo=tzinfo)
 
     if now >= end_dt:
         return 0
