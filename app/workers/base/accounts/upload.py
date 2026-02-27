@@ -385,7 +385,7 @@ async def save_account(
         try:
             await client.connect()
         except Exception as e:
-            if not _is_unpack_5_error(e):
+            if not _is_unpack_error(e):
                 raise
             if not await _try_fix_session_tmp_auth_key(account, logger):
                 raise e
