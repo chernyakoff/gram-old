@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from rich import print
 from tortoise import timezone as tz
@@ -125,13 +125,18 @@ async def debug_heartbeat_for_user(user_id: int):
         selected_accounts = []
         for uid, acc_list in accounts_by_user.items():
             # сортировка: сначала с лимитом, потом по last_attempt_at, потом по id
+            def _attempt_ts(account):
+                if account.last_attempt_at is None:
+                    return 0.0
+                dt = account.last_attempt_at
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.timestamp()
+
             acc_list.sort(
                 key=lambda a: (
                     -(a.daily_limit_left > 0),  # True > False
-                    a.last_attempt_at
-                    or datetime(
-                        1970, 1, 1
-                    ),  # "datetime" is not exported from module "tortoise.timezone"
+                    _attempt_ts(a),
                     a.id,
                 )
             )
