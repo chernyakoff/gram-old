@@ -222,6 +222,29 @@ async def convert_session(session_path: str):
         await db.commit()
 
 
+def _is_unpack_error(exc: Exception) -> bool:
+    return "too many values to unpack" in str(exc)
+
+
+async def _try_fix_session_tmp_auth_key(
+    account: AccountUtil, logger: StreamLogger
+) -> bool:
+    if account.session_file is None:
+        return False
+
+    try:
+        await convert_session(str(account.session_file))
+        await logger.info(
+            f"{account.phone} исправил sessions.tmp_auth_key, повторяю подключение"
+        )
+        return True
+    except Exception as fix_error:
+        await logger.error(
+            f"{account.phone} не удалось исправить файл сессии: {fix_error}"
+        )
+        return False
+
+
 async def convert_tdata_from_s3(
     user_id: int, s3path: str, logger: StreamLogger
 ) -> list[AccountUtil]:
@@ -349,28 +372,22 @@ async def save_account(
         await _log_proxy_issue_for_upload(account, pool, logger)
         return
 
-    client = account.create_client(proxy)
+    try:
+        client = account.create_client(proxy)
+    except Exception as e:
+        if not _is_unpack_error(e):
+            raise
+        if not await _try_fix_session_tmp_auth_key(account, logger):
+            raise
+        client = account.create_client(proxy)
 
     try:
         try:
             await client.connect()
         except Exception as e:
-            should_try_fix = (
-                "too many values to unpack (expected 5)" in str(e)
-                and account.session_file is not None
-            )
-            if not should_try_fix:
+            if not _is_unpack_5_error(e):
                 raise
-
-            try:
-                await convert_session(str(account.session_file))
-                await logger.info(
-                    f"{account.phone} исправил sessions.tmp_auth_key, повторяю подключение"
-                )
-            except Exception as fix_error:
-                await logger.error(
-                    f"{account.phone} не удалось исправить файл сессии: {fix_error}"
-                )
+            if not await _try_fix_session_tmp_auth_key(account, logger):
                 raise e
 
             await client.disconnect()  # type: ignore
@@ -463,7 +480,9 @@ async def _filter_accounts_for_upload(
         selected.append(account)
 
     if skipped_existing:
-        await logger.info(f"Пропущено существующих аккаунтов (precheck): {skipped_existing}")
+        await logger.info(
+            f"Пропущено существующих аккаунтов (precheck): {skipped_existing}"
+        )
     if skipped_duplicates:
         await logger.info(f"Пропущено дублей в архиве: {skipped_duplicates}")
 
