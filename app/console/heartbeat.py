@@ -16,9 +16,16 @@ MAX_ACCOUNTS_PER_CYCLE = 50
 
 def is_project_in_send_window(project, now):
     h = now.hour
-    if project.send_time_start <= project.send_time_end:
-        return project.send_time_start <= h <= project.send_time_end
-    return h >= project.send_time_start or h <= project.send_time_end
+    start = project.send_time_start
+    end = project.send_time_end
+
+    # В UI допускается "24" как конец суток.
+    if end == 24:
+        return h >= start
+
+    if start <= end:
+        return start <= h <= end
+    return h >= start or h <= end
 
 
 async def get_recipients(mailings, limit, now):
