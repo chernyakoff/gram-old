@@ -1,11 +1,27 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { parse } from 'valibot'
 import type { AccountOut } from '@/types/openapi'
-import { accountSchema, type AccountSchema, type AccountUpdatePayload } from '@/schemas/accounts'
+import type { AccountSchema, AccountUpdatePayload } from '@/schemas/accounts'
 import type { AccountPhotosChanges, EditableAccountPhoto } from '@/schemas/accounts'
 
 export const useAccountEditor = defineStore('accountEditor', () => {
+  const trimNullable = (value: string | null | undefined, maxLength: number): string | null => {
+    if (value == null) return null
+    return value.slice(0, maxLength)
+  }
+
+  const normalizeAccountProfile = (account: AccountOut): AccountSchema => {
+    const aboutMaxLength = account.premium ? 140 : 70
+    return {
+      username: account.username ?? null,
+      channel: account.channel ?? null,
+      premium: account.premium,
+      about: trimNullable(account.about, aboutMaxLength),
+      firstName: trimNullable(account.firstName, 32),
+      lastName: trimNullable(account.lastName, 32),
+    }
+  }
+
   // State
   const profile = ref<AccountSchema>({} as AccountSchema)
   const photos = ref<EditableAccountPhoto[]>([])
@@ -60,7 +76,7 @@ export const useAccountEditor = defineStore('accountEditor', () => {
 
   // Actions
   async function initialize(account: AccountOut) {
-    profile.value = parse(accountSchema, account)
+    profile.value = normalizeAccountProfile(account)
     photos.value = parsePhotos(account.photos)
     originalProfile.value = { ...profile.value }
     currentAccountId.value = account.id

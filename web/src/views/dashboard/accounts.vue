@@ -105,7 +105,7 @@
                 <UIcon name="i-lucide-circle-user" class="h-8 w-8" />
               </template>
             </UButton>
-            <div>
+            <div class="min-w-0">
               <template v-if="isInHold(row.original)">
                 <p
                   class="font-medium text-muted whitespace-nowrap"
@@ -113,7 +113,9 @@
                 </p>
               </template>
               <template v-else>
-                <p class="font-medium text-highlighted">
+                <p
+                  class="font-medium text-highlighted truncate max-w-[260px]"
+                  :title="`${row.original.firstName ?? ''} ${row.original.lastName ?? ''}`">
                   {{ row.original.firstName }} {{ row.original.lastName }}
                 </p>
                 <p>
