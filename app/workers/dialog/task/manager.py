@@ -175,7 +175,17 @@ class DialogManager:
                     continue
 
                 # ШАГ 3: Сохраняем новые сообщения в БД
+                saved_count = 0
                 for msg in new_messages:
+                    # Защита от повторной обработки одного и того же входящего.
+                    exists = await orm.Message.filter(
+                        dialog=dialog,
+                        sender=orm.MessageSender.RECIPIENT,
+                        tg_message_id=msg.id,
+                    ).exists()
+                    if exists:
+                        continue
+
                     await orm.Message.create(
                         dialog=dialog,
                         sender=orm.MessageSender.RECIPIENT,
@@ -183,6 +193,10 @@ class DialogManager:
                         text=msg.text or "",
                         created_at=msg.date,
                     )
+                    saved_count += 1
+
+                if saved_count == 0:
+                    continue
 
                 dialogs_with_replies += 1
                 self.session_timer.reset(5)
@@ -392,10 +406,16 @@ class DialogManager:
             if not peer:
                 return []
 
-        # Получаем последнее сообщение из БД
+        # Берём максимальный Telegram message id в диалоге, а не
+        # "последнее сообщение по created_at", чтобы не переобрабатывать
+        # старые входящие при рассинхроне created_at.
         last_db_message = (
-            await orm.Message.filter(dialog=dialog, ui_only=False)
-            .order_by("-created_at")
+            await orm.Message.filter(
+                dialog=dialog,
+                ui_only=False,
+                tg_message_id__isnull=False,
+            )
+            .order_by("-tg_message_id")
             .first()
         )
 
@@ -599,6 +619,18 @@ class DialogManager:
                 return
 
             recipient = dialog.recipient
+
+            # Событие может прилететь повторно, не дублируем запись.
+            exists = await orm.Message.filter(
+                dialog=dialog,
+                sender=orm.MessageSender.RECIPIENT,
+                tg_message_id=event.id,
+            ).exists()
+            if exists:
+                self.logger.info(
+                    f"[{recipient.username}] Дубликат входящего {event.id} пропущен"
+                )
+                return
 
             # Сохраняем сообщение от получателя
             await orm.Message.create(
