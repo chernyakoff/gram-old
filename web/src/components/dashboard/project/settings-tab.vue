@@ -24,7 +24,7 @@
                     <UFormField name="sendTimeEnd" class="w-auto">
                         <USelect
                             v-model="state.sendTimeEnd"
-                            :items="hours"
+                            :items="endHours"
                             placeholder="По"
                             class="w-auto min-w-[50px]" />
                     </UFormField>
@@ -82,7 +82,8 @@ const textSchema = v.pipe(
     v.minLength(32, 'должно содержать хотя бы 32 символа'),
 )
 
-const hourSchema = v.pipe(v.number('обязательное поле'), v.minValue(0), v.maxValue(24))
+const startHourSchema = v.pipe(v.number('обязательное поле'), v.minValue(0), v.maxValue(23))
+const endHourSchema = v.pipe(v.number('обязательное поле'), v.minValue(0), v.maxValue(24))
 
 const projectSettingsSchema = v.object({
     name: v.pipe(
@@ -91,8 +92,8 @@ const projectSettingsSchema = v.object({
         v.maxLength(64, 'должно содержать не более 64 символов'),
     ),
     dialogLimit: limitShema,
-    sendTimeStart: hourSchema,
-    sendTimeEnd: hourSchema,
+    sendTimeStart: startHourSchema,
+    sendTimeEnd: endHourSchema,
     firstMessage: textSchema,
     premiumRequired: v.boolean(),
 })
@@ -102,6 +103,8 @@ const hours = Array.from({ length: 24 }, (_, i) => ({
     label: i.toString().padStart(2, '0') + ':00',
     value: i,
 }))
+
+const endHours = [...hours, { label: '24:00', value: 24 }]
 
 const disableSynonimize = computed(() => {
     // Ищем текст вида {что-то|что-то}

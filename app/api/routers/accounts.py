@@ -30,6 +30,19 @@ from utils.s3 import AsyncS3Client
 router = APIRouter(prefix="/accounts", tags=["account"])
 
 
+async def _dialogs_count_by_account_ids(account_ids: list[int]) -> dict[int, int]:
+    if not account_ids:
+        return {}
+
+    rows = (
+        await orm.Dialog.filter(account_id__in=account_ids)
+        .annotate(cnt=Count("id"))
+        .group_by("account_id")
+        .values("account_id", "cnt")
+    )
+    return {row["account_id"]: row["cnt"] for row in rows}
+
+
 @router.post("/", response_model=WorkflowOut)
 async def upload_accounts(
     input: AccountsBulkCreateIn,
@@ -57,29 +70,36 @@ async def get_accounts_state(user=Depends(get_current_user)):
 
 @router.get("/{id}", response_model=AccountOut)
 async def get_account(id: int, user=Depends(get_current_user)):
-    account = (
-        await orm.Account.get(id=id)
-        .prefetch_related("photos", "project", "proxy")
-        .annotate(dialogs_count=Count("dialogs"))
+    account = await orm.Account.get_or_none(id=id, user_id=user.id).prefetch_related(
+        "photos", "project", "proxy"
     )
     if not account:
         raise HTTPException(status_code=404, detail="not found")
+
+    dialogs_count = await orm.Dialog.filter(account_id=account.id).count()
+    setattr(account, "dialogs_count", dialogs_count)
 
     return await AccountOut.from_tortoise_orm(account)
 
 
 @router.get("/", response_model=list[AccountOut])
 async def get_accounts(user=Depends(get_current_user)):
-    qs = (
+    accounts = await (
         orm.Account.filter(user_id=user.id)
         .prefetch_related(
             Prefetch("photos", queryset=orm.AccountPhoto.filter(main=True)),
             "project",
             "proxy",
         )
-        .annotate(dialogs_count=Count("dialogs"))
     )
-    return await AccountOut.from_queryset(qs)
+
+    counts = await _dialogs_count_by_account_ids([a.id for a in accounts])
+    for account in accounts:
+        setattr(account, "dialogs_count", counts.get(account.id, 0))
+
+    return await asyncio.gather(
+        *(AccountOut.from_tortoise_orm(account) for account in accounts)
+    )
 
 
 async def delete_accounts_photos(paths: list[str]):
