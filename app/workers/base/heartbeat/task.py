@@ -647,7 +647,7 @@ def should_run_sparse_user_account(project: orm.Project, acc: orm.Account, now) 
     seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
     rng = random.Random(seed)
 
-    runs_per_window = 2 + (seed % 2)
+    runs_per_window = 4
     runs_per_window = min(runs_per_window, len(ticks))
     chosen_tick_indexes = set(rng.sample(range(len(ticks)), runs_per_window))
 
