@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import math
+import random
 from datetime import datetime, time, timedelta
 
 from hatchet_sdk import Context, EmptyModel, TriggerWorkflowOptions
@@ -36,6 +38,7 @@ MAX_ACCOUNTS_PER_CYCLE = 200
 RECIPIENT_LEASE_MINUTES = 30
 MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
 HEARTBEAT_MINUTES = 15
+SPECIAL_SPARSE_USER_ID = 8523549030
 
 
 def build_heartbeat_minutes_field(interval_minutes: int, start_minute: int = 5) -> str:
@@ -566,6 +569,91 @@ def ticks_left_in_send_window(project: orm.Project, now) -> int:
     return max(1, math.ceil(minutes_left / HEARTBEAT_MINUTES))
 
 
+def send_window_bounds(project: orm.Project, now) -> tuple[datetime, datetime]:
+    start_h = project.send_time_start
+    end_h = project.send_time_end
+
+    today = now.date()
+    tzinfo = now.tzinfo
+
+    if end_h == 24:
+        end_time = time(0)
+    else:
+        end_time = time(end_h)
+
+    if start_h <= end_h:
+        start_dt = datetime.combine(today, time(start_h), tzinfo=tzinfo)
+        end_date = today + timedelta(days=1) if end_h == 24 else today
+        end_dt = datetime.combine(end_date, end_time, tzinfo=tzinfo)
+        return start_dt, end_dt
+
+    if now.hour >= start_h:
+        start_date = today
+        end_date = today + timedelta(days=1)
+    else:
+        start_date = today - timedelta(days=1)
+        end_date = today
+
+    start_dt = datetime.combine(start_date, time(start_h), tzinfo=tzinfo)
+    end_dt = datetime.combine(end_date, end_time, tzinfo=tzinfo)
+    return start_dt, end_dt
+
+
+def heartbeat_ticks_in_window(
+    window_start: datetime, window_end: datetime
+) -> list[datetime]:
+    if window_start >= window_end:
+        return []
+
+    base = window_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_offset = int((window_start - base).total_seconds() // 60)
+    end_offset = int((window_end - base).total_seconds() // 60)
+
+    first_tick = 5
+    if start_offset <= first_tick:
+        tick_offset = first_tick
+    else:
+        steps = math.ceil((start_offset - first_tick) / HEARTBEAT_MINUTES)
+        tick_offset = first_tick + steps * HEARTBEAT_MINUTES
+
+    ticks: list[datetime] = []
+    while tick_offset < end_offset:
+        ticks.append(base + timedelta(minutes=tick_offset))
+        tick_offset += HEARTBEAT_MINUTES
+
+    return ticks
+
+
+def should_run_sparse_user_account(project: orm.Project, acc: orm.Account, now) -> bool:
+    if acc.user_id != SPECIAL_SPARSE_USER_ID:
+        return True
+
+    window_start, window_end = send_window_bounds(project, now)
+    ticks = heartbeat_ticks_in_window(window_start, window_end)
+    if not ticks:
+        return True
+
+    current_tick_idx = -1
+    for idx, tick_dt in enumerate(ticks):
+        if tick_dt <= now:
+            current_tick_idx = idx
+        else:
+            break
+
+    if current_tick_idx < 0:
+        return False
+
+    seed_src = f"{acc.user_id}:{project.id}:{window_start.date().isoformat()}"
+    seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
+    rng = random.Random(seed)
+
+    runs_per_window = 2 + (seed % 2)
+    runs_per_window = min(runs_per_window, len(ticks))
+    chosen_tick_indexes = set(rng.sample(range(len(ticks)), runs_per_window))
+
+    return current_tick_idx in chosen_tick_indexes
+
+
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
     await ensure_reminder_tables()
@@ -648,6 +736,10 @@ async def task(input: EmptyModel, ctx: Context):
             has_active_mailings = bool(active_mailings)
 
             for acc in accounts_queue:
+                if in_send_window and has_active_mailings:
+                    if not should_run_sparse_user_account(project, acc, now):
+                        continue
+
                 if in_send_window and has_active_mailings and acc.daily_limit_left > 0:
                     ticks_left = ticks_left_in_send_window(project, now)
 
