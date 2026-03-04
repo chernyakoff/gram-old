@@ -673,7 +673,7 @@ def is_account_day_off(acc: orm.Account, now) -> bool:
     seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
     rng = random.Random(seed)
 
-    day_off_ordinal = EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL
+    day_off_ordinal = EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL + 3
     while day_off_ordinal < target_ordinal:
         day_off_ordinal += rng.choice((3, 4))
 
