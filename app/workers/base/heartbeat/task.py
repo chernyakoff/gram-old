@@ -521,10 +521,11 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
     await (
         orm.Mailing.filter(id=mailing.id)
         .using_db(conn)
-        .update(status=orm.MailingStatus.FINISHED, finished_at=now)
+        .update(status=orm.MailingStatus.FINISHED, finished_at=now, active=False)
     )
     mailing.status = orm.MailingStatus.FINISHED
     mailing.finished_at = now  # type: ignore
+    mailing.active = False
 
     info = await (
         orm.Mailing.filter(id=mailing.id)
@@ -533,6 +534,53 @@ async def check_and_close_mailing(mailing: orm.Mailing, now, conn) -> dict | Non
     )
 
     return info[0] if info else None
+
+
+async def close_mailings_without_pending_recipients(now) -> list[dict]:
+    """
+    Закрывает RUNNING/DRAFT рассылки с active=True, у которых нет PENDING recipients.
+    Нужна, чтобы не оставались "запущенные" рассылки в проектах без доступных аккаунтов.
+    """
+    async with in_transaction() as conn:
+        stale_mailings = await conn.execute_query_dict(
+            """
+            SELECT m.id, m.user_id, m.name, p.name AS project_name
+            FROM mailings m
+            JOIN projects p ON p.id = m.project_id
+            WHERE m.active = TRUE
+              AND m.status IN ('running', 'draft')
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM recipients r
+                  WHERE r.mailing_id = m.id
+                    AND r.status = 'pending'
+              );
+            """
+        )
+        if not stale_mailings:
+            return []
+
+        stale_ids = [row["id"] for row in stale_mailings]
+        await (
+            orm.Mailing.filter(id__in=stale_ids)
+            .using_db(conn)
+            .update(
+                status=orm.MailingStatus.FINISHED,
+                finished_at=now,
+                active=False,
+            )
+        )
+
+    return stale_mailings
+
+
+async def notify_mailing_end_batch(notify_queue: list[dict]) -> None:
+    for idx, info in enumerate(notify_queue):
+        asyncio.create_task(
+            notify_mailing_end(info["user_id"], info["name"], info["project_name"])
+        )
+        if idx < len(notify_queue) - 1:
+            await asyncio.sleep(0.3)
 
 
 def minutes_left_in_send_window(project: orm.Project, now) -> int:
@@ -691,6 +739,7 @@ async def task(input: EmptyModel, ctx: Context):
     now = tz.now()
     planned_tasks = 0
     notify_queue = []
+    notify_queue.extend(await close_mailings_without_pending_recipients(now))
 
     projects = await get_active_projects()
 
@@ -832,9 +881,6 @@ async def task(input: EmptyModel, ctx: Context):
                 planned_tasks += len(recipients_id)
 
     # Отправка уведомлений о завершении рассылок
-    for info in notify_queue:
-        asyncio.create_task(
-            notify_mailing_end(info["user_id"], info["name"], info["project_name"])
-        )
+    await notify_mailing_end_batch(notify_queue)
 
     return {"planned_tasks": planned_tasks, "time": now.isoformat()}
