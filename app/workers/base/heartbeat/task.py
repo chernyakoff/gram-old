@@ -40,6 +40,11 @@ MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
 HEARTBEAT_MINUTES = 15
 SPECIAL_SPARSE_USER_ID = 8523549030
 
+# Эксперимент: общий выходной для всех аккаунтов.
+# Выключить фичу можно одним флагом ниже.
+EXPERIMENTAL_RANDOM_DAY_OFF_ENABLED = True
+EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL = datetime(2026, 1, 1).date().toordinal()
+
 
 def build_heartbeat_minutes_field(interval_minutes: int, start_minute: int = 5) -> str:
     if interval_minutes <= 0 or interval_minutes >= 60:
@@ -654,6 +659,27 @@ def should_run_sparse_user_account(project: orm.Project, acc: orm.Account, now) 
     return current_tick_idx in chosen_tick_indexes
 
 
+def is_account_day_off(acc: orm.Account, now) -> bool:
+    if not EXPERIMENTAL_RANDOM_DAY_OFF_ENABLED:
+        return False
+
+    target_ordinal = now.date().toordinal()
+    if target_ordinal < EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL:
+        return False
+
+    # Детерминированный генератор: один и тот же аккаунт получает стабильную
+    # последовательность интервалов 3/4 дня между выходными.
+    seed_src = f"dayoff:{acc.id}"
+    seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
+    rng = random.Random(seed)
+
+    day_off_ordinal = EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL
+    while day_off_ordinal < target_ordinal:
+        day_off_ordinal += rng.choice((3, 4))
+
+    return day_off_ordinal == target_ordinal
+
+
 @heartbeat.task()
 async def task(input: EmptyModel, ctx: Context):
     await ensure_reminder_tables()
@@ -736,6 +762,9 @@ async def task(input: EmptyModel, ctx: Context):
             has_active_mailings = bool(active_mailings)
 
             for acc in accounts_queue:
+                if is_account_day_off(acc, now):
+                    continue
+
                 if in_send_window and has_active_mailings:
                     if not should_run_sparse_user_account(project, acc, now):
                         continue
