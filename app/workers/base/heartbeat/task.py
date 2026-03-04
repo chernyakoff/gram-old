@@ -43,7 +43,6 @@ SPECIAL_SPARSE_USER_ID = 8523549030
 # Эксперимент: общий выходной для всех аккаунтов.
 # Выключить фичу можно одним флагом ниже.
 EXPERIMENTAL_RANDOM_DAY_OFF_ENABLED = True
-EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL = datetime(2026, 1, 1).date().toordinal()
 
 
 def build_heartbeat_minutes_field(interval_minutes: int, start_minute: int = 5) -> str:
@@ -712,16 +711,20 @@ def is_account_day_off(acc: orm.Account, now) -> bool:
         return False
 
     target_ordinal = now.date().toordinal()
-    if target_ordinal < EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL:
+    created_at = getattr(acc, "created_at", None)
+    if not created_at:
+        return False
+    first_day_off_ordinal = created_at.date().toordinal() + 3
+    if target_ordinal < first_day_off_ordinal:
         return False
 
     # Детерминированный генератор: один и тот же аккаунт получает стабильную
     # последовательность интервалов 3/4 дня между выходными.
-    seed_src = f"dayoff:{acc.id}"
+    seed_src = f"dayoff:{acc.id}:{created_at.date().isoformat()}"
     seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
     rng = random.Random(seed)
 
-    day_off_ordinal = EXPERIMENTAL_RANDOM_DAY_OFF_ANCHOR_ORDINAL + 3
+    day_off_ordinal = first_day_off_ordinal
     while day_off_ordinal < target_ordinal:
         day_off_ordinal += rng.choice((3, 4))
 
