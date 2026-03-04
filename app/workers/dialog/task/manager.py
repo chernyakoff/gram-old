@@ -889,6 +889,13 @@ class DialogManager:
         if not ai_response:
             return
 
+        # Защита от служебного "пустого" ответа провайдера.
+        if ai_response.strip().lower() == "none":
+            self.logger.warning(
+                f"[{recipient.username}] AI вернул placeholder 'None' — ответ не отправлен"
+            )
+            return
+
         if (
             new_status == orm.DialogStatus.CLOSING
             and dialog.status != orm.DialogStatus.CLOSING

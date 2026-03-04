@@ -144,10 +144,18 @@ class AIService:
             if not response:
                 return None, None
 
-            if response.strip() == "COMPLETE":
+            cleaned_response = response.strip()
+            if not cleaned_response:
+                return None, None
+
+            if cleaned_response.lower() in {"none", "null"}:
+                logger.warning("AI вернул служебный пустой ответ")
+                return None, None
+
+            if cleaned_response == "COMPLETE":
                 return "COMPLETE", orm.DialogStatus.COMPLETE
 
-            return normalize_dashes(response), status
+            return normalize_dashes(cleaned_response), status
 
         except Exception as e:
             await BotNotify.error(self.user.id, str(e))

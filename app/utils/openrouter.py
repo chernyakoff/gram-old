@@ -244,6 +244,8 @@ async def create_response(
 
     await charge_user_for_usage(user_id=user.id, model=model, usage=usage, usd_rate=usd_rate)
 
+    if content is None:
+        return ""
     return str(content)
 
 
@@ -276,6 +278,8 @@ async def generate_prompt(user: User, metaprompt: str, timeout_min: int = 10) ->
     if usage:
         await charge_user_for_usage(user_id=user.id, model=model, usage=usage, usd_rate=usd_rate)
 
+    if content is None:
+        return ""
     return str(content)
 
 
