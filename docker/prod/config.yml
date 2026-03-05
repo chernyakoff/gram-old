@@ -24,8 +24,8 @@ api:
     expire_seconds: 3600
     refresh_expire_days: 30
   bot:
-    token: "8207129398:AAGRe9ytQZJVuCtZ2NCSp0Fs5GhyVt_rD8s"
-    name: "LidorubLoginBot"
+    token: "8694647981:AAHrnA3d034gkOTszPD_6xgcbuIzKy5No70"
+    name: "LidorubCybcomBot"
 
 web:
   url: "https://lidorub.cybcom.online"
