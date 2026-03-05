@@ -63,6 +63,7 @@ services:
     build:
       context: ../../workers/dialog
       target: prod
+
     volumes:
       - ../../workers/dialog:/app
       - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
@@ -95,24 +96,38 @@ services:
     command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
-    ports:
-      - "127.0.0.1:18833:8833"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.neuro-api.rule=Host(`api.lidorub.online`)"
+      - "traefik.http.routers.neuro-api.entrypoints=websecure"
+      - "traefik.http.routers.neuro-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.neuro-api.loadbalancer.server.port=8833"
+      - "traefik.http.routers.neuro-api.middlewares=secure-headers@file" 
     networks:
       - hatchet
       - dev
+      - web
 
   web:
     build:
       context: ../..
       dockerfile: web/Dockerfile.prod
     container_name: neuro-web
+
     depends_on:
       - api
       - base-worker
-    ports:
-      - "127.0.0.1:13000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.neuro-web.rule=Host(`lidorub.online`)"
+      - "traefik.http.routers.neuro-web.entrypoints=websecure"
+      - "traefik.http.routers.neuro-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.neuro-web.loadbalancer.server.port=3000"
     networks:
       - dev
+      - web
 
   minio:
     build:
@@ -123,17 +138,34 @@ services:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: b23vk6N1VdOV
       # Эти переменные нужны для правильной работы MinIO через reverse proxy
-      MINIO_SERVER_URL: "https://media.cybcom.online"
-      MINIO_BROWSER_REDIRECT_URL: "https://minio.cybcom.online"
+      MINIO_SERVER_URL: "https://media.lidorub.online"
+      MINIO_BROWSER_REDIRECT_URL: "https://minio.lidorub.online"
       S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
       S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
     ports:
-      - "127.0.0.1:19100:9000"
-      - "127.0.0.1:19101:9001"
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio-data:/data
+    # НЕ добавляем command - используем ENTRYPOINT из Dockerfile
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      # S3 API endpoint
+      - "traefik.http.routers.neuro-minio-api.rule=Host(`media.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio-api.entrypoints=websecure"
+      - "traefik.http.routers.neuro-minio-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.neuro-minio-api.service=neuro-minio-api"
+      - "traefik.http.services.neuro-minio-api.loadbalancer.server.port=9000"
+      # Console на отдельном домене
+      - "traefik.http.routers.neuro-minio-console.rule=Host(`minio.lidorub.online`)"
+      - "traefik.http.routers.neuro-minio-console.entrypoints=websecure"
+      - "traefik.http.routers.neuro-minio-console.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.neuro-minio-console.service=neuro-minio-console"
+      - "traefik.http.services.neuro-minio-console.loadbalancer.server.port=9001"
     networks:
       - dev
+      - web
 
 volumes:
   uv-venv-base-worker: {}
@@ -146,6 +178,10 @@ networks:
   hatchet:
     external: true
     name: hatchet-network
+  web:
+    name: web
+    driver: bridge
+    external: true
   dev:
     name: dev
     driver: bridge

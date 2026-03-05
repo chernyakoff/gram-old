@@ -8,7 +8,7 @@ hatchet:
 s3:
   access_key: "IhDRQQH1TfL0wQtUDpKV"
   secret_key: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
-  public_endpoint_url: "https://media.cybcom.online"
+  public_endpoint_url: "https://media.lidorub.online"
   endpoint_url: "http://neuro-minio:9000"
 
 ipinfo:
@@ -17,7 +17,7 @@ ipinfo:
 api:
   port: 8833
   host: "0.0.0.0"
-  url: "https://api.cybcom.online"
+  url: "https://api.lidorub.online"
   jwt:
     secret: "arG6u&AIQ3n6ZRq*"
     algorithm: "HS256"
@@ -28,7 +28,7 @@ api:
     name: "LidorubLoginBot"
 
 web:
-  url: "https://lidorub.cybcom.online"
+  url: "https://lidorub.online"
 
 openrouter:
   manager_api_key: "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"
