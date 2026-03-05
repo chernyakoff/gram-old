@@ -38,8 +38,6 @@ MAX_ACCOUNTS_PER_CYCLE = 200
 RECIPIENT_LEASE_MINUTES = 30
 MAX_ACCOUNTS_PER_USER_PER_CYCLE = 20
 HEARTBEAT_MINUTES = 15
-SPECIAL_SPARSE_USER_ID = 8523549030
-
 # Эксперимент: общий выходной для всех аккаунтов.
 # Выключить фичу можно одним флагом ниже.
 EXPERIMENTAL_RANDOM_DAY_OFF_ENABLED = True
@@ -676,36 +674,6 @@ def heartbeat_ticks_in_window(
     return ticks
 
 
-def should_run_sparse_user_account(project: orm.Project, acc: orm.Account, now) -> bool:
-    if acc.user_id != SPECIAL_SPARSE_USER_ID:
-        return True
-
-    window_start, window_end = send_window_bounds(project, now)
-    ticks = heartbeat_ticks_in_window(window_start, window_end)
-    if not ticks:
-        return True
-
-    current_tick_idx = -1
-    for idx, tick_dt in enumerate(ticks):
-        if tick_dt <= now:
-            current_tick_idx = idx
-        else:
-            break
-
-    if current_tick_idx < 0:
-        return False
-
-    seed_src = f"{acc.user_id}:{project.id}:{window_start.date().isoformat()}"
-    seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
-    rng = random.Random(seed)
-
-    runs_per_window = 4
-    runs_per_window = min(runs_per_window, len(ticks))
-    chosen_tick_indexes = set(rng.sample(range(len(ticks)), runs_per_window))
-
-    return current_tick_idx in chosen_tick_indexes
-
-
 def is_account_day_off(acc: orm.Account, now) -> bool:
     if not EXPERIMENTAL_RANDOM_DAY_OFF_ENABLED:
         return False
@@ -816,10 +784,6 @@ async def task(input: EmptyModel, ctx: Context):
             for acc in accounts_queue:
                 if is_account_day_off(acc, now):
                     continue
-
-                if in_send_window and has_active_mailings:
-                    if not should_run_sparse_user_account(project, acc, now):
-                        continue
 
                 if in_send_window and has_active_mailings and acc.daily_limit_left > 0:
                     ticks_left = ticks_left_in_send_window(project, now)
