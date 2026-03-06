@@ -66,14 +66,16 @@ class AccountOut(AccountBase):
     async def resolve_is_dynamic_limit(
         cls, instance: orm.Account, context: ContextType
     ) -> bool:
-        active_days = context["active_days_map"].get(instance.id, 0)
+        active_days_map = context.get("active_days_map", {})
+        active_days = active_days_map.get(instance.id, 0)
         return active_days < len(instance.PROGREV)
 
     @classmethod
     async def resolve_dynamic_daily_limit(
         cls, instance: orm.Account, context: ContextType
     ) -> int | None:
-        active_days = context["active_days_map"].get(instance.id, 0)
+        active_days_map = context.get("active_days_map", {})
+        active_days = active_days_map.get(instance.id, 0)
 
         if active_days >= len(instance.PROGREV):
             return None
