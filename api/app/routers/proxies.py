@@ -13,7 +13,7 @@ from app.dto.proxy import (
 )
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
-from app.routers.sse import watch_job
+from app.routers.sse import build_stream_options, watch_job
 
 router = APIRouter(prefix="/proxies", tags=["proxy"])
 
@@ -24,12 +24,14 @@ async def upload_proxies(
     user=Depends(get_current_user),
 ):
     try:
+        stream_key, options = build_stream_options()
         ref = await tasks.proxies_upload.aio_run_no_wait(
-            input=models.ProxiesUploadIn(user_id=user.id, proxies=input.proxies)
+            input=models.ProxiesUploadIn(user_id=user.id, proxies=input.proxies),
+            options=options,
         )
         print(ref)
-        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-        return {"id": ref.workflow_run_id}
+        asyncio.create_task(watch_job(stream_key))
+        return {"id": stream_key}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
 
@@ -65,8 +67,10 @@ async def change_country(
 async def check(data: ProxiesCheckIn, user=Depends(get_current_user)):
     proxies = await orm.Proxy.filter(id__in=data.ids, user_id=user.id).all()
     ids = [p.id for p in proxies]
+    stream_key, options = build_stream_options()
     ref = await tasks.proxies_check.aio_run_no_wait(
-        input=models.ProxiesCheckIn(ids=ids)
+        input=models.ProxiesCheckIn(ids=ids),
+        options=options,
     )
-    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-    return {"id": ref.workflow_run_id}
+    asyncio.create_task(watch_job(stream_key))
+    return {"id": stream_key}

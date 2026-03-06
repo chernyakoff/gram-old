@@ -18,7 +18,7 @@ from app.dto.project import (
 )
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
-from app.routers.sse import watch_job
+from app.routers.sse import build_stream_options, watch_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -46,11 +46,13 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         brief_params = data.brief.model_dump()
         brief_params["project_id"] = project.id
         await orm.Brief.create(**brief_params)
+        stream_key, options = build_stream_options()
         ref = await tasks.generate_prompt.aio_run_no_wait(
-            input=models.GeneratePromptIn(project_id=project.id)
+            input=models.GeneratePromptIn(project_id=project.id),
+            options=options,
         )
-        asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
-        return {"id": ref.workflow_run_id}
+        asyncio.create_task(watch_job(stream_key))
+        return {"id": stream_key}
 
 
 @router.get("/", response_model=list[ProjectShortOut])
@@ -143,12 +145,14 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
         return {"id": "NONE"}
 
     # запускаем генерацию
+    stream_key, options = build_stream_options()
     ref = await tasks.generate_prompt.aio_run_no_wait(
-        input=models.GeneratePromptIn(project_id=project.id)
+        input=models.GeneratePromptIn(project_id=project.id),
+        options=options,
     )
-    asyncio.create_task(watch_job(ref.workflow_run_id))  # type: ignore
+    asyncio.create_task(watch_job(stream_key))
 
-    return {"id": ref.workflow_run_id}
+    return {"id": stream_key}
 
 
 @router.patch("/{id}/status")

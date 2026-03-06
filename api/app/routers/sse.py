@@ -1,9 +1,12 @@
 import asyncio
 import json
 import logging
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+from hatchet_sdk import TriggerWorkflowOptions
+from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 
 from app.hatchet.client import hatchet
 
@@ -21,15 +24,33 @@ subscribers: list[asyncio.Queue] = []
 
 async def watch_job(run_id: str):
     try:
-        async for chunk in hatchet.runs.subscribe_to_stream(run_id):
-            event = {"jobId": run_id, "log": json.loads(chunk)}
-            await broadcast_event(event)
-
-        # если стрим закончился сам по себе — задача завершена
-        await broadcast_event({"jobId": run_id, "status": "finished"})
+        # Предпочитаем подписку по additional_metadata, чтобы не терять ранние события.
+        listener = hatchet.runs.workflow_run_event_listener.stream_by_additional_metadata(
+            "stream_key", run_id
+        )
+        async for chunk in listener:
+            if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+                event = {"jobId": run_id, "log": json.loads(chunk.payload)}
+                await broadcast_event(event)
+            elif chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED:
+                await broadcast_event({"jobId": run_id, "status": "finished"})
+                break
+            elif chunk.type in (
+                StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED,
+                StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED,
+                StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT,
+            ):
+                await broadcast_event({"jobId": run_id, "status": "failed"})
+                break
 
     except Exception as e:
         await broadcast_event({"jobId": run_id, "status": "failed", "error": str(e)})
+
+
+def build_stream_options() -> tuple[str, TriggerWorkflowOptions]:
+    stream_key = str(uuid4())
+    options = TriggerWorkflowOptions(additional_metadata={"stream_key": stream_key})
+    return stream_key, options
 
 
 async def broadcast_event(event: dict):

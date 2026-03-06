@@ -27,7 +27,7 @@ class StreamLogger:
     def __init__(self, ctx: Context):
         self.ctx = ctx
         self._stream_ready = False
-        self._warmup_seconds = float(os.getenv("HATCHET_STREAM_WARMUP_SECONDS", "5"))
+        self._warmup_seconds = float(os.getenv("HATCHET_STREAM_WARMUP_SECONDS", "2"))
 
     def _dump(self, entry: LogEntry) -> str:
         return json.dumps(asdict(entry), ensure_ascii=False)

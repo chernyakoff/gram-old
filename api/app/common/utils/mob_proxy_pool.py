@@ -20,16 +20,13 @@ class MobProxyPool:
     IP_WAIT_TIMEOUT = 30
     IP_POLL_INTERVAL = 1
     MAX_FAILURES = 5
-    CHANGE_URL_RETRIES = 3
-    CHANGE_URL_RETRY_DELAY = 60
-    ROTATE_MIN_INTERVAL = 60
+    REFRESH_RETRY_INTERVAL = 5
 
     is_mobile = True
 
     def __init__(self, user_id: int):
         self.user_id = user_id
         self.logs: list[ProxyLogEntry] = []
-        self._last_rotate_at = None
 
     def _add_log(self, status: Status, message: str, payload: Optional[dict] = None):
         self.logs.append(ProxyLogEntry(status=status, message=message, payload=payload))
@@ -69,55 +66,47 @@ class MobProxyPool:
         timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(proxy.change_url) as response:
+                body = await response.text()
                 if response.status >= 400:
-                    body = await response.text()
-                    if response.status == 429:
-                        raise RuntimeError("change_url rate limit: 429")
                     raise RuntimeError(
                         f"change_url returned {response.status}: {body[:200]}"
                     )
 
-    async def _rotate_with_retry(self, proxy: MobProxy):
-        # Минимальный интервал между ротациями, чтобы не словить 429 при серийной обработке аккаунтов.
-        if self._last_rotate_at:
-            min_time = self._last_rotate_at + timedelta(seconds=self.ROTATE_MIN_INTERVAL)
-            if tz.now() < min_time:
-                wait_s = int((min_time - tz.now()).total_seconds()) + 1
-                self._add_log(
-                    Status.INFO,
-                    "Mob proxy rotate cooldown",
-                    {"proxy_id": proxy.id, "wait_seconds": wait_s},
-                )
-                await asyncio.sleep(wait_s)
+                # Некоторые провайдеры возвращают 200 + {"success": false}
+                try:
+                    payload = await response.json(content_type=None)
+                    if isinstance(payload, dict) and payload.get("success") is False:
+                        message = payload.get("message", "refresh rejected")
+                        raise RuntimeError(f"change_url rejected: {message}")
+                except aiohttp.ContentTypeError:
+                    # Не JSON — считаем успехом, если HTTP статус успешный.
+                    pass
 
-        for attempt in range(1, self.CHANGE_URL_RETRIES + 1):
+    async def _rotate_until_success(self, proxy: MobProxy):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 await self._call_change_url(proxy)
-                self._last_rotate_at = tz.now()
                 return
-            except RuntimeError as e:
-                if "429" not in str(e):
-                    raise
-
-                if attempt >= self.CHANGE_URL_RETRIES:
-                    raise
-
+            except Exception as e:
                 self._add_log(
                     Status.WARNING,
-                    "Mob proxy rotate rate-limited",
+                    "Mob proxy refresh failed, retrying",
                     {
                         "proxy_id": proxy.id,
                         "attempt": attempt,
-                        "retry_in_seconds": self.CHANGE_URL_RETRY_DELAY,
+                        "retry_in_seconds": self.REFRESH_RETRY_INTERVAL,
+                        "error": str(e),
                     },
                 )
-                await asyncio.sleep(self.CHANGE_URL_RETRY_DELAY)
+                await asyncio.sleep(self.REFRESH_RETRY_INTERVAL)
 
     async def _wait_for_ip_change(self, proxy: MobProxy) -> bool:
         proxy_util = ProxyUtil.from_orm(proxy)  # type: ignore[arg-type]
         old_ip = await proxy_util.check()
 
-        await self._rotate_with_retry(proxy)
+        await self._rotate_until_success(proxy)
 
         deadline = tz.now() + timedelta(seconds=self.IP_WAIT_TIMEOUT)
         while tz.now() < deadline:
