@@ -33,4 +33,9 @@ Migration rule:
 
 ## Hatchet Stubs
 
-- When adding a new task in any worker, run `./task cli sync` to regenerate Hatchet stubs and models.
+- Use `./sync` (not `./task cli sync`) for worker sync operations.
+- After any change under `api/app/common`, run:
+  - `cd /home/mike/work/python/gram-old/workers/base && ./sync`
+  - `cd /home/mike/work/python/gram-old/workers/dialog && ./sync`
+- After adding any new task or workflow in `/home/mike/work/python/gram-old/workers/base/app/worker.py`, run:
+  - `cd /home/mike/work/python/gram-old/workers/base && ./sync`

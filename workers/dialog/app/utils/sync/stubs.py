@@ -1,5 +1,6 @@
 import importlib
 import inspect
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +10,31 @@ from rich import print
 from .config import CodegenConfig, StubsData, TaskData, WorkflowData, header
 
 
+@contextmanager
+def suppress_hatchet_registration() -> Any:
+    """Disable remote workflow registration while collecting local stubs."""
+    try:
+        from hatchet_sdk.clients.admin import AdminClient
+    except Exception:
+        yield
+        return
+
+    original_put_workflow = AdminClient.put_workflow
+
+    def _noop_put_workflow(self, *args, **kwargs):
+        return None
+
+    AdminClient.put_workflow = _noop_put_workflow  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        AdminClient.put_workflow = original_put_workflow  # type: ignore[assignment]
+
+
 def get_worker(worker_module: str) -> Worker | None:
     try:
-        module = importlib.import_module(worker_module)
+        with suppress_hatchet_registration():
+            module = importlib.import_module(worker_module)
         for _, obj in inspect.getmembers(module):
             if isinstance(obj, Worker):
                 return obj

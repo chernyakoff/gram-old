@@ -182,6 +182,36 @@ class Proxy(Model, TimestampMixin):
         unique_together = ("host", "port", "username", "password")
 
 
+class MobProxy(Model, TimestampMixin):
+    id = fields.IntField(pk=True)
+    host = fields.CharField(max_length=64, null=False)
+    port = fields.IntField(null=False)
+    username = fields.CharField(max_length=255, null=False)
+    password = fields.CharField(max_length=255, null=False)
+    change_url = fields.TextField(null=False)
+    active = fields.BooleanField(default=True)
+    country = fields.CharField(max_length=2, null=False)
+    user: fields.OneToOneRelation[User] = fields.OneToOneField(
+        "models.User", related_name="mob_proxy", null=False
+    )
+    locked_until = fields.DatetimeField(null=True)
+    lock_session = fields.CharField(max_length=36, null=True)
+    failures = fields.IntField(default=0)
+    scheme: str = "socks5"
+
+    @property
+    def dsn(self):
+        if not self.host:
+            return
+        return (
+            f"{self.scheme}://{self.username}:{self.password}@{self.host}:{self.port}"
+        )
+
+    class Meta:
+        table = "mob_proxies"
+        unique_together = ("host", "port", "username", "password")
+
+
 class Account(Model, TimestampMixin):
     PROGREV = [1, 2, 2, 3, 4, 4, 5, 6, 6, 7]
     id = fields.BigIntField(pk=True, generated=False)
