@@ -1,4 +1,6 @@
 import json
+import os
+import asyncio
 from dataclasses import asdict, dataclass
 from enum import StrEnum, auto
 
@@ -24,6 +26,8 @@ class LogEntry:
 class StreamLogger:
     def __init__(self, ctx: Context):
         self.ctx = ctx
+        self._stream_ready = False
+        self._warmup_seconds = float(os.getenv("HATCHET_STREAM_WARMUP_SECONDS", "5"))
 
     def _dump(self, entry: LogEntry) -> str:
         return json.dumps(asdict(entry), ensure_ascii=False)
@@ -32,6 +36,9 @@ class StreamLogger:
         data = self._dump(entry)
         # if entry.status in [Status.ERROR, Status.WARNING]:
         self.ctx.log(data)
+        if not self._stream_ready:
+            await asyncio.sleep(self._warmup_seconds)
+            self._stream_ready = True
         await self.ctx.aio_put_stream(data)
 
     async def error(self, msg: str | Exception, payload: dict | None = None):
