@@ -6,11 +6,7 @@
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton
-            label="Добавить проект"
-            icon="bx:bxs-plus-circle"
-            :to="{ name: 'project-create' }"
-          />
+          <CreateProjectModal @close="refresh" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -21,7 +17,7 @@
           v-model:column-filters="columnFilters"
           v-model:column-visibility="columnVisibility"
           class="shrink-0 w-full"
-          :data="projects ?? []"
+          :data="projects"
           :columns="columns"
           :loading="loading"
           :ui="{
@@ -40,7 +36,7 @@
             />
           </template>
           <template #actions-cell="{ row }">
-            <div class="flex items-center gap-2 w-32">
+            <div class="flex items-center gap-2 w-42">
               <USwitch
                 title="Изменить статус"
                 :modelValue="row.original.status"
@@ -51,8 +47,9 @@
                 title="Редактировать проект"
                 variant="ghost"
                 icon="lucide:edit"
-                :to="{ name: 'project-create', params: { id: row.original.id } }"
+                :to="{ name: 'project', params: { id: row.original.id } }"
               />
+
               <DeleteModal :id="row.original.id" @close="refresh" />
             </div>
           </template>
@@ -67,6 +64,8 @@ import { ref, onMounted } from 'vue'
 import { useTitle } from '@vueuse/core'
 import DeleteModal from '@/components/dashboard/projects/delete-modal.vue'
 import ChatModal from '@/components/dashboard/projects/chat-modal.vue'
+import CreateProjectModal from '@/components/dashboard/projects/create-modal.vue'
+//import FilesDrawer from '@/components/dashboard/projects/files-drawer.vue'
 import { useProjects } from '@/composables/use-projects'
 
 import type { ProjectShortOut } from '@/types/openapi'
@@ -78,6 +77,8 @@ useTitle(title)
 
 onMounted(() => get())
 
+const toast = useToast()
+
 // - drawer
 
 //- table
@@ -87,15 +88,24 @@ const columnVisibility = ref()
 const refresh = () => {
   get()
 }
-
 const toggleStatus = async (project: ProjectShortOut, value: boolean) => {
-  project.status = value
-  try {
-    await status(project.id, value)
-  } catch (error) {
-    console.error(error)
+  const prev = project.status
 
-    project.status = !value
+  // временно показываем переключение
+  project.status = value
+
+  const res = await status(project.id, value)
+
+  if (res.result !== 'success') {
+    // откат
+    project.status = prev
+
+    toast.add({
+      title: 'Нельзя активировать проект',
+      description: res.errors.join('\n'),
+      color: 'error',
+      ui: { description: 'whitespace-pre-line' },
+    })
   }
 }
 

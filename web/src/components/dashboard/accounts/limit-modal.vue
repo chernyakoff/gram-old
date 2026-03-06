@@ -2,10 +2,10 @@
   <UModal
     v-model:open="open"
     :title="`Установить лимит`"
-    :description="`Будет установлено для ${selectedIds.length} ${plur(selectedIds.length)}.`"
+    :description="`Будет установлено для ${props.selectedIds.length} ${plur(props.selectedIds.length)}.`"
   >
     <UButton
-      v-if="selectedIds.length"
+      v-if="props.selectedIds.length && !props.hideTrigger"
       label="Установить лимит"
       color="neutral"
       variant="subtle"
@@ -13,7 +13,7 @@
     >
       <template #trailing>
         <UKbd>
-          {{ selectedIds.length }}
+          {{ props.selectedIds.length }}
         </UKbd>
       </template>
     </UButton>
@@ -43,9 +43,12 @@ const emit = defineEmits<{
 
 const outDailyLimit = ref(6)
 
-const { selectedIds } = defineProps<{
+const props = withDefaults(defineProps<{
   selectedIds: number[]
-}>()
+  hideTrigger?: boolean
+}>(), {
+  hideTrigger: false,
+})
 
 const open = defineModel<boolean>('open', { default: false })
 const error = ref<string | undefined>(undefined)
@@ -66,7 +69,7 @@ async function onSubmit() {
 
   const data: SetLimitIn = {
     outDailyLimit: outDailyLimit.value,
-    accountIds: selectedIds,
+    accountIds: props.selectedIds,
   }
 
   await setLimit(data)

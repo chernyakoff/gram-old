@@ -131,7 +131,8 @@ async function onSubmit() {
 
   uploadAll(toUpload, `media/${props.accountId}`)
   const results = await waitForAll()
-  const payload = editor.createPayload(results.fulfilled)
+  const s3paths = results.fulfilled.map((f) => f.storagePath)
+  const payload = editor.createPayload(s3paths)
   const { id } = await update(props.accountId, payload)
 
   jobsStore.add({

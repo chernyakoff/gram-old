@@ -6,8 +6,7 @@
         :label="activeFiltersCount"
         color="primary"
         size="xs"
-        class="absolute -top-1 -right-1"
-      />
+        class="absolute -top-1 -right-1" />
     </UButton>
     <template #body>
       <USelectMenu
@@ -15,27 +14,33 @@
         v-model="projectId"
         :items="projects"
         class="w-full mb-4"
+        virtualize
         value-key="id"
-        label-key="name"
-      />
-
+        label-key="name" />
       <USelectMenu
         placeholder="Выберите аккаунт"
         v-model="accountId"
         :items="accounts"
         class="w-full mb-4"
+        virtualize
         value-key="id"
-        label-key="name"
-      />
-
+        label-key="name" />
       <USelectMenu
         placeholder="Выберите рассылку"
         v-model="mailingId"
         :items="mailings"
         class="w-full mb-4"
+        virtualize
         value-key="id"
-        label-key="name"
-      />
+        label-key="name" />
+      <USelectMenu
+        placeholder="Выберите юзера"
+        v-model="recipientId"
+        :items="recipients"
+        class="w-full mb-8"
+        virtualize
+        value-key="id"
+        label-key="username" />
     </template>
     <template #footer>
       <div class="flex justify-end gap-2">
@@ -46,9 +51,8 @@
     </template>
   </UModal>
 </template>
-
 <script setup lang="ts">
-import type { AccountListOut, MailingListOut, ProjectBase, DialogIn } from '@/types/openapi'
+import type { AccountListOut, MailingListOut, ProjectBase, DialogIn, RecipientListOut } from '@/types/openapi'
 import { computed, onMounted, ref } from 'vue'
 import { useAccounts } from '@/composables/use-accounts'
 import { useMailings } from '@/composables/use-mailings'
@@ -60,16 +64,18 @@ const emit = defineEmits<{
 }>()
 
 const { list: getProjectList } = useProjects()
-const { list: getMailingList } = useMailings()
+const { list: getMailingList, getRecipientList } = useMailings()
 const { list: getAccountList } = useAccounts()
 
 const projectId = ref<number | undefined>(undefined)
 const accountId = ref<number | undefined>(undefined)
 const mailingId = ref<number | undefined>(undefined)
+const recipientId = ref<number | undefined>(undefined)
 
 const projects = ref<ProjectBase[]>([])
 const mailings = ref<MailingListOut[]>([])
 const accounts = ref<AccountListOut[]>([])
+const recipients = ref<RecipientListOut[]>([])
 
 // Вычисляемые свойства для индикации активных фильтров
 /* const hasActiveFilters = computed(() => {
@@ -83,6 +89,7 @@ const activeFiltersCount = computed(() => {
   if (projectId.value !== undefined) count++
   if (accountId.value !== undefined) count++
   if (mailingId.value !== undefined) count++
+  if (recipientId.value !== undefined) count++
   return count
 })
 
@@ -90,30 +97,34 @@ onMounted(async () => {
   projects.value = await getProjectList()
   mailings.value = await getMailingList()
   accounts.value = await getAccountList()
+  recipients.value = await getRecipientList()
 })
 
 const open = ref(false)
 
-function onSubmit() {
+function onSubmit () {
   const payload: DialogIn = {
     projectId: projectId.value ?? null, // конвертируем undefined в null для API
     accountId: accountId.value ?? null,
     mailingId: mailingId.value ?? null,
+    recipientId: recipientId.value ?? null,
   }
 
   emit('apply', payload)
   open.value = false
 }
 
-function onReset() {
+function onReset () {
   projectId.value = undefined
   accountId.value = undefined
   mailingId.value = undefined
+  recipientId.value = undefined
 
   const payload: DialogIn = {
     projectId: null,
     accountId: null,
     mailingId: null,
+    recipientId: null,
   }
 
   emit('reset')

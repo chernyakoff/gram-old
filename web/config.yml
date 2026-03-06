@@ -2,3 +2,7 @@ api:
   url: "http://localhost:8833"
   bot:
     name: "LidorubLoginBot"
+users:
+  url: "http://localhost:8834"
+web:
+  url: "http://localhost:5173"

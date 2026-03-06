@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Teleport, onBeforeUnmount, watch } from 'vue';
+import { onBeforeUnmount, watch } from 'vue';
 import { X } from 'lucide-vue-next';
 
 const props = defineProps<{

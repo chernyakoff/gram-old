@@ -1,7 +1,7 @@
 <template>
   <div class="relative w-full">
     <!-- Обычный режим -->
-    <div v-if="!isFullscreen" class="relative">
+    <div v-if="!isFullscreen" class="relative" @click="!disabled && openFullscreen()">
       <UTextarea
         :model-value="modelValue"
         @update:model-value="$emit('update:modelValue', $event)"
@@ -15,14 +15,6 @@
           base: 'overflow-hidden',
         }"
       />
-      <button
-        @click="toggleFullscreen"
-        type="button"
-        class="absolute top-2 right-2 p-2 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 transition-colors z-10"
-        title="Полноэкранный режим"
-      >
-        <UIcon name="i-lucide-maximize-2" class="w-2 h-2 text-gray-600 dark:text-gray-400" />
-      </button>
     </div>
 
     <!-- Fullscreen режим -->
@@ -105,6 +97,12 @@ const isFullscreen = ref(false)
 
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value
+}
+
+const openFullscreen = () => {
+  if (!isFullscreen.value) {
+    isFullscreen.value = true
+  }
 }
 
 // Закрытие по ESC

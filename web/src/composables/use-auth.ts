@@ -28,54 +28,20 @@ export function useAuth() {
     },
     { immediate: false },
   )
-  // Автоматический редирект при изменении user
-  /* watch(
-    user,
-    (newUser) => {
-      if (newUser) {
-        if (newUser.hasLicense) {
-          if (router.currentRoute.value.name !== 'app') {
-            router.push({ name: 'app' })
-          }
-        } else {
-          if (router.currentRoute.value.name !== 'license') {
-            router.push({ name: 'license' })
-          }
-        }
-      } else {
-        if (router.currentRoute.value.name !== 'main') {
-          router.push({ name: 'main' })
-        }
-      }
-    },
-    { immediate: false }, // не срабатывает при первой инициализации
-  ) */
-  /*
-  watch(
-    () => ({
-      id: user.value?.id,
-      hasLicense: user.value?.hasLicense,
-    }),
-    ({ id, hasLicense }) => {
-      if (!id) {
-        if (router.currentRoute.value.name !== 'main') {
-          router.push({ name: 'main' })
-        }
-        return
-      }
 
-      if (hasLicense) {
-        if (router.currentRoute.value.name !== 'app') {
+  watch(
+    () => user.value?.hasLicense,
+    (hasLicense, oldHasLicense) => {
+      // Если лицензия появилась (была false/undefined, стала true)
+      if (hasLicense && !oldHasLicense && user.value?.id) {
+        // Редирект только если мы на странице license
+        if (router.currentRoute.value.name === 'license') {
           router.push({ name: 'app' })
         }
-      } else {
-        if (router.currentRoute.value.name !== 'license') {
-          router.push({ name: 'license' })
-        }
       }
     },
-    { immediate: true },
-  ) */
+    { immediate: false },
+  )
 
   return {
     user,

@@ -4,30 +4,22 @@
     <UPopover v-if="badgeTitle" mode="hover">
       <span
         class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors"
-        :class="badgeClasses"
-      >
+        :class="badgeClasses">
         {{ translations[account.status] }}
       </span>
       <template #content>
         {{ badgeTitle }}
       </template>
     </UPopover>
-
     <!-- Иначе просто обычный спан -->
-    <span
-      v-else
-      class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors"
-      :class="badgeClasses"
-      :title="badgeTitle"
-    >
+    <span v-else class="inline-block px-3 py-1 rounded-full text-sm font-medium transition-colors" :class="badgeClasses" :title="badgeTitle">
       {{ translations[account.status] }}
     </span>
   </div>
 </template>
-
 <script setup lang="ts">
 import type { AccountOut, AccountStatus } from '@/types/openapi'
-import { computed, defineProps } from 'vue'
+import { computed } from 'vue'
 import { useDateFormat } from '@vueuse/core'
 interface Props {
   account: AccountOut

@@ -60,6 +60,7 @@ const payload = reactive<DialogIn>({
   accountId: null,
   projectId: null,
   mailingId: null,
+  recipientId: null,
 })
 
 onMounted(() => list(payload))
@@ -86,6 +87,7 @@ function handleFilterApply(filterPayload: DialogIn) {
   payload.accountId = filterPayload.accountId
   payload.projectId = filterPayload.projectId
   payload.mailingId = filterPayload.mailingId
+  payload.recipientId = filterPayload.recipientId
 
   // Загружаем диалоги с новыми фильтрами
   list(payload)
@@ -96,6 +98,7 @@ function handleFilterReset() {
   payload.accountId = null
   payload.projectId = null
   payload.mailingId = null
+  payload.recipientId = null
 
   // Загружаем все диалоги
   list(payload)

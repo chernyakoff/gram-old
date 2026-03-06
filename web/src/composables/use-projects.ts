@@ -1,13 +1,22 @@
 import { useApi } from '@/composables/use-api'
 
 import type {
+  Brief,
   ProjectBase,
-  ProjectIn,
-  ProjectOut,
+  ProjectCreateIn,
+  ProjectDocumentIn,
+  ProjectDocumentOut,
+  ProjectFileIn,
+  ProjectFileOut,
+  ProjectFileUpdateIn,
+  ProjectSettings,
   ProjectShortOut,
+  ProjectStatusOut,
+  Prompt,
   SynonimizeIn,
   SynonimizeOut,
   WorkflowOut,
+  Calendar,
 } from '@/types/openapi'
 import { ref } from 'vue'
 
@@ -20,19 +29,10 @@ export function useProjects() {
     return await api(`projects?${query}`, { method: 'DELETE' })
   }
 
-  async function get(): Promise<ProjectShortOut[]>
-  async function get(id: number): Promise<ProjectOut>
-  async function get(id?: number) {
-    if (id) {
-      return await api<ProjectOut>(`projects/${id}`, { method: 'GET' })
-    } else {
-      const data = await api<ProjectShortOut[]>('projects', { method: 'GET' })
-      projects.value = data
-      return data
-    }
-  }
-  async function default_project() {
-    return await api<ProjectIn>('projects/default', { method: 'GET' })
+  async function get(): Promise<ProjectShortOut[]> {
+    const data = await api<ProjectShortOut[]>('projects', { method: 'GET' })
+    projects.value = data
+    return data
   }
 
   async function list() {
@@ -40,7 +40,10 @@ export function useProjects() {
   }
 
   async function status(id: number, value: boolean) {
-    return await api(`projects/${id}/status`, { method: 'PATCH', body: { status: value } })
+    return await api<ProjectStatusOut>(`projects/${id}/status`, {
+      method: 'PATCH',
+      body: { status: value },
+    })
   }
 
   async function synonimize(body: SynonimizeIn) {
@@ -50,30 +53,144 @@ export function useProjects() {
     })
   }
 
-  async function update(id: number, body: ProjectIn) {
-    return await api<WorkflowOut>(`projects/${id}`, {
-      method: 'PATCH',
+  async function createProject(body: ProjectCreateIn) {
+    return await api('projects/create', {
+      method: 'POST',
       body,
     })
   }
-
-  async function create(body: ProjectIn) {
-    return await api<WorkflowOut>('projects', {
+/* 
+ type ProjectSettings = {
+    name: string;
+    dialogLimit: number;
+    sendTimeStart: number;
+    sendTimeEnd: number;
+    premiumRequired: boolean;
+    firstMessage?: string | null | undefined;
+}
+*/
+  async function saveSettings(id: number, body: ProjectSettings) {
+    return await api(`projects/${id}/settings`, {
       method: 'POST',
       body,
     })
   }
 
+  async function getSettings(id: number) {
+    return await api<ProjectSettings>(`projects/${id}/settings`, {
+      method: 'GET',
+    })
+  }
+
+  async function saveBrief(id: number, body: Brief) {
+    return await api(`projects/${id}/brief`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getBrief(id: number) {
+    return await api<Brief>(`projects/${id}/brief`, {
+      method: 'GET',
+    })
+  }
+
+  async function savePrompt(id: number, body: Prompt) {
+    return await api(`projects/${id}/prompt`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getPrompt(id: number) {
+    return await api<Prompt>(`projects/${id}/prompt`, {
+      method: 'GET',
+    })
+  }
+
+  async function saveCalendar(id: number, body: Calendar) {
+    return await api(`projects/${id}/calendar`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getCalendar(id: number) {
+    return await api<Calendar>(`projects/${id}/calendar`, {
+      method: 'GET',
+    })
+  }
+
+  async function generatePrompt(id: number, body: Brief) {
+    return await api<WorkflowOut>(`projects/${id}/generate-prompt`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function saveFiles(id: number, body: ProjectFileIn[]) {
+    return await api(`projects/${id}/files`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getFiles(id: number) {
+    return await api<ProjectFileOut[]>(`projects/${id}/files`, {
+      method: 'GET',
+    })
+  }
+
+  async function deleteFile(projectId: number, fileId: number) {
+    return await api(`projects/${projectId}/files/${fileId}`, { method: 'DELETE' })
+  }
+
+  async function updateFile(projectId: number, fileId: number, body: ProjectFileUpdateIn) {
+    return await api(`projects/${projectId}/files/${fileId}`, { method: 'POST', body })
+  }
+
+  async function saveDocuments(id: number, body: ProjectDocumentIn[]) {
+    return await api<WorkflowOut>(`projects/${id}/documents`, {
+      method: 'POST',
+      body,
+    })
+  }
+
+  async function getDocuments(id: number) {
+    return await api<ProjectDocumentOut[]>(`projects/${id}/documents`, {
+      method: 'GET',
+    })
+  }
+
+  async function deleteDocument(projectId: number, fileId: number) {
+    return await api(`projects/${projectId}/documents/${fileId}`, { method: 'DELETE' })
+  }
+
   return {
-    create,
     get,
     del,
-    update,
+
     synonimize,
     projects,
     status,
     list,
-    default_project,
+    createProject,
+    saveSettings,
+    getSettings,
+    saveBrief,
+    getBrief,
+    savePrompt,
+    getPrompt,
+    generatePrompt,
+    saveFiles,
+    getFiles,
+    deleteFile,
+    updateFile,
+    saveDocuments,
+    getDocuments,
+    deleteDocument,
+    saveCalendar,
+    getCalendar,
     loading,
     error,
     success,

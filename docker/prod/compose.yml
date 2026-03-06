@@ -1,6 +1,8 @@
+name: neurogram-prod
+
 services:
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: neuro-postgres
     restart: unless-stopped
     environment:
@@ -15,7 +17,7 @@ services:
       - dev
 
   pg-backup:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: neuro-postgres-backup
     restart: unless-stopped
     depends_on:
@@ -39,60 +41,65 @@ services:
       done
       "
 
-  base-worker:
+  base:
     build:
-      context: ../../workers/base
+      context: ../..
+      dockerfile: app/workers/base/Dockerfile
       target: prod
-    container_name: neuro-base-worker
+    container_name: neuro-base
     volumes:
-      - ../../workers/base:/app
-      - uv-venv-base-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-base:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.base"]
     depends_on:
       - postgres
     networks:
       - hatchet
       - dev
+      - s3
 
-  dialog-worker:
+  dialog:
     build:
-      context: ../../workers/dialog
+      context: ../..
+      dockerfile: app/workers/dialog/Dockerfile
       target: prod
     volumes:
-      - ../../workers/dialog:/app
-      - uv-venv-dialog-worker:/app/.venv # отдельный том под venv worker
+      - ../../app:/app
+      - uv-venv-dialog:/app/.venv # отдельный том под venv worker
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "workers.dialog"]
     depends_on:
       - postgres
     networks:
       - hatchet
       - dev
+      - s3
     deploy:
       replicas: 5
 
   api:
     build:
-      context: ../../api
+      context: ../..
+      dockerfile: app/api/Dockerfile
       target: prod
     container_name: neuro-api
     volumes:
-      - ../../api:/app
+      - ../../app:/app
       - uv-venv-api:/app/.venv # отдельный том под venv api
       - ./config.yml:/app/config.yml
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    command: ["uv", "run", "python", "-m", "app"]
+    command: ["uv", "run", "python", "-m", "api"]
     depends_on:
       - postgres
     ports:
@@ -136,11 +143,11 @@ services:
       - dev
 
 volumes:
-  uv-venv-base-worker: {}
-  uv-venv-dialog-worker: {}
+  uv-venv-base: {}
+  uv-venv-dialog: {}
   uv-venv-api: {}
-  postgres-data-dev: {}
-  minio-data: {}
+  postgres-data-dev:
+    name: prod_postgres-data-dev
 
 networks:
   hatchet:
@@ -149,3 +156,6 @@ networks:
   dev:
     name: dev
     driver: bridge
+  s3:
+    external: true
+    name: neuro-s3-prod

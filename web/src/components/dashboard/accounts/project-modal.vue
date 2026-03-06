@@ -2,10 +2,10 @@
   <UModal
     v-model:open="open"
     :title="`Назначение в проект`"
-    :description="`Будет назначено ${selectedIds.length} ${plur(selectedIds.length)}.`"
+    :description="`Будет назначено ${props.selectedIds.length} ${plur(props.selectedIds.length)}.`"
   >
     <UButton
-      v-if="selectedIds.length"
+      v-if="props.selectedIds.length && !props.hideTrigger"
       label="Назначить в проект"
       color="neutral"
       variant="subtle"
@@ -13,7 +13,7 @@
     >
       <template #trailing>
         <UKbd>
-          {{ selectedIds.length }}
+          {{ props.selectedIds.length }}
         </UKbd>
       </template>
     </UButton>
@@ -44,9 +44,12 @@ const emit = defineEmits<{
 
 const projectId = ref()
 
-const { selectedIds } = defineProps<{
+const props = withDefaults(defineProps<{
   selectedIds: number[]
-}>()
+  hideTrigger?: boolean
+}>(), {
+  hideTrigger: false,
+})
 
 const open = defineModel<boolean>('open', { default: false })
 const error = ref<string | undefined>(undefined)
@@ -85,7 +88,7 @@ async function onSubmit() {
 
   const data: BindProjectIn = {
     projectId: projectId.value,
-    accountIds: selectedIds,
+    accountIds: props.selectedIds,
   }
 
   await bindProject(data)

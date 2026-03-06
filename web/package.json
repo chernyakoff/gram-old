@@ -16,21 +16,22 @@
     "format": "prettier --write src/",
     "predev": "node scripts/generate-env.js",
     "prebuild": "node scripts/generate-env.js",
-    "openapi-gen": "node scripts/openapi-gen.mjs http://localhost:8833/openapi.json ./src/types/openapi.d.ts"
+    "openapi-gen": "npm run openapi-gen:gram",
+    "openapi-gen:gram": "node scripts/openapi-gen.mjs http://localhost:8833/openapi.json ./src/types/openapi.d.ts",
+    "openapi-gen:users": "node scripts/openapi-gen.mjs http://localhost:8834/openapi.json ./src/types/openapi-users.d.ts",
+    "openapi-gen:all": "run-s openapi-gen:gram openapi-gen:users"
   },
   "dependencies": {
-    "@nuxt/ui": "^4.0.0",
+    "@nuxt/ui": "^4.3.0",
     "@tanstack/vue-table": "^8.21.3",
-    "@tiptap/core": "^3.7.2",
-    "@tiptap/starter-kit": "^3.7.2",
-    "@tiptap/vue-3": "^3.7.2",
+    "ai": "^6.0.49",
     "apexcharts": "^5.3.5",
     "ky": "^1.10.0",
     "lucide-vue-next": "^0.562.0",
     "pinia": "^3.0.3",
     "scule": "^1.3.0",
     "valibot": "^1.1.0",
-    "vue": "^3.5.18",
+    "vue": "^3.5.26",
     "vue-router": "^4.5.1",
     "vue3-apexcharts": "^1.10.0"
   },
@@ -38,22 +39,25 @@
     "@hey-api/openapi-ts": "0.84.2",
     "@tsconfig/node22": "^22.0.2",
     "@types/node": "^22.18.6",
-    "@vitejs/plugin-vue": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.3",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.6.0",
     "@vue/tsconfig": "^0.7.0",
     "eslint": "^9.31.0",
     "eslint-plugin-vue": "~10.3.0",
     "jiti": "^2.4.2",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "npm-run-all2": "^8.0.4",
     "openapi-typescript": "^7.9.1",
     "prettier": "3.6.2",
     "ts-node": "^10.9.2",
-    "typescript": "~5.8.0",
-    "vite": "^7.0.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
     "vite-plugin-runtime": "^1.4.0",
     "vite-plugin-vue-devtools": "^8.0.0",
-    "vue-tsc": "^3.0.4"
+    "vue-tsc": "^3.2.2"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-musl": "4.9.5"
   }
 }

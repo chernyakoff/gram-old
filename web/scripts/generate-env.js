@@ -24,8 +24,15 @@ let envContent = ''
 if (config.api?.url) {
   envContent += `API_URL=${config.api.url}\n`
 }
+const usersUrl = config.users?.url || config.neurousers?.url
+if (usersUrl) {
+  envContent += `USERS_URL=${usersUrl}\n`
+}
 if (config.api?.bot?.name) {
   envContent += `BOT_NAME=${config.api.bot.name}\n`
+}
+if (config.web?.url) {
+  envContent += `WEB_URL=${config.web.url}\n`
 }
 
 fs.writeFileSync(envFile, envContent)
