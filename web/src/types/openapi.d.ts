@@ -191,6 +191,36 @@ export interface components {
         };
         MessageRole: "user" | "assistant" | "system";
         MessageSender: "account" | "recipient" | "system";
+        MobProxyCreateIn: {
+            host: string;
+            port: number;
+            username: string;
+            password: string;
+            changeUrl: string;
+            country: string;
+            active: boolean;
+        };
+        MobProxyOut: {
+            id: number;
+            host: string;
+            port: number;
+            username: string;
+            password: string;
+            changeUrl: string;
+            country: string;
+            active: boolean;
+            failures: number;
+            createdAt: string;
+        };
+        MobProxyUpdateIn: {
+            host?: string | null;
+            port?: number | null;
+            username?: string | null;
+            password?: string | null;
+            changeUrl?: string | null;
+            country?: string | null;
+            active?: boolean | null;
+        };
         PresignedIn: {
             path: string;
             filename: string;
@@ -389,6 +419,9 @@ export type MailingStatus = components['schemas']['MailingStatus'];
 export type Message = components['schemas']['Message'];
 export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
+export type MobProxyCreateIn = components['schemas']['MobProxyCreateIn'];
+export type MobProxyOut = components['schemas']['MobProxyOut'];
+export type MobProxyUpdateIn = components['schemas']['MobProxyUpdateIn'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];

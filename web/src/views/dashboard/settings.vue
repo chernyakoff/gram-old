@@ -8,20 +8,20 @@
         <template #right>
           <UButton
             size="lg"
-            type="submit"
+            type="button"
             label="Сохранить"
             color="primary"
-            :loading="loading"
-            @click="doSubmit"
+            :loading="aiLoading"
+            @click="doSubmitAi"
           />
         </template>
       </UDashboardNavbar>
     </template>
     <template #body>
-      <UForm ref="form" :schema="aiModelSchema" :state="state" @submit="onSubmit">
-        <div class="min-w-[800px] max-w-4xl mx-auto">
-          <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
-            <template #aiModel>
+      <div class="min-w-[800px] max-w-4xl mx-auto">
+        <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
+          <template #aiModel>
+            <UForm ref="aiForm" :schema="aiModelSchema" :state="aiState" @submit="onAiSubmit">
               <div class="space-y-6 p-6">
                 <div>
                   <h3 class="text-lg font-semibold mb-2">Выбор AI модели</h3>
@@ -30,10 +30,8 @@
                   </p>
                 </div>
 
-                <!-- Hidden field для формы -->
-                <input type="hidden" v-model="state.id" />
+                <input type="hidden" v-model="aiState.id" />
 
-                <!-- Выбранная модель -->
                 <UCard
                   v-if="selectedModel"
                   class="bg-primary-50 dark:bg-primary-950 border-2 border-primary-500"
@@ -79,7 +77,6 @@
                   </div>
                 </UCard>
 
-                <!-- Поиск -->
                 <div class="relative">
                   <UInput
                     v-model="searchQuery"
@@ -89,7 +86,6 @@
                   />
                 </div>
 
-                <!-- Список моделей -->
                 <div v-if="modelsLoading" class="flex justify-center py-8">
                   <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
                 </div>
@@ -109,8 +105,8 @@
                       :key="model.id"
                       class="cursor-pointer transition-all hover:shadow-md !ring-0 !border-0"
                       :class="{
-                        'bg-primary-50 dark:bg-primary-900': state.id === model.id,
-                        'hover:bg-gray-50 dark:hover:bg-gray-800': state.id !== model.id,
+                        'bg-primary-50 dark:bg-primary-900': aiState.id === model.id,
+                        'hover:bg-gray-50 dark:hover:bg-gray-800': aiState.id !== model.id,
                       }"
                       @click="selectModel(model.id)"
                     >
@@ -119,12 +115,12 @@
                           <div
                             class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
                             :class="{
-                              'border-primary-500 bg-primary-500': state.id === model.id,
-                              'border-gray-300 dark:border-gray-600': state.id !== model.id,
+                              'border-primary-500 bg-primary-500': aiState.id === model.id,
+                              'border-gray-300 dark:border-gray-600': aiState.id !== model.id,
                             }"
                           >
                             <UIcon
-                              v-if="state.id === model.id"
+                              v-if="aiState.id === model.id"
                               name="i-heroicons-check"
                               class="h-3 w-3 text-white"
                             />
@@ -158,10 +154,92 @@
                   </div>
                 </div>
               </div>
-            </template>
-          </UTabs>
-        </div>
-      </UForm>
+            </UForm>
+          </template>
+
+          <template #mobProxy>
+            <div class="space-y-6 p-6">
+              <div>
+                <h3 class="text-lg font-semibold mb-2">Моб. Прокси</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  Один пользователь может хранить только одну мобильную прокси.
+                </p>
+              </div>
+
+              <div v-if="!mobProxyFormVisible">
+                <UButton
+                  label="Добавить"
+                  icon="i-lucide-plus"
+                  color="primary"
+                  @click="onAddMobProxy"
+                />
+              </div>
+
+              <UForm
+                v-else
+                ref="mobProxyForm"
+                :schema="mobProxyFormSchema"
+                :state="mobProxyState"
+                @submit="onSubmit"
+              >
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <UFormField label="Host" name="host">
+                    <UInput v-model="mobProxyState.host" placeholder="127.0.0.1" />
+                  </UFormField>
+
+                  <UFormField label="Port" name="port">
+                    <UInput v-model.number="mobProxyState.port" type="number" :min="1" />
+                  </UFormField>
+
+                  <UFormField label="Username" name="username">
+                    <UInput v-model="mobProxyState.username" />
+                  </UFormField>
+
+                  <UFormField label="Password" name="password">
+                    <UInput v-model="mobProxyState.password" type="password" />
+                  </UFormField>
+
+                  <UFormField label="Country" name="country">
+                    <UInput
+                      v-model="mobProxyState.country"
+                      maxlength="2"
+                      @blur="mobProxyState.country = mobProxyState.country.toUpperCase()"
+                    />
+                  </UFormField>
+
+                  <UFormField label="Active" name="active" class="flex items-end">
+                    <USwitch v-model="mobProxyState.active" />
+                  </UFormField>
+                </div>
+
+                <UFormField label="Change URL" name="changeUrl" class="mt-4">
+                  <UInput v-model="mobProxyState.changeUrl" placeholder="https://..." />
+                </UFormField>
+
+                <div class="flex gap-2 mt-6">
+                  <UButton
+                    type="submit"
+                    color="primary"
+                    :loading="mobProxyLoading"
+                    :disabled="mobProxyLoading"
+                  >
+                    Сохранить
+                  </UButton>
+                  <UButton
+                    color="error"
+                    variant="soft"
+                    :loading="mobProxyLoading"
+                    :disabled="mobProxyLoading"
+                    @click="onDeleteMobProxy"
+                  >
+                    Удалить
+                  </UButton>
+                </div>
+              </UForm>
+            </div>
+          </template>
+        </UTabs>
+      </div>
     </template>
   </UDashboardPanel>
 </template>
@@ -171,44 +249,77 @@ import { useTitle } from '@vueuse/core'
 import type { FormSubmitEvent, TabsItem } from '@nuxt/ui'
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { aiModelSchema, type AiModelSchema } from '@/schemas/settings'
+import {
+  aiModelSchema,
+  mobProxyFormSchema,
+  type AiModelSchema,
+  type MobProxyFormSchema,
+} from '@/schemas/settings'
 import { useTemplateRef } from 'vue'
 import { useAiModels } from '@/composables/use-ai-models'
-import type { AiModelOut } from '@/types/openapi'
+import { useMobProxy } from '@/composables/use-mob-proxy'
+import type { AiModelOut, MobProxyCreateIn, MobProxyOut, MobProxyUpdateIn } from '@/types/openapi'
 
-const { save, get, selected, loading } = useAiModels()
+const {
+  save: saveAiModel,
+  get: getAiModels,
+  selected: getSelectedAiModel,
+  loading: aiLoading,
+} = useAiModels()
+const {
+  get: getMobProxy,
+  create: createMobProxy,
+  update: updateMobProxy,
+  del: deleteMobProxy,
+  loading: mobProxyLoading,
+} = useMobProxy()
 
 const title = 'Настройки'
 useTitle(title)
 
 const tabs = [
   { label: 'AI Модель', icon: 'i-heroicons-cpu-chip', slot: 'aiModel' as const },
+  { label: 'Моб. Прокси', icon: 'i-lucide-smartphone', slot: 'mobProxy' as const },
 ] satisfies TabsItem[]
 
-const form = useTemplateRef('form')
+const aiForm = useTemplateRef('aiForm')
 const modelsLoading = ref(false)
 
 const searchQuery = ref('')
 
 const models = ref<AiModelOut[]>([])
+const mobProxyId = ref<number | null>(null)
+const mobProxyFormVisible = ref(false)
 
-const state = reactive({
+const aiState = reactive({
   id: 'openai/gpt-5.2-chat',
 })
+
+const getEmptyMobProxyState = (): MobProxyFormSchema => ({
+  host: '',
+  port: 1080,
+  username: '',
+  password: '',
+  changeUrl: '',
+  country: '',
+  active: true,
+})
+
+const mobProxyState = reactive<MobProxyFormSchema>(getEmptyMobProxyState())
 
 const toast = useToast()
 
 const formatPrice = (price: string): string => {
-  const num = parseFloat(price) * 1000 // Умножаем на 1000 для цены за 1K токенов
+  const num = parseFloat(price) * 1000
   return num.toFixed(4)
 }
 
 const selectModel = (modelId: string) => {
-  state.id = modelId
+  aiState.id = modelId
 }
 
 const selectedModel = computed(() => {
-  return models.value.find((m) => m.id === state.id)
+  return models.value.find((m) => m.id === aiState.id)
 })
 
 const filteredModels = computed(() => {
@@ -225,39 +336,97 @@ const filteredModels = computed(() => {
   )
 })
 
-const doSubmit = async () => {
-  await form.value?.submit()
+const assignMobProxyState = (proxy: MobProxyOut) => {
+  mobProxyState.host = proxy.host
+  mobProxyState.port = proxy.port
+  mobProxyState.username = proxy.username
+  mobProxyState.password = proxy.password
+  mobProxyState.changeUrl = proxy.changeUrl
+  mobProxyState.country = proxy.country
+  mobProxyState.active = proxy.active
+}
+
+const doSubmitAi = async () => {
+  await aiForm.value?.submit()
 }
 
 onMounted(async () => {
   modelsLoading.value = true
   try {
-    const [modelsData, selectedModel] = await Promise.all([get(), selected()])
+    const [modelsData, selectedAiModel, mobProxy] = await Promise.all([
+      getAiModels(),
+      getSelectedAiModel(),
+      getMobProxy(),
+    ])
 
     models.value = modelsData
 
-    if (selectedModel) {
-      state.id = selectedModel.id
+    if (selectedAiModel) {
+      aiState.id = selectedAiModel.id
+    }
+
+    if (mobProxy) {
+      mobProxyId.value = mobProxy.id
+      mobProxyFormVisible.value = true
+      assignMobProxyState(mobProxy)
     }
   } finally {
     modelsLoading.value = false
   }
 })
 
-const onSubmit = async (event: FormSubmitEvent<AiModelSchema>) => {
-  const success = await save(event.data)
+const onAiSubmit = async (event: FormSubmitEvent<AiModelSchema>) => {
+  const success = await saveAiModel(event.data)
   if (success) {
     toast.add({
       title: 'Модель сохранена',
       color: 'success',
     })
-    // Опционально: можно перезагрузить данные или показать уведомление
   } else {
     toast.add({
       title: 'Не удалось сохранить модель',
       color: 'error',
     })
   }
+}
+
+const onAddMobProxy = () => {
+  mobProxyFormVisible.value = true
+  if (!mobProxyId.value) {
+    Object.assign(mobProxyState, getEmptyMobProxyState())
+  }
+}
+
+const onSubmit = async (event: FormSubmitEvent<MobProxyFormSchema>) => {
+  const payload = {
+    ...event.data,
+    country: event.data.country.toUpperCase(),
+  }
+
+  let result: MobProxyOut
+  if (mobProxyId.value === null) {
+    result = await createMobProxy(payload satisfies MobProxyCreateIn)
+  } else {
+    result = await updateMobProxy(payload satisfies MobProxyUpdateIn)
+  }
+
+  mobProxyId.value = result.id
+  assignMobProxyState(result)
+  mobProxyFormVisible.value = true
+  toast.add({ title: 'Моб. прокси сохранена', color: 'success' })
+}
+
+const onDeleteMobProxy = async () => {
+  if (mobProxyId.value === null) {
+    mobProxyFormVisible.value = false
+    return
+  }
+
+  await deleteMobProxy()
+  mobProxyId.value = null
+  mobProxyFormVisible.value = false
+  Object.assign(mobProxyState, getEmptyMobProxyState())
+  toast.add({ title: 'Моб. прокси удалена', color: 'success' })
 }
 </script>
 <style scoped>
