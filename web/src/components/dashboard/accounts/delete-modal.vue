@@ -1,11 +1,11 @@
 <template>
   <UModal
     v-model:open="open"
-    :title="`Удаление ${props.selectedIds.length} ${plur(props.selectedIds.length)}`"
+    :title="`Удаление ${selectedIds.length} ${plur(selectedIds.length)}`"
     :description="`Вы уверены? Это действие нельзя будет отменить.`"
   >
     <UButton
-      v-if="props.selectedIds.length && !props.hideTrigger"
+      v-if="selectedIds.length"
       label="Удалить"
       color="error"
       variant="subtle"
@@ -13,7 +13,7 @@
     >
       <template #trailing>
         <UKbd>
-          {{ props.selectedIds.length }}
+          {{ selectedIds.length }}
         </UKbd>
       </template>
     </UButton>
@@ -26,6 +26,7 @@
   </UModal>
 </template>
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useAccounts } from '@/composables/use-accounts'
 import { pluralize } from '@/utils/pluralize'
 
@@ -33,14 +34,11 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const props = withDefaults(defineProps<{
+const { selectedIds } = defineProps<{
   selectedIds: number[]
-  hideTrigger?: boolean
-}>(), {
-  hideTrigger: false,
-})
+}>()
 
-const open = defineModel<boolean>('open', { default: false })
+const open = ref(false)
 
 const plur = (n: number): string => {
   return pluralize(n, ['аккаунта', 'аккаунтов', 'аккаунтов'])
@@ -49,7 +47,7 @@ const plur = (n: number): string => {
 const { del } = useAccounts()
 
 async function onSubmit() {
-  await del(props.selectedIds)
+  await del(selectedIds)
   open.value = false
   emit('close')
 }

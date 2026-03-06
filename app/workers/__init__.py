@@ -1,4 +1,0 @@
-"""
-Project-local workers package.
-"""
-

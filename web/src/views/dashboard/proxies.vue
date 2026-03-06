@@ -20,7 +20,6 @@
         <UTable
           ref="table"
           v-model:column-visibility="columnVisibility"
-          v-model:sorting="sorting"
           class="shrink-0"
           :data="proxies ?? []"
           :columns="columns"
@@ -51,7 +50,7 @@
 <script setup lang="ts">
 import { useTitle, useDateFormat } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
-import { onMounted, ref, h, resolveComponent } from 'vue'
+import { onMounted, ref } from 'vue'
 import DeleteProxiesModal from '@/components/dashboard/proxies/delete-modal.vue'
 import ChangeCountryModal from '@/components/dashboard/proxies/country-modal.vue'
 import AddProxiesModal from '@/components/dashboard/proxies/add-modal.vue'
@@ -60,7 +59,6 @@ import ProxyStatusBadge from '@/components/dashboard/proxies/status-badge.vue'
 import { useProxies } from '@/composables/use-proxies'
 import { useTableSelection } from '@/composables/table/use-selection.bak'
 import type { ProxyOut } from '@/types/openapi'
-import type { Column, SortingFn } from '@tanstack/vue-table'
 
 const title = 'Прокси'
 useTitle(title)
@@ -70,7 +68,6 @@ const { proxies, get, loading } = useProxies()
 onMounted(() => get())
 
 const columnVisibility = ref()
-const sorting = ref<{ id: string; desc: boolean }[]>([])
 
 const { tableApi, selectedIds, selectionColumn } = useTableSelection<ProxyOut>('table')
 
@@ -79,73 +76,16 @@ const refresh = () => {
   get()
 }
 
-const UButton = resolveComponent('UButton')
-
-function getHeader(column: Column<ProxyOut>, label: string) {
-  const isSorted = column.getIsSorted()
-
-  return h(UButton, {
-    color: 'neutral',
-    variant: 'ghost',
-    label,
-    icon: isSorted
-      ? isSorted === 'asc'
-        ? 'i-lucide-arrow-up-narrow-wide'
-        : 'i-lucide-arrow-down-wide-narrow'
-      : 'i-lucide-arrow-up-down',
-    class: '-mx-2.5',
-    onClick: () => column.toggleSorting(column.getIsSorted() === 'asc'),
-  })
-}
-
-type ProxyStatus = 'working' | 'unstable' | 'disabled'
-
-function getProxyStatus(proxy: ProxyOut): ProxyStatus {
-  if (!proxy.active) return 'disabled'
-  if (proxy.failures > 0) return 'unstable'
-  return 'working'
-}
-
-const proxyStatusSortingFn: SortingFn<ProxyOut> = (rowA, rowB) => {
-  const rank: Record<ProxyStatus, number> = {
-    working: 0,
-    unstable: 1,
-    disabled: 2,
-  }
-
-  return rank[getProxyStatus(rowA.original)] - rank[getProxyStatus(rowB.original)]
-}
-
-const proxyAccountSortingFn: SortingFn<ProxyOut> = (rowA, rowB) => {
-  const a = rowA.original.account
-  const b = rowB.original.account
-
-  if (!a && !b) return 0
-  if (!a) return 1
-  if (!b) return -1
-
-  const aUser = (a.username ?? '').toLowerCase()
-  const bUser = (b.username ?? '').toLowerCase()
-
-  if (aUser && bUser) return aUser.localeCompare(bUser, 'ru')
-  if (aUser) return -1
-  if (bUser) return 1
-
-  return a.id - b.id
-}
-
 const columns: TableColumn<ProxyOut>[] = [
   selectionColumn(),
 
   {
-    id: 'status',
-    header: ({ column }) => getHeader(column, 'Статус'),
-    accessorFn: (row) => getProxyStatus(row),
-    sortingFn: proxyStatusSortingFn,
+    accessorKey: 'status',
+    header: 'Статус',
   },
   {
     accessorKey: 'country',
-    header: ({ column }) => getHeader(column, 'Страна'),
+    header: 'Страна',
   },
   {
     accessorKey: 'host',
@@ -164,10 +104,8 @@ const columns: TableColumn<ProxyOut>[] = [
     header: 'Пароль',
   },
   {
-    id: 'accounts',
-    header: ({ column }) => getHeader(column, 'Аккаунт'),
-    accessorFn: (row) => row.account?.username ?? row.account?.id ?? null,
-    sortingFn: proxyAccountSortingFn,
+    accessorKey: 'accounts',
+    header: 'Аккаунт',
   },
   {
     accessorKey: 'createdAt',

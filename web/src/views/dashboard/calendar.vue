@@ -10,7 +10,7 @@
     <template #body>
       <div class="w-full max-w-4xl mx-auto md:min-w-[800px] px-4">
         <UTabs :items="tabs" variant="link" :ui="{ trigger: 'grow' }" class="gap-4">
-          <template #meetings><CalendarMeetings /></template>
+          <template #meetings>under construction</template>
           <template #settings><CalendarSettings /></template>
         </UTabs>
       </div>
@@ -21,8 +21,7 @@
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui'
 import { useTitle } from '@vueuse/core'
-import CalendarSettings from '@/components/dashboard/calendar/settings-tab.vue'
-import CalendarMeetings from '@/components/dashboard/calendar/meetings-tab.vue'
+import CalendarSettings from '@/components/dashboard/calendar/settings.vue'
 const title = 'Календарь'
 
 const tabs = [

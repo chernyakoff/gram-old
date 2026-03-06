@@ -1,5 +1,5 @@
 postgres:
-  dsn: "postgres://postgres:postgres@neuro-postgres:5432/neurogram"
+  dsn: "postgres://postgres:postgres@postgres:5432/neurogram"
 
 hatchet:
   host_port: "hatchet-engine:7070"
@@ -33,11 +33,3 @@ web:
 openrouter:
   manager_api_key: "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"
   proxy: "socks5://niM1Bv1s:tbrA9EWJ@172.120.17.109:64193"
-
-tg_sessions:
-  url: "http://tg-sessions:8000"
-
-neurousers:
-  url: "https://users.lidorub.online"
-  internal_token: "s70@dxw31Q6SbYVR2"
-  timeout_seconds: 10.0

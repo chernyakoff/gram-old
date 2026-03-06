@@ -1,5 +1,4 @@
 import { h, computed, useTemplateRef } from 'vue'
-import type { VNodeChild } from 'vue'
 import type { Table } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
 import Checkbox from '@nuxt/ui/components/Checkbox.vue'
@@ -9,7 +8,6 @@ export function useTableSelection<TableRow extends object>(
   pkName: keyof TableRow = 'id' as keyof TableRow,
   options?: {
     isSelectable?: (row: TableRow) => boolean
-    renderNonSelectable?: (row: TableRow) => VNodeChild
   },
 ) {
   const tableRef = useTemplateRef<{ tableApi: Table<TableRow> }>(tableRefName)
@@ -60,24 +58,17 @@ export function useTableSelection<TableRow extends object>(
           ariaLabel: 'Выбрать всё',
         })
       },
-      cell: ({ row }) => {
-        const selectable = isRowSelectable(row.original)
-
-        if (!selectable && options?.renderNonSelectable) {
-          return options.renderNonSelectable(row.original)
-        }
-
-        return h(Checkbox, {
+      cell: ({ row }) =>
+        h(Checkbox, {
           modelValue: row.getIsSelected(),
-          disabled: !selectable,
+          disabled: !isRowSelectable(row.original),
           'onUpdate:modelValue': (value: boolean | 'indeterminate') => {
-            if (selectable) {
+            if (isRowSelectable(row.original)) {
               row.toggleSelected(!!value)
             }
           },
           ariaLabel: 'Выбрать строку',
-        })
-      },
+        }),
     }
   }
 

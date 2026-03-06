@@ -9,112 +9,66 @@ import type {
   UserMeOut,
 } from '@/types/openapi'
 
-
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserMeOut | null>(null)
   const accessToken = ref<string | null>(localStorage.getItem('accessToken'))
   const isAuthenticated = computed(() => !!accessToken.value)
   const isImpersonated = computed(() => user.value?.impersonated ?? false)
-
-  
-  const { apiUsers } = useApi()
-
-  function clearLocalSession() {
-    user.value = null
-    accessToken.value = null
-    localStorage.removeItem('accessToken')
-    stopBalancePolling()
-  }
-
-  function setAccessToken(token: string) {
-    accessToken.value = token
-    localStorage.setItem('accessToken', token)
-    startBalancePolling()
-  }
-
-  let logoutInFlight: Promise<void> | null = null
+  const { api } = useApi()
   async function login(user: UserLoginIn) {
-
-    const inviteRefCode = localStorage.getItem('inviteRefCode')
-    
-    if (inviteRefCode) {
-      user.inviteRefCode = inviteRefCode
-    }
-    
-  
-    const data = await apiUsers<UserLoginOut>('auth', {
+    const data = await api<UserLoginOut>('auth', {
       method: 'POST',
       body: user,
     })
-    
-    setAccessToken(data.accessToken)
-    
-    localStorage.removeItem('inviteRefCode')
+    accessToken.value = data.accessToken
+    localStorage.setItem('accessToken', data.accessToken)
     await fetchUser()
     startBalancePolling()
   }
 
   async function logout() {
-    // Make logout idempotent and avoid spamming the API under repeated calls.
-    if (logoutInFlight) return logoutInFlight
-
-    logoutInFlight = (async () => {
-      clearLocalSession()
-      try {
-        await apiUsers('auth/logout', { method: 'POST' })
-      } catch {
-        // ignore errors
-      }
-    })()
-
+    user.value = null
+    accessToken.value = null
+    localStorage.removeItem('accessToken')
+    stopBalancePolling()
     try {
-      await logoutInFlight
-    } finally {
-      logoutInFlight = null
+      await api('auth/logout', { method: 'POST' })
+    } catch {
+      // ignore errors
     }
   }
 
-  let refreshInFlight: Promise<boolean> | null = null
   async function refreshTokens() {
-    if (refreshInFlight) return refreshInFlight
-
-    refreshInFlight = (async () => {
-      try {
-        const data = await apiUsers<UserLoginOut>('auth/refresh', {
-          method: 'POST',
-        })
-        setAccessToken(data.accessToken)
-        return true
-      } catch {
-        // Important: don't call server logout here; on refresh failure this can create request storms.
-        clearLocalSession()
-        return false
-      }
-    })()
-
     try {
-      return await refreshInFlight
-    } finally {
-      refreshInFlight = null
+      const data = await api<UserLoginOut>('auth/refresh', {
+        method: 'POST',
+      })
+      accessToken.value = data.accessToken
+      localStorage.setItem('accessToken', data.accessToken)
+      return true
+    } catch {
+      logout()
+      return false
     }
   }
 
   async function fetchUser() {
-    const me = await apiUsers<UserMeOut>('auth/me')
+    const me = await api<UserMeOut>('auth/me')
     user.value = me
   }
 
   async function impersonate(data: ImpersonateIn) {
-    const result = await apiUsers<ImpersonateOut>('admin/impersonate', {
+    const result = await api<ImpersonateOut>('admin/impersonate', {
       method: 'POST',
       body: data,
     })
-    setAccessToken(result.access)
+    accessToken.value = result.access
+    localStorage.setItem('accessToken', result.access)
     await fetchUser()
   }
 
   async function stopImpersonate() {
-    await apiUsers('admin/stop-impersonate', { method: 'POST' })
+    await api('admin/stop-impersonate', { method: 'POST' })
     // После остановки имперсонации нужно обновить токены
     await refreshTokens()
     await fetchUser()
@@ -148,10 +102,8 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken,
     isAuthenticated,
     isImpersonated,
-
     login,
     logout,
-    setAccessToken,
     refreshTokens,
     fetchUser,
     impersonate,

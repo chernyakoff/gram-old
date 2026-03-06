@@ -5,14 +5,16 @@
     collapsible
     resizable
     class="bg-elevated/25"
-    :ui="{ footer: 'lg:border-t lg:border-default' }">
+    :ui="{ footer: 'lg:border-t lg:border-default' }"
+  >
     <template #header="{ collapsed }">
       <Logo :collapsed="collapsed" />
     </template>
     <template #default="{ collapsed }">
       <div
         class="py-3 mb-2 text-sm flex items-center"
-        :class="collapsed ? 'justify-center' : 'justify-between'">
+        :class="collapsed ? 'justify-center' : 'justify-between'"
+      >
         <span v-if="!collapsed" class="text-muted">Баланс</span>
         <span class="font-semibold tabular-nums">
           {{ balanceRub }}
@@ -23,7 +25,8 @@
         :items="filteredLinks"
         orientation="vertical"
         tooltip
-        popover />
+        popover
+      />
     </template>
     <template #footer="{ collapsed }">
       <AppUserMenu :collapsed="collapsed" />
@@ -41,7 +44,7 @@ const open = ref(false)
 
 const { user } = useAuth()
 
-const links: NavigationMenuItem[] = [
+const links = [
   {
     label: 'Дашборд',
     icon: 'bx-bxs-bar-chart-alt-2',
@@ -79,12 +82,12 @@ const links: NavigationMenuItem[] = [
     icon: 'bx-chat',
     onSelect: () => (open.value = false),
   },
-  {
+  /* {
     label: 'Календарь',
     to: '/app/calendar',
     icon: 'bxs-calendar',
     onSelect: () => (open.value = false),
-  },
+  }, */
   {
     label: 'Задачи',
     to: '/app/jobs',
@@ -98,21 +101,12 @@ const links: NavigationMenuItem[] = [
     onSelect: () => (open.value = false),
   },
   {
-    label: 'ECHO',
-    to: 'https://qt-echo.online',
-    external: true,
-    target: '_blank',
-    rel: 'noopener noreferrer',
-    icon: 'lucide:video',
-    onSelect: () => (open.value = false),
-  },
-  {
     label: 'Админка',
     to: '/app/admin',
     icon: 'bx:bxl-gitlab',
     onSelect: () => (open.value = false),
-  }
-]
+  },
+] satisfies NavigationMenuItem[]
 
 const balanceRub = computed(() => {
   const balance = user.value?.balance ?? 0
@@ -124,27 +118,11 @@ const balanceRub = computed(() => {
 })
 
 const filteredLinks = computed(() => {
-  const isImpersonated = user.value?.impersonated === true
-
-  return links
-    .filter((link) => {
-      const to = link.to
-      if (typeof to === 'string' && to.includes('admin')) {
-        // Client-side hiding isn't security; backend must still enforce admin access.
-        // Show admin entry to real admins and to admins currently impersonating a user.
-        return user.value?.role === 'ADMIN' || isImpersonated
-      }
-      return true
-    })
-    .map((link) => {
-      if (link.to === '/app/admin' && isImpersonated) {
-        return {
-          ...link,
-          // Visual warning: you're in impersonation mode.
-          class: ['text-red-600 dark:text-red-400', link.class],
-        }
-      }
-      return link
-    })
+  return links.filter((link) => {
+    if (link.to?.includes('admin')) {
+      return user.value?.role === 'ADMIN'
+    }
+    return true
+  })
 })
 </script>

@@ -35,7 +35,7 @@ RUN node scripts/generate-env.js
 RUN echo "=== .env содержимое ===" && cat .env && echo "=== конец файла ==="
 
 # Сборка фронта
-RUN npm run build-only
+RUN npm run build
 
 # ================================
 # Stage 2 — Production Server

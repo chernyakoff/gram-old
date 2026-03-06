@@ -1,16 +1,11 @@
 <template>
-	  <UModal v-model:open="open" :title="`Отмена подписки`" :description="`Для ${accountName}`">
-	    <button
-	      class="flex items-center gap-1 disabled:cursor-not-allowed"
-	      :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'"
-	      :disabled="disabled"
-	      :aria-disabled="disabled"
-	      :title="disabled ? 'Аккаунт в работе' : undefined">
-	      <UIcon name="bxs:star" class="h-6 w-6 text-yellow-400" />
-	    </button>
-	    <template #footer="{ close }">
-	      <div class="flex justify-end gap-2">
-	        <UButton label="Закрыть" color="neutral" variant="subtle" @click="close" />
+  <UModal v-model:open="open" :title="`Отмена подписки`" :description="`Для ${accountName}`">
+    <button class="flex items-center gap-1">
+      <UIcon name="bxs:star" class="h-6 w-6 text-yellow-400" />
+    </button>
+    <template #footer="{ close }">
+      <div class="flex justify-end gap-2">
+        <UButton label="Закрыть" color="neutral" variant="subtle" @click="close" />
         <UButton
           label="Отменить подписку"
           color="primary"
@@ -24,19 +19,19 @@
 </template>
 
 <script setup lang="ts">
-	import { computed } from 'vue'
+import { computed } from 'vue'
 
-	import { useAccounts } from '@/composables/use-accounts'
-	import type { AccountOut } from '@/types/openapi'
-	import { useBackgroundJobs } from '@/stores/jobs-store'
+import { useAccounts } from '@/composables/use-accounts'
+import type { AccountOut } from '@/types/openapi'
+import { useBackgroundJobs } from '@/stores/jobs-store'
 
-	const jobsStore = useBackgroundJobs()
-	const toast = useToast()
+const jobsStore = useBackgroundJobs()
+const toast = useToast()
 
-	const { account, disabled = false } = defineProps<{ account: AccountOut, disabled?: boolean }>()
-	const open = defineModel<boolean>('open', { default: false })
+const { account } = defineProps<{ account: AccountOut }>()
+const open = defineModel<boolean>('open', { default: false })
 
-	const accountName = computed(() => `${account.firstName ?? ''} ${account.lastName ?? ''}`)
+const accountName = computed(() => `${account.firstName ?? ''} ${account.lastName ?? ''}`)
 
 const emit = defineEmits<{
   (e: 'completed'): void

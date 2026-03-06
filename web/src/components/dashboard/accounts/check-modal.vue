@@ -2,10 +2,10 @@
   <UModal
     v-model:open="open"
     :title="`Проверка акканутов`"
-    :description="`Будет проверено ${props.selectedIds.length} ${plur(props.selectedIds.length)}.`"
+    :description="`Будет проверено ${selectedIds.length} ${plur(selectedIds.length)}.`"
   >
     <UButton
-      v-if="props.selectedIds.length && !props.hideTrigger"
+      v-if="selectedIds.length"
       label="Проверить аккаунты"
       color="neutral"
       variant="subtle"
@@ -13,7 +13,7 @@
     >
       <template #trailing>
         <UKbd>
-          {{ props.selectedIds.length }}
+          {{ selectedIds.length }}
         </UKbd>
       </template>
     </UButton>
@@ -41,12 +41,9 @@ const emit = defineEmits<{
   (e: 'completed'): void
 }>()
 
-const props = withDefaults(defineProps<{
+const { selectedIds } = defineProps<{
   selectedIds: number[]
-  hideTrigger?: boolean
-}>(), {
-  hideTrigger: false,
-})
+}>()
 
 const open = defineModel<boolean>('open', { default: false })
 
@@ -63,7 +60,7 @@ async function onSubmit() {
   })
 
   try {
-    const { id } = await check({ accountIds: props.selectedIds })
+    const { id } = await check({ accountIds: selectedIds })
     jobsStore.add({
       id,
       name: 'Проверка аккаунтов',

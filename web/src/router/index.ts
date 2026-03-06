@@ -26,29 +26,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'settings', component: () => import('@/views/dashboard/settings.vue') },
       { path: 'calendar', component: () => import('@/views/dashboard/calendar.vue') },
       {
-        path: 'project/:id',
-        name: 'project',
-        component: () => import('@/views/dashboard/project.vue'),
-        props: true,
+        path: 'project/:id?',
+        name: 'project-create',
+        component: () => import('@/views/dashboard/project-create.vue'),
+        props: true, // чтобы id сразу приходил как пропс
       },
     ],
   },
-
-  {
-    path: '/r/:code',
-    name: 'ref',
-    component: () => import('@/views/landing/index.vue'),
-    beforeEnter: (to) => {
-      const code = to.params.code as string
-
-
-      // Сохраняем напрямую в localStorage (синхронно)
-      localStorage.setItem('inviteRefCode', code)
-
-      // Редирект на главную
-      return { name: 'main' }
-    },
-  }
 ]
 
 const router = createRouter({
@@ -59,26 +43,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
 
-  if (to.name === 'ref') {
-    return next()
-  }
-
-  const accessTokenFromQuery =
-    typeof to.query.access_token === 'string' ? to.query.access_token : null
-  if (accessTokenFromQuery) {
-    auth.setAccessToken(accessTokenFromQuery)
-    const { access_token: _ignored, ...restQuery } = to.query
-    return next({
-      path: to.path,
-      query: restQuery,
-      hash: to.hash,
-      replace: true,
-    })
-  }
-
-  // --------------------------
-  // 2️⃣ ПОДТЯГИВАЕМ ПОЛЬЗОВАТЕЛЯ
-  // --------------------------
+  // если store ещё не знает пользователя, подтягиваем
   if (auth.isAuthenticated && !auth.user) {
     try {
       await auth.fetchUser()
@@ -87,14 +52,13 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // --------------------------
-  // 3️⃣ РЕДИРЕКТЫ ПО AUTH / ЛИЦЕНЗИИ
-  // --------------------------
   if (!auth.isAuthenticated && to.name !== 'main') {
+    // не залогинен → на главную
     return next({ name: 'main' })
   }
 
   if (auth.isAuthenticated && to.name === 'main') {
+    // залогинен → на дашборд или лицензию
     if (auth.user?.hasLicense) {
       return next({ name: 'app' })
     } else {
@@ -102,19 +66,10 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
+  // проверка лицензии для защищённых страниц
   if (auth.isAuthenticated && !auth.user?.hasLicense && to.path.startsWith('/app')) {
-    // Allow admins to reach the admin panel even without a license, including while impersonating.
-    // Security must be enforced on the API side; this only affects client routing.
-    const isAdminRoute = to.path === '/app/admin' || to.path.startsWith('/app/admin/')
-    const canReachAdmin =
-      isAdminRoute && (auth.user?.role === 'ADMIN' || auth.user?.impersonated === true)
-
-    if (!canReachAdmin) {
-      return next({ name: 'license' })
-    }
+    return next({ name: 'license' })
   }
-
   next()
 })
-
 export default router

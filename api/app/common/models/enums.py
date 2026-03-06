@@ -1,0 +1,71 @@
+from enum import IntEnum, StrEnum
+
+
+class LicenseType(IntEnum):
+    НЕТ = 0
+    МЕСЯЦ = 1
+    ТРИ_МЕСЯЦА = 3
+    ШЕСТЬ_МЕСЯЦЕВ = 6
+    ГОД = 12
+    ПРЕМИУМ = 120
+
+
+class Role(IntEnum):
+    USER = 0
+    ADMIN = 7
+
+
+class AccountStatus(StrEnum):
+    GOOD = "good"
+    BANNED = "banned"
+    MUTED = "muted"
+    FROZEN = "frozen"
+    EXITED = "exited"
+    NOPROXY = "noproxy"
+
+
+class AccountAction(StrEnum):
+    RESOLVE_USERNAME = "resolve_username"
+    NEW_DIALOG = "new_dialog"
+
+
+class MailingStatus(StrEnum):
+    DRAFT = "draft"
+    RUNNING = "running"
+    FINISHED = "finished"
+    CANCELLED = "cancelled"
+
+
+class RecipientStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SENT = "sent"
+    FAILED = "failed"
+    BOUNCED = "bounced"
+
+
+class DialogStatus(StrEnum):
+    INIT = "init"  # приветствие
+    ENGAGE = "engage"  # проявил интерес
+    OFFER = "offer"  # сделали предложение
+    CLOSING = "closing"  # завершено (отказ / интерес / договорились о звонке)
+    COMPLETE = "complete"  # попрощались
+    NEGATIVE = "negative"  # послали нахер
+    OPERATOR = "operator"  # робот раскрыт -- требуется кожаный мешок
+    MANUAL = "manual"  # диалог перезваче менеджером
+
+
+class MessageSender(StrEnum):
+    ACCOUNT = "account"
+    RECIPIENT = "recipient"
+    SYSTEM = "system"
+
+
+class WeekDay(IntEnum):
+    MONDAY = 1
+    TUESDAY = 2
+    WEDNESDAY = 3
+    THURSDAY = 4
+    FRIDAY = 5
+    SATURDAY = 6
+    SUNDAY = 7

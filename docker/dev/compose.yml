@@ -1,8 +1,6 @@
-name: neurogram-dev
-
 services:
   postgres:
-    image: pgvector/pgvector:pg15
+    image: postgres:15
     container_name: neuro-postgres
     restart: unless-stopped
     environment:
@@ -10,84 +8,74 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: neurogram
     ports:
-      - "5445:5432" # доступ с хоста (ноута)
+      - "5445:5432"   # доступ с хоста (ноута)
     volumes:
       - postgres-data-dev:/var/lib/postgresql/data
     networks:
       - dev
 
-  base:
-    profiles: ["workers"]
+  base-worker:
     build:
-      context: ../..
-      dockerfile: app/workers/base/Dockerfile
+      context: ../../workers/base
       target: dev
-    container_name: neuro-base
+    container_name: neuro-base-worker
     volumes:
-      - ../../app:/app
-      - uv-venv-base:/app/.venv # отдельный том под venv worker
-      - ./config.yml:/app/config.yml
+      - ../../workers/base:/app
+      - uv-venv-base-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "workers.base"]
+    command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
     networks:
       - hatchet
       - dev
-      - s3
       - web
 
-  dialog:
-    profiles: ["workers"]
+  dialog-worker:
     build:
-      context: ../..
-      dockerfile: app/workers/dialog/Dockerfile
+      context: ../../workers/dialog
       target: dev
-    container_name: neuro-dialog
+    container_name: neuro-dialog-worker
     volumes:
-      - ../../app:/app
-      - uv-venv-dialog:/app/.venv # отдельный том под venv worker
-      - ./config.yml:/app/config.yml
+      - ../../workers/dialog:/app
+      - uv-venv-dialog-worker:/app/.venv   # отдельный том под venv worker
+      - ./config.yml:/app/config.yml 
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
-    command: ["uv", "run", "python", "-m", "workers.dialog"]
+    command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
     networks:
       - hatchet
       - dev
-      - s3
       - web
 
   api:
     build:
-      context: ../..
-      dockerfile: app/api/Dockerfile
+      context: ../../api
       target: dev
     container_name: neuro-api
     ports:
-      - "8833:8833" # маппим наружу API
+      - "8833:8833"   # маппим наружу API
     volumes:
-      - ../../app:/app
-      - uv-venv-api:/app/.venv # отдельный том под venv api
-      - ./config.yml:/app/config.yml
+      - ../../api:/app
+      - uv-venv-api:/app/.venv      # отдельный том под venv api
+      - ./config.yml:/app/config.yml 
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: ["uv", "run", "python", "-m", "api.dev"]
+    command: ["uv", "run", "python", "-m", "app.dev"]
     depends_on:
       - postgres
     networks:
-      - hatchet
+      - hatchet 
       - dev
-      - s3
       - web
 
   web:
@@ -99,19 +87,39 @@ services:
       - "5173:5173"
     volumes:
       - ../../web:/app
-      - /app/node_modules
-      - ./config.yml:/app/config.yml
+      - ./config.yml:/app/config.yml 
     depends_on:
       - api
+      - base-worker
+    networks:
+      - dev
+      - web
+
+  minio:
+    build:
+      context: ./minio
+    container_name: neuro-minio
+    environment:
+      MINIO_ROOT_USER: mike
+      MINIO_ROOT_PASSWORD: gabun8374
+      S3_ACCESS_KEY: "IhDRQQH1TfL0wQtUDpKV"
+      S3_SECRET_KEY: "G2J10kVTv3E6eBMHOcmnQIrM00fqwa3fFpqCs49g"
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
     networks:
       - dev
       - web
 
 volumes:
-  uv-venv-base: {}
-  uv-venv-dialog: {}
+  uv-venv-base-worker: {}
+  uv-venv-dialog-worker: {}
   uv-venv-api: {}
   postgres-data-dev: {}
+  minio-data: {}
 
 networks:
   hatchet:
@@ -121,6 +129,3 @@ networks:
     driver: bridge
   dev:
     driver: bridge
-  s3:
-    external: true
-    name: neuro-s3-dev

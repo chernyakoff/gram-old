@@ -1,0 +1,40 @@
+import logging
+import sys
+
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        # Просто пробрасываем рекорд в корневой логгер
+        logging.getLogger(record.name).handle(record)
+
+
+def setup_logger(filename: str = "app.log"):
+    # Формат логов
+    formatter = logging.Formatter(
+        fmt="[{asctime}] {levelname} | {name} | {message}",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+    )
+
+    # Хендлер для stdout
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+
+    # Хендлер для файла (если нужно)
+    # file_handler = logging.FileHandler(f"logs/{filename}")
+    # file_handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)  # Уровень логирования
+    root_logger.handlers.clear()  # Убираем старые хендлеры
+    root_logger.addHandler(console_handler)
+    # root_logger.addHandler(file_handler)
+
+    # Настройки сторонних библиотек
+    logging.getLogger("tortoise.db_client").setLevel(logging.ERROR)
+    logging.getLogger("tortoise").setLevel(logging.ERROR)
+    logging.getLogger("telethon").setLevel(logging.ERROR)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+logger = logging.getLogger("bot")

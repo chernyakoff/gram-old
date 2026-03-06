@@ -4,25 +4,30 @@
     class="w-160"
     :handle="false"
     v-model:open="open"
-    :prevent-close="isSubmitting || localLoading">
+    :prevent-close="isSubmitting || localLoading"
+  >
     <!-- Заголовок -->
     <template #title>
       <div class="flex justify-center px-4">
         <div class="space-y-5 w-2/3 max-w-[500px]">Покупка премиум</div>
       </div>
     </template>
+
     <template #description>
       <div class="flex justify-center px-4">
         <div class="space-y-5 w-2/3 max-w-[500px]">для {{ accountName }}</div>
       </div>
     </template>
+
     <!-- Тело -->
     <template #body>
       <div class="flex justify-center px-4">
         <div class="space-y-5 w-2/3 max-w-[500px]">
           <!-- Номер карты -->
           <div>
-            <label class="block text-sm font-medium mb-1"> Номер карты <span class="text-red-500">*</span>
+            <label class="block text-sm font-medium mb-1">
+              Номер карты
+              <span class="text-red-500">*</span>
             </label>
             <UInput
               v-model="formattedCardNumber"
@@ -33,14 +38,18 @@
               class="w-full"
               :error="!!errors.number"
               :ui="errors.number ? errorInputUi : {}"
-              :disabled="isSubmitting" />
+              :disabled="isSubmitting"
+            />
           </div>
+
           <!-- Дата + CVV -->
           <div class="grid grid-cols-[1fr_1fr_auto] gap-4 items-end">
             <div class="grid grid-cols-[100px_10px_100px] items-end">
               <!-- Месяц -->
               <div>
-                <label class="block text-sm font-medium mb-1"> Месяц <span class="text-red-500">*</span>
+                <label class="block text-sm font-medium mb-1">
+                  Месяц
+                  <span class="text-red-500">*</span>
                 </label>
                 <UInput
                   :model-value="monthDisplay"
@@ -54,14 +63,19 @@
                   :disabled="isSubmitting"
                   @input="handleMonthInput"
                   @blur="formatMonth"
-                  @keypress="onlyNumbers" />
+                  @keypress="onlyNumbers"
+                />
               </div>
+
               <div class="flex items-center justify-center pb-2">
                 <span class="text-gray-400">/</span>
               </div>
+
               <!-- Год -->
               <div>
-                <label class="block text-sm font-medium mb-1"> Год <span class="text-red-500">*</span>
+                <label class="block text-sm font-medium mb-1">
+                  Год
+                  <span class="text-red-500">*</span>
                 </label>
                 <UInput
                   :model-value="yearDisplay"
@@ -75,12 +89,16 @@
                   :disabled="isSubmitting"
                   @input="handleYearInput"
                   @blur="formatYear"
-                  @keypress="onlyNumbers" />
+                  @keypress="onlyNumbers"
+                />
               </div>
             </div>
+
             <!-- CVV -->
             <div class="w-20">
-              <label class="block text-sm font-medium mb-1"> CVV <span class="text-red-500">*</span>
+              <label class="block text-sm font-medium mb-1">
+                CVV
+                <span class="text-red-500">*</span>
               </label>
               <UInput
                 v-model="state.cvv"
@@ -91,29 +109,35 @@
                 size="lg"
                 :error="!!errors.cvv"
                 :ui="errors.cvv ? errorInputUi : {}"
-                :disabled="isSubmitting" />
+                :disabled="isSubmitting"
+              />
             </div>
           </div>
         </div>
       </div>
+
       <!-- Ошибки формы -->
       <div class="flex justify-center px-4">
         <div class="space-y-5 w-2/3 max-w-[500px] pt-4">
           <p v-for="(error, index) in activeErrors" :key="index" class="my-1 text-sm text-red-500">
             {{ error }}
           </p>
+
           <!-- Загрузка -->
           <div v-if="localLoading" class="flex flex-col items-center justify-center py-6 space-y-3">
             <div
-              class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"
+            ></div>
             <p class="text-sm text-gray-600 dark:text-gray-400">Обработка запроса...</p>
           </div>
+
           <!-- Результат -->
           <div v-if="purchaseResponse && !localLoading" class="space-y-4 py-4">
             <!-- Ошибка -->
             <template v-if="purchaseResponse.status === 'error'">
               <div
-                class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+              >
                 <p class="text-sm text-red-600 dark:text-red-400">
                   {{ purchaseResponse.message }}
                 </p>
@@ -123,63 +147,58 @@
                 color="neutral"
                 variant="outline"
                 class="justify-center w-full"
-                @click="closeDrawer" />
+                @click="closeDrawer"
+              />
             </template>
-            <!-- Успех -->
-            <template v-else-if="purchaseResponse.status === 'success'">
+
+            <!-- Успех с верификацией -->
+            <template
+              v-else-if="purchaseResponse.status === 'success' && purchaseResponse.verificationUrl"
+            >
               <div
-                class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div class="space-y-2">
-                  <p class="text-sm text-green-600 dark:text-green-400"> Запрос на покупку premium отправлен. </p>
-                  <p v-if="purchaseResponse.message" class="text-sm text-green-600 dark:text-green-400">
-                    {{ purchaseResponse.message }}
-                  </p>
-                  <p class="text-sm text-green-600 dark:text-green-400"> Дальше нужно вручную проверить, появился ли premium у аккаунта, и подтвердить результат. </p>
-                </div>
+                class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+              >
+                <p class="text-sm text-blue-600 dark:text-blue-400">
+                  Для завершения покупки необходимо пройти верификацию
+                </p>
               </div>
-              <div class="p-4 bg-white dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg">
-                <div class="space-y-2">
-                  <p class="text-sm text-gray-700 dark:text-gray-300"> Инструкция: </p>
-                  <ol class="list-decimal list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                    <li v-if="purchaseResponse.verificationUrl"> Нажмите «Перейти к верификации» и завершите 3DS/подтверждение оплаты в банке. </li>
-                    <li> Нажмите «Проверка премиум» и откройте профиль аккаунта в Telegram. </li>
-                    <li> Убедитесь, что у аккаунта есть синяя звездочка premium. </li>
-                    <li> Вернитесь сюда и нажмите «Премиум куплен» или «Премиум не куплен». </li>
-                  </ol>
-                </div>
+              <UButton
+                label="Перейти к верификации"
+                color="primary"
+                class="justify-center w-full"
+                @click="openVerificationUrl"
+              />
+              <UButton
+                label="Закрыть"
+                color="neutral"
+                variant="outline"
+                class="justify-center w-full"
+                @click="closeDrawer"
+              />
+            </template>
+
+            <!-- Успех -->
+            <template v-else>
+              <div
+                class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
+              >
+                <p class="text-sm text-green-600 dark:text-green-400">
+                  Premium успешно приобретен!
+                </p>
               </div>
-              <div class="grid grid-cols-1 gap-2">
-                <UButton
-                  v-if="purchaseResponse.verificationUrl"
-                  label="Перейти к верификации"
-                  color="primary"
-                  class="justify-center w-full"
-                  @click="openVerificationUrl" />
-                <UButton
-                  label="Проверка премиум"
-                  color="neutral"
-                  variant="outline"
-                  class="justify-center w-full"
-                  @click="openUsernameUrl" />
-                <UButton
-                  label="Премиум куплен"
-                  color="primary"
-                  class="justify-center w-full"
-                  :disabled="localLoading"
-                  @click="confirmPurchased(true)" />
-                <UButton
-                  label="Премиум не куплен"
-                  color="neutral"
-                  variant="outline"
-                  class="justify-center w-full"
-                  :disabled="localLoading"
-                  @click="confirmPurchased(false)" />
-              </div>
+              <UButton
+                label="Закрыть"
+                color="neutral"
+                variant="outline"
+                class="justify-center w-full"
+                @click="closeDrawer"
+              />
             </template>
           </div>
         </div>
       </div>
     </template>
+
     <!-- Футер -->
     <template #footer>
       <div v-if="!purchaseResponse" class="flex gap-4 justify-end">
@@ -189,18 +208,19 @@
           color="neutral"
           variant="outline"
           @click="closeDrawer"
-          :disabled="localLoading" />
+          :disabled="localLoading"
+        />
       </div>
     </template>
   </UDrawer>
 </template>
+
 <script setup lang="ts">
 import { reactive, watch, ref, computed } from 'vue'
 import { safeParse } from 'valibot'
 import { useAccounts } from '@/composables/use-accounts'
 import type { AccountOut, BuyPremiumOut } from '@/types/openapi'
 import { cardDetailsSchema } from '@/schemas/card'
-import { useBackgroundJobs } from '@/stores/jobs-store'
 
 const props = defineProps<{ accountId: number }>()
 const open = defineModel<boolean>('open', { default: false })
@@ -209,10 +229,7 @@ const emit = defineEmits<{
   (e: 'completed'): void
 }>()
 
-const jobsStore = useBackgroundJobs()
-const toast = useToast()
-
-const { get, premium, confirmPremium } = useAccounts()
+const { get, premium } = useAccounts()
 
 const account = ref<AccountOut | undefined>()
 const purchaseResponse = ref<BuyPremiumOut | null>(null)
@@ -238,7 +255,7 @@ const errors = reactive({
 })
 
 const resetErrors = () => {
-  ; (Object.keys(errors) as Array<keyof typeof errors>).forEach((key) => {
+  ;(Object.keys(errors) as Array<keyof typeof errors>).forEach((key) => {
     errors[key] = ''
   })
 }
@@ -436,13 +453,6 @@ const onSubmit = async () => {
   localLoading.value = true
   resetErrors()
 
-  if (!account.value?.username) {
-    errors.form = 'Для покупки premium установите аккаунту username'
-    localLoading.value = false
-    isSubmitting.value = false
-    return
-  }
-
   const result = safeParse(cardDetailsSchema, state)
 
   if (!result.success) {
@@ -469,62 +479,8 @@ const openVerificationUrl = () => {
   if (url) window.open(url, '_blank')
 }
 
-function usernameUrl () {
-  const u = account.value?.username
-  if (!u) return null
-  const clean = u.startsWith('@') ? u.slice(1) : u
-  return `https://t.me/${clean}`
-}
-
-const openUsernameUrl = () => {
-  const url = usernameUrl()
-  if (url) window.open(url, '_blank')
-}
-
-const confirmPurchased = async (purchased: boolean) => {
-  if (!account.value?.username) {
-    toast.add({
-      title: 'Нужен username',
-      description: 'Для проверки и подтверждения нужен username у аккаунта.',
-      color: 'warning',
-    })
-    return
-  }
-
-  localLoading.value = true
-  try {
-    const res = await confirmPremium(props.accountId, purchased)
-    if (purchased && res.stopWorkflowId) {
-      jobsStore.add({
-        id: res.stopWorkflowId,
-        name: `Отмена подписки ${account.value?.phone ?? ''}`,
-        onComplete: () => emit('completed'),
-      })
-    } else {
-      emit('completed')
-    }
-
-    toast.add({
-      title: purchased ? 'Premium подтвержден' : 'Premium не подтвержден',
-      description: purchased
-        ? 'Сохранили статус premium и запустили отмену автосписания.'
-        : 'Сохранили, что premium не куплен.',
-      color: 'success',
-    })
-
-    open.value = false
-  } catch {
-    toast.add({
-      title: 'Ошибка',
-      description: 'Не удалось сохранить подтверждение. Попробуйте еще раз.',
-      color: 'error',
-    })
-  } finally {
-    localLoading.value = false
-  }
-}
-
 const closeDrawer = () => {
   open.value = false
+  if (purchaseResponse.value?.status === 'success') emit('completed')
 }
 </script>

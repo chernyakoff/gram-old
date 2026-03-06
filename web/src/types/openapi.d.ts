@@ -23,7 +23,6 @@ export interface components {
             phone: string;
             premium: boolean;
             premiumStopped: boolean;
-            proxy: string | null;
             twofa: string | null;
             country: string;
             active: boolean;
@@ -36,8 +35,6 @@ export interface components {
             outDailyLimit: number;
             isDynamicLimit: boolean;
             dynamicDailyLimit: number | null;
-            premiumedAt?: string | null;
-            dialogsCount: number;
         };
         AccountPhotoOut: {
             id: number;
@@ -47,24 +44,12 @@ export interface components {
             delete: number[];
             upload: string[];
         };
-        AccountStateOut: {
-            id: number;
-            busy: boolean;
-            status: components["schemas"]["AccountStatus"];
-            premium: boolean;
-        };
         AccountStatus: "good" | "banned" | "muted" | "frozen" | "exited" | "noproxy";
         AccountsBulkCreateIn: {
             s3path: string;
         };
         AccountsCheckIn: {
             accountIds: number[];
-        };
-        AccountsGenerateIn: {
-            ids: number[];
-            gender: "any" | "male" | "female";
-            generateNames: boolean;
-            generateUsernames: boolean;
         };
         AiModelIn: {
             id: string;
@@ -92,7 +77,16 @@ export interface components {
             projectId: number;
             accountIds: number[];
         };
-        Brief: {
+        BriefIn: {
+            description: string;
+            offer: string;
+            client: string;
+            pains: string;
+            advantages: string;
+            mission: string;
+            focus: string;
+        };
+        BriefOut: {
             description: string;
             offer: string;
             client: string;
@@ -105,16 +99,6 @@ export interface components {
             status: "error" | "success";
             message?: string | null;
             verificationUrl?: string | null;
-        };
-        Calendar: {
-            useCalendar: boolean;
-            morningReminder?: string | null;
-            meetingReminder?: string | null;
-        };
-        CallbackFormIn: {
-            name: string;
-            phone: string;
-            telegram?: string | null;
         };
         CardDetails: {
             number: string;
@@ -130,28 +114,11 @@ export interface components {
         ChatOut: {
             text: string;
             status: components["schemas"]["DialogStatus"];
-            toolEvents?: components["schemas"]["ToolEvent"][] | null;
-            warnings?: string[] | null;
-        };
-        DayIn: {
-            weekday: number;
-            enabled: boolean;
-            intervals: components["schemas"]["IntervalIn"][];
-        };
-        DayMeeting: {
-            date: string;
-            count: number;
-        };
-        DayOut: {
-            weekday: number;
-            enabled: boolean;
-            intervals: components["schemas"]["IntervalOut"][];
         };
         DialogIn: {
             projectId?: number | null;
             accountId?: number | null;
             mailingId?: number | null;
-            recipientId?: number | null;
         };
         DialogMessageOut: {
             sender: components["schemas"]["MessageSender"];
@@ -172,10 +139,6 @@ export interface components {
             dialogId: number;
             message: string;
         };
-        DialogsDownloadIn: {
-            username: string;
-            status?: components["schemas"]["DialogStatus"] | null;
-        };
         EmbedAccountOut: {
             id: number;
             phone: string;
@@ -194,14 +157,6 @@ export interface components {
         ImpersonateOut: {
             access: string;
         };
-        IntervalIn: {
-            start: string;
-            end: string;
-        };
-        IntervalOut: {
-            start: string;
-            end: string;
-        };
         LicenseIn: {
             username: string;
             days: number;
@@ -209,10 +164,6 @@ export interface components {
         LicenseOut: {
             status: "success" | "error";
             message: string;
-        };
-        MailingChangeProjectIn: {
-            mailingId: number;
-            projectId: number;
         };
         MailingIn: {
             name: string;
@@ -232,45 +183,14 @@ export interface components {
             sentCount: number;
             totalCount: number;
             failedCount: number;
-            active: boolean;
         };
         MailingStatus: "draft" | "running" | "finished" | "cancelled";
-        MailingToggleIn: {
-            active: boolean;
-        };
-        MeetingDuration: {
-            value: number;
-        };
-        MeetingOut: {
-            id: number;
-            startAt: string;
-            endAt: string;
-            username: string;
-            dialogId: number;
-        };
         Message: {
             role: components["schemas"]["MessageRole"];
             text: string;
         };
         MessageRole: "user" | "assistant" | "system";
         MessageSender: "account" | "recipient" | "system";
-        PartnerOut: {
-            id: number;
-            username?: string | null;
-            firstName?: string | null;
-            lastName?: string | null;
-            photoUrl?: string | null;
-            referredBy?: components["schemas"]["UserBasicOut"] | null;
-            referrals: components["schemas"]["UserBasicOut"][];
-        };
-        PremiumConfirmIn: {
-            purchased: boolean;
-        };
-        PremiumConfirmOut: {
-            status: string;
-            message?: string | null;
-            stopWorkflowId?: string | null;
-        };
         PresignedIn: {
             path: string;
             filename: string;
@@ -283,51 +203,30 @@ export interface components {
             id: number;
             name: string;
         };
-        ProjectCreateIn: {
-            name: string;
-        };
-        ProjectDocument: {
-            filename: string;
-            fileSize: number;
-            storagePath: string;
-            contentType: string;
-        };
-        ProjectDocumentOut: {
-            id: number;
-            filename: string;
-            fileSize: number;
-            chunksCount?: number | null;
-            url: string;
-            contentType: string;
-        };
-        ProjectFileIn: {
-            filename: string;
-            fileSize: number;
-            storagePath: string;
-            contentType: string;
-        };
-        ProjectFileOut: {
-            id: number;
-            title: string;
-            filename: string;
-            fileSize: number;
-            url: string;
-            contentType: string;
-            status?: components["schemas"]["ProjectFileStatus"] | null;
-        };
-        ProjectFileStatus: "engage" | "offer" | "closing" | "complete";
-        ProjectFileUpdateIn: {
-            title: string;
-            filename: string;
-            status?: components["schemas"]["ProjectFileStatus"] | null;
-        };
-        ProjectSettings: {
+        ProjectIn: {
             name: string;
             dialogLimit: number;
             sendTimeStart: number;
             sendTimeEnd: number;
+            firstMessage: string;
             premiumRequired: boolean;
-            firstMessage?: string | null;
+            brief: components["schemas"]["BriefIn"];
+            prompt: components["schemas"]["PromptIn"];
+            advancedMode: boolean;
+            skipOptions: components["schemas"]["ProjectSkipOptions"];
+        };
+        ProjectOut: {
+            id: number;
+            name: string;
+            dialogLimit: number;
+            sendTimeStart: number;
+            sendTimeEnd: number;
+            firstMessage: string;
+            status: boolean;
+            premiumRequired: boolean;
+            brief: components["schemas"]["BriefOut"];
+            prompt: components["schemas"]["PromptOut"];
+            skipOptions: components["schemas"]["ProjectSkipOptions"];
         };
         ProjectShortOut: {
             id: number;
@@ -342,11 +241,7 @@ export interface components {
         ProjectStatusIn: {
             status: boolean;
         };
-        ProjectStatusOut: {
-            result: "success" | "error";
-            errors: string[];
-        };
-        Prompt: {
+        PromptIn: {
             role: string;
             context: string;
             init: string;
@@ -355,7 +250,16 @@ export interface components {
             closing: string;
             instruction: string;
             rules: string;
-            skipOptions: components["schemas"]["ProjectSkipOptions"];
+        };
+        PromptOut: {
+            role: string;
+            context: string;
+            init: string;
+            engage: string;
+            offer: string;
+            closing: string;
+            instruction: string;
+            rules: string;
         };
         ProxiesBulkCreateIn: {
             proxies: string[];
@@ -378,40 +282,6 @@ export interface components {
             active: boolean;
             failures: number;
             account?: components["schemas"]["EmbedAccountOut"] | null;
-        };
-        RecipientListOut: {
-            id: number;
-            username: string;
-        };
-        ScheduleCreateIn: {
-            name: string;
-            timezone: string;
-            meetingDuration: number;
-        };
-        ScheduleIn: {
-            schedule: components["schemas"]["DayIn"][];
-        };
-        ScheduleMetaOut: {
-            id: number;
-            name: string;
-            timezone: string;
-            meetingDuration: number;
-            isDefault: boolean;
-        };
-        ScheduleOut: {
-            scheduleId: number;
-            name: string;
-            schedule: components["schemas"]["DayOut"][];
-            timezone: string;
-            disabledMonthDays: number[];
-            meetingDuration: number;
-            isDefault: boolean;
-        };
-        ScheduleUpdateIn: {
-            name?: string | null;
-            timezone?: string | null;
-            meetingDuration?: number | null;
-            isDefault?: boolean | null;
         };
         SetLimitIn: {
             outDailyLimit: number;
@@ -441,26 +311,6 @@ export interface components {
             text: string;
             error?: string | null;
         };
-        TestRemindersIn: {
-            projectId: number;
-        };
-        ToggleDayIn: {
-            day: number;
-        };
-        ToolEvent: {
-            tool: string;
-            arguments: {
-                [key: string]: unknown;
-            };
-            result: unknown;
-        };
-        UserBasicOut: {
-            id: number;
-            username?: string | null;
-            firstName?: string | null;
-            lastName?: string | null;
-            photoUrl?: string | null;
-        };
         UserLoginIn: {
             id: number;
             authDate: number;
@@ -469,7 +319,6 @@ export interface components {
             lastName: string | null;
             username: string | null;
             photoUrl: string | null;
-            inviteRefCode?: string | null;
         };
         UserLoginOut: {
             accessToken: string;
@@ -483,19 +332,13 @@ export interface components {
             role: string;
             balance: number;
             hasLicense: boolean;
-            refCode: string;
             impersonated?: boolean | null;
             realUserId?: number | null;
-        };
-        UserTimezone: {
-            timezone: string;
         };
         ValidationError: {
             loc: (string | number)[];
             msg: string;
             type: string;
-            input?: unknown;
-            ctx?: Record<string, never>;
         };
         WorkflowOut: {
             id: string;
@@ -512,94 +355,61 @@ export type AccountListOut = components['schemas']['AccountListOut'];
 export type AccountOut = components['schemas']['AccountOut'];
 export type AccountPhotoOut = components['schemas']['AccountPhotoOut'];
 export type AccountPhotosIn = components['schemas']['AccountPhotosIn'];
-export type AccountStateOut = components['schemas']['AccountStateOut'];
 export type AccountStatus = components['schemas']['AccountStatus'];
 export type AccountsBulkCreateIn = components['schemas']['AccountsBulkCreateIn'];
 export type AccountsCheckIn = components['schemas']['AccountsCheckIn'];
-export type AccountsGenerateIn = components['schemas']['AccountsGenerateIn'];
 export type AiModelIn = components['schemas']['AiModelIn'];
 export type AiModelOut = components['schemas']['AiModelOut'];
 export type AppSettingIn = components['schemas']['AppSettingIn'];
 export type BalanceIn = components['schemas']['BalanceIn'];
 export type BalanceOut = components['schemas']['BalanceOut'];
 export type BindProjectIn = components['schemas']['BindProjectIn'];
-export type Brief = components['schemas']['Brief'];
+export type BriefIn = components['schemas']['BriefIn'];
+export type BriefOut = components['schemas']['BriefOut'];
 export type BuyPremiumOut = components['schemas']['BuyPremiumOut'];
-export type Calendar = components['schemas']['Calendar'];
-export type CallbackFormIn = components['schemas']['CallbackFormIn'];
 export type CardDetails = components['schemas']['CardDetails'];
 export type ChatIn = components['schemas']['ChatIn'];
 export type ChatOut = components['schemas']['ChatOut'];
-export type DayIn = components['schemas']['DayIn'];
-export type DayMeeting = components['schemas']['DayMeeting'];
-export type DayOut = components['schemas']['DayOut'];
 export type DialogIn = components['schemas']['DialogIn'];
 export type DialogMessageOut = components['schemas']['DialogMessageOut'];
 export type DialogOut = components['schemas']['DialogOut'];
 export type DialogStatus = components['schemas']['DialogStatus'];
 export type DialogSystemMessageIn = components['schemas']['DialogSystemMessageIn'];
-export type DialogsDownloadIn = components['schemas']['DialogsDownloadIn'];
 export type EmbedAccountOut = components['schemas']['EmbedAccountOut'];
 export type GetBalanceOut = components['schemas']['GetBalanceOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type ImpersonateIn = components['schemas']['ImpersonateIn'];
 export type ImpersonateOut = components['schemas']['ImpersonateOut'];
-export type IntervalIn = components['schemas']['IntervalIn'];
-export type IntervalOut = components['schemas']['IntervalOut'];
 export type LicenseIn = components['schemas']['LicenseIn'];
 export type LicenseOut = components['schemas']['LicenseOut'];
-export type MailingChangeProjectIn = components['schemas']['MailingChangeProjectIn'];
 export type MailingIn = components['schemas']['MailingIn'];
 export type MailingListOut = components['schemas']['MailingListOut'];
 export type MailingOut = components['schemas']['MailingOut'];
 export type MailingStatus = components['schemas']['MailingStatus'];
-export type MailingToggleIn = components['schemas']['MailingToggleIn'];
-export type MeetingDuration = components['schemas']['MeetingDuration'];
-export type MeetingOut = components['schemas']['MeetingOut'];
 export type Message = components['schemas']['Message'];
 export type MessageRole = components['schemas']['MessageRole'];
 export type MessageSender = components['schemas']['MessageSender'];
-export type PartnerOut = components['schemas']['PartnerOut'];
-export type PremiumConfirmIn = components['schemas']['PremiumConfirmIn'];
-export type PremiumConfirmOut = components['schemas']['PremiumConfirmOut'];
 export type PresignedIn = components['schemas']['PresignedIn'];
 export type PresignedOut = components['schemas']['PresignedOut'];
 export type ProjectBase = components['schemas']['ProjectBase'];
-export type ProjectCreateIn = components['schemas']['ProjectCreateIn'];
-export type ProjectDocument = components['schemas']['ProjectDocument'];
-export type ProjectDocumentOut = components['schemas']['ProjectDocumentOut'];
-export type ProjectFileIn = components['schemas']['ProjectFileIn'];
-export type ProjectFileOut = components['schemas']['ProjectFileOut'];
-export type ProjectFileStatus = components['schemas']['ProjectFileStatus'];
-export type ProjectFileUpdateIn = components['schemas']['ProjectFileUpdateIn'];
-export type ProjectSettings = components['schemas']['ProjectSettings'];
+export type ProjectIn = components['schemas']['ProjectIn'];
+export type ProjectOut = components['schemas']['ProjectOut'];
 export type ProjectShortOut = components['schemas']['ProjectShortOut'];
 export type ProjectSkipOptions = components['schemas']['ProjectSkipOptions'];
 export type ProjectStatusIn = components['schemas']['ProjectStatusIn'];
-export type ProjectStatusOut = components['schemas']['ProjectStatusOut'];
-export type Prompt = components['schemas']['Prompt'];
+export type PromptIn = components['schemas']['PromptIn'];
+export type PromptOut = components['schemas']['PromptOut'];
 export type ProxiesBulkCreateIn = components['schemas']['ProxiesBulkCreateIn'];
 export type ProxiesCheckIn = components['schemas']['ProxiesCheckIn'];
 export type ProxiesCountryIn = components['schemas']['ProxiesCountryIn'];
 export type ProxyOut = components['schemas']['ProxyOut'];
-export type RecipientListOut = components['schemas']['RecipientListOut'];
-export type ScheduleCreateIn = components['schemas']['ScheduleCreateIn'];
-export type ScheduleIn = components['schemas']['ScheduleIn'];
-export type ScheduleMetaOut = components['schemas']['ScheduleMetaOut'];
-export type ScheduleOut = components['schemas']['ScheduleOut'];
-export type ScheduleUpdateIn = components['schemas']['ScheduleUpdateIn'];
 export type SetLimitIn = components['schemas']['SetLimitIn'];
 export type StatsIn = components['schemas']['StatsIn'];
 export type StatsOut = components['schemas']['StatsOut'];
 export type SynonimizeIn = components['schemas']['SynonimizeIn'];
 export type SynonimizeOut = components['schemas']['SynonimizeOut'];
-export type TestRemindersIn = components['schemas']['TestRemindersIn'];
-export type ToggleDayIn = components['schemas']['ToggleDayIn'];
-export type ToolEvent = components['schemas']['ToolEvent'];
-export type UserBasicOut = components['schemas']['UserBasicOut'];
 export type UserLoginIn = components['schemas']['UserLoginIn'];
 export type UserLoginOut = components['schemas']['UserLoginOut'];
 export type UserMeOut = components['schemas']['UserMeOut'];
-export type UserTimezone = components['schemas']['UserTimezone'];
 export type ValidationError = components['schemas']['ValidationError'];
 export type WorkflowOut = components['schemas']['WorkflowOut'];

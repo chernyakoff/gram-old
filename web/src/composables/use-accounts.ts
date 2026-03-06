@@ -6,21 +6,13 @@ import type {
   AccountIn,
   AccountListOut,
   AccountOut,
-  AccountStateOut,
   AccountsCheckIn,
-  AccountsGenerateIn,
   BindProjectIn,
   BuyPremiumOut,
   CardDetails,
-  PremiumConfirmIn,
-  PremiumConfirmOut,
-
   SetLimitIn,
   WorkflowOut,
 } from '@/types/openapi'
-
-export type GenerateGender = 'any' | 'male' | 'female'
-
 
 export function useAccounts() {
   const accounts = ref<AccountOut[]>([])
@@ -38,11 +30,6 @@ export function useAccounts() {
 
   async function premium(id: number, body: CardDetails): Promise<BuyPremiumOut> {
     return await api<BuyPremiumOut>(`accounts/${id}/premium`, { method: 'POST', body })
-  }
-
-  async function confirmPremium(id: number, purchased: boolean): Promise<PremiumConfirmOut> {
-    const body: PremiumConfirmIn = { purchased }
-    return await api<PremiumConfirmOut>(`accounts/${id}/premium/confirm`, { method: 'POST', body })
   }
 
   async function stopPremium(id: number): Promise<WorkflowOut> {
@@ -68,10 +55,10 @@ export function useAccounts() {
   }
 
   async function upload(file: File): Promise<WorkflowOut> {
-    const fileMeta = await uploadOne(file, 'service')
+    const s3path = await uploadOne(file, 'service')
     return await api<WorkflowOut>('accounts', {
       method: 'POST',
-      body: { s3path: fileMeta.storagePath },
+      body: { s3path },
     })
   }
 
@@ -87,27 +74,16 @@ export function useAccounts() {
     return await api(`accounts/check`, { method: 'POST', body })
   }
 
-  async function generate(body: AccountsGenerateIn): Promise<WorkflowOut> {
-    return await api(`accounts/generate`, { method: 'POST', body })
-  }
-
   async function list() {
     return await api<AccountListOut[]>('accounts/list', { method: 'GET' })
-  }
-
-  async function state() {
-    return await api<AccountStateOut[]>('accounts/state', { method: 'GET' })
   }
 
   return {
     upload,
     premium,
-    confirmPremium,
     list,
-    state,
     update,
     check,
-    generate,
     get,
     del,
     accounts,

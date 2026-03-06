@@ -1,0 +1,139 @@
+import math
+import random
+from typing import Iterable, Sequence
+
+import httpx
+from aiopath import AsyncPath
+
+
+def pick(props: list[str], obj: object | dict) -> dict:
+    if isinstance(obj, dict):
+        return {prop: obj[prop] for prop in props if prop in obj}
+    elif isinstance(obj, object):
+        return {prop: getattr(obj, prop) for prop in props if hasattr(obj, prop)}
+
+
+def numeral_noun_declension(
+    number, nominative_singular, genetive_singular, nominative_plural
+) -> str:
+    result = (
+        (number in range(5, 20))
+        and nominative_plural
+        or (1 in (number, (diglast := number % 10)))
+        and nominative_singular
+        or ({number, diglast} & {2, 3, 4})
+        and genetive_singular
+        or nominative_plural
+    )
+    return str(result)
+
+
+def chunk_by_size(arr: Iterable, size: int) -> list[list]:
+    """Делит на куски по size элементов"""
+    arr = list(arr)
+    return [arr[i : i + size] for i in range(0, len(arr), size)]
+
+
+def chunk_into_parts(arr: Sequence, parts: int) -> list[list]:
+    """Делит на примерно `parts` равных частей"""
+    size = math.ceil(len(arr) / parts)
+    return chunk_by_size(arr, size)
+
+
+def format_number(x, separator=" "):
+    return f"{x:,}".replace(",", separator)
+
+
+async def clear_dir(directory: AsyncPath):
+    async for item in directory.iterdir():
+        if await item.is_dir():
+            await clear_dir(item)
+            await item.rmdir()
+        else:
+            # Удаляем файл
+            await item.unlink()
+
+
+def generate_message(template: str) -> str:
+    # Экранированные символы
+    ESCAPES = {r"\{": "\ue000", r"\}": "\ue001", r"\|": "\ue002", r"\\": "\ue003"}
+
+    # Сначала заменяем экранированные символы на временные метки
+    for k, v in ESCAPES.items():
+        template = template.replace(k, v)
+
+    def expand(text: str) -> str:
+        stack = []
+        i = 0
+        while i < len(text):
+            if text[i] == "{":
+                stack.append(i)
+                i += 1
+            elif text[i] == "}":
+                if stack:
+                    start = stack.pop()
+                    inner = text[start + 1 : i]
+                    # Разбиваем варианты по | и рекурсивно разворачиваем
+                    options = [expand(opt) for opt in inner.split("|")]
+                    choice = random.choice(options)
+                    text = text[:start] + choice + text[i + 1 :]
+                    i = start + len(choice)  # смещаем указатель после вставки
+                else:
+                    i += 1
+            else:
+                i += 1
+        return text
+
+    result = expand(template)
+
+    # Возвращаем экранированные символы обратно
+    for k, v in ESCAPES.items():
+        if k == r"\\":
+            result = result.replace(v, "\\")
+        elif k == r"\{":
+            result = result.replace(v, "{")
+        elif k == r"\}":
+            result = result.replace(v, "}")
+        elif k == r"\|":
+            result = result.replace(v, "|")
+
+    return result
+
+
+cyrillic_homoglyphs = {
+    "а": ["а", "a"],
+    "е": ["е", "e"],
+    "ё": ["ё", "e"],
+    "о": ["о", "o"],
+    "р": ["р", "p"],
+    "с": ["с", "c"],
+    "у": ["у", "y"],
+    "х": ["х", "x"],
+}
+
+
+def randomize_message(text):
+    out = []
+    for ch in text:
+        low = ch.lower()
+        if low in cyrillic_homoglyphs:
+            repl = random.choice(cyrillic_homoglyphs[low])
+            out.append(repl.upper() if ch.isupper() else repl.lower())
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def normalize_dashes(text: str) -> str:
+    # набор всех популярных видов длинных/средних тире и похожих символов
+    long_dashes = {
+        "--",
+        "—",  # em dash
+        "–",  # en dash
+        "―",  # horizontal bar
+        "−",  # minus sign
+        "-",  # non-breaking hyphen (иногда мешает)
+    }
+    for d in long_dashes:
+        text = text.replace(d, "-")
+    return text
