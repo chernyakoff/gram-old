@@ -8,6 +8,8 @@ from typing import cast
 from hatchet_sdk import Context
 from pydantic import BaseModel
 from telethon import TelegramClient
+from telethon.errors.rpcerrorlist import YouBlockedUserError
+from telethon.tl.functions.contacts import UnblockRequest
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types.users import UserFull
 from tortoise.transactions import in_transaction
@@ -42,7 +44,12 @@ async def _check_entity(client: TelegramClient, username: str) -> bool:
 
 
 async def check_spamblock(app: TelegramClient) -> datetime | None:
-    await app.send_message("spambot", "/start")
+    try:
+        await app.send_message("spambot", "/start")
+    except YouBlockedUserError:
+        await app(UnblockRequest("spambot"))  # type: ignore
+        await asyncio.sleep(0.5)
+        await app.send_message("spambot", "/start")
     await asyncio.sleep(1)
     messages = await app.get_messages("spambot", limit=1)
     if not messages:
