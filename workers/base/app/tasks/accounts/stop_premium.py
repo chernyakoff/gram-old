@@ -126,8 +126,8 @@ async def _stop_premium(
 @hatchet.task(
     name="stop-premium",
     input_validator=StopPremiumIn,
-    execution_timeout=timedelta(minutes=3),
-    schedule_timeout=timedelta(minutes=3),
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
 )
 async def stop_premium(input: StopPremiumIn, ctx: Context):
     await asyncio.sleep(2)

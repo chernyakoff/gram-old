@@ -30,8 +30,8 @@ async def _check(proxy: orm.Proxy, logger: StreamLogger):
 @hatchet.task(
     name="proxies-check",
     input_validator=ProxiesCheckIn,
-    execution_timeout=timedelta(minutes=60),
-    schedule_timeout=timedelta(minutes=60),
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
 )
 async def proxies_check(input: ProxiesCheckIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки

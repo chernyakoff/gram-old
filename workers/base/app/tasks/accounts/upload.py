@@ -2,7 +2,7 @@ import asyncio
 import re
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import cast
 from uuid import uuid4
@@ -292,7 +292,12 @@ async def duplicate_session(account_id: int, pool: PoolType, logger: StreamLogge
         await dup_client.disconnect()  # type: ignore
 
 
-@hatchet.task(name="accounts-upload", input_validator=AccountsUploadIn)
+@hatchet.task(
+    name="accounts-upload",
+    input_validator=AccountsUploadIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
 async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     await asyncio.sleep(2)
 

@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from hatchet_sdk import Context
 from pydantic import BaseModel
@@ -17,7 +18,12 @@ class ProxiesUploadIn(BaseModel):
     proxies: list[str]
 
 
-@hatchet.task(name="proxies-upload", input_validator=ProxiesUploadIn)
+@hatchet.task(
+    name="proxies-upload",
+    input_validator=ProxiesUploadIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
 async def proxies_upload(input: ProxiesUploadIn, ctx: Context):
     await asyncio.sleep(2)
 

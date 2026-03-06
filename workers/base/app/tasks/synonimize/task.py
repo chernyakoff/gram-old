@@ -31,8 +31,8 @@ class SynonimizeOut(BaseModel):
 @hatchet.task(
     name="synonimize",
     input_validator=SynonimizeIn,
-    execution_timeout=timedelta(minutes=20),
-    schedule_timeout=timedelta(minutes=20),
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
 )
 async def synonimize(data: SynonimizeIn, ctx: Context) -> SynonimizeOut:
     ctx.log("Запущена рандомизация")

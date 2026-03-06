@@ -31,8 +31,8 @@ async def get_brief(project_id: int) -> str:
 @hatchet.task(
     name="generate-prompt",
     input_validator=GeneratePromptIn,
-    execution_timeout=timedelta(minutes=20),
-    schedule_timeout=timedelta(minutes=20),
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
 )
 async def generate_prompt(input: GeneratePromptIn, ctx: Context):
     await asyncio.sleep(2)

@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import timedelta
 from typing import Literal, Optional, cast
 
 import aiohttp
@@ -92,7 +93,12 @@ async def tokenize_card(public_token: str, card: CardDetails):
             return True, payment_json
 
 
-@hatchet.task(name="buy-premium", input_validator=BuyPremiumIn)
+@hatchet.task(
+    name="buy-premium",
+    input_validator=BuyPremiumIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
 async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     logger = StreamLogger(ctx)
     card = input.card

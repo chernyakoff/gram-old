@@ -199,8 +199,8 @@ async def _check(orm_account: orm.Account, pool: PoolType, logger: StreamLogger)
 @hatchet.task(
     name="accounts-check",
     input_validator=AccountsCheckIn,
-    execution_timeout=timedelta(minutes=60),
-    schedule_timeout=timedelta(minutes=60),
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
 )
 async def accounts_check(input: AccountsCheckIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки

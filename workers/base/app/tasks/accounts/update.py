@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from io import BytesIO
 
 from hatchet_sdk import Context
@@ -190,7 +191,12 @@ async def update(
         await upload_photos(client, input.photos.upload, orm_account.id, logger)
 
 
-@hatchet.task(name="accounts-update", input_validator=AccountsUpdateIn)
+@hatchet.task(
+    name="accounts-update",
+    input_validator=AccountsUpdateIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
 async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
 
