@@ -320,9 +320,11 @@ const aiState = reactive({
   id: 'openai/gpt-5.2-chat',
 })
 
-const getEmptyMobProxyState = (): MobProxyFormSchema => ({
+type MobProxyFormState = Omit<MobProxyFormSchema, 'port'> & { port: number | undefined }
+
+const getEmptyMobProxyState = (): MobProxyFormState => ({
   host: '',
-  port: 1080,
+  port: undefined,
   username: '',
   password: '',
   changeUrl: '',
@@ -330,7 +332,7 @@ const getEmptyMobProxyState = (): MobProxyFormSchema => ({
   active: true,
 })
 
-const mobProxyState = reactive<MobProxyFormSchema>(getEmptyMobProxyState())
+const mobProxyState = reactive<MobProxyFormState>(getEmptyMobProxyState())
 
 const toast = useToast()
 

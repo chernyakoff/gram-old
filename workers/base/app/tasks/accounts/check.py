@@ -18,9 +18,9 @@ from app.client import hatchet
 from app.common.models import enums, orm
 from app.common.utils.account import AccountUtil
 from app.common.utils.functions import pick
-from app.common.utils.proxy_pool import ProxyPool
 from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
+from app.tasks.accounts.pool_selector import PoolType, build_pool, is_mobile_pool
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
@@ -131,7 +131,7 @@ class AccountsCheckIn(BaseModel):
     ids: list[int]
 
 
-async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger):
+async def _check(orm_account: orm.Account, pool: PoolType, logger: StreamLogger):
     proxy = await pool.verify_proxy(orm_account)
 
     if not proxy:
@@ -192,6 +192,8 @@ async def _check(orm_account: orm.Account, pool: ProxyPool, logger: StreamLogger
         await client.disconnect()  # type: ignore
         orm_account.busy = False
         await orm_account.save()
+        if proxy and is_mobile_pool(pool):
+            await pool.release_proxy_lock(proxy)
 
 
 @hatchet.task(
@@ -207,7 +209,10 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
         await orm.Account.filter(id__in=input.ids).prefetch_related("proxy").all()
     )
     user_id = accounts[0].user_id
-    pool = ProxyPool(user_id)
-
-    tasks = [_check(account, pool, logger) for account in accounts]
-    await asyncio.gather(*tasks)
+    pool = await build_pool(user_id)
+    if is_mobile_pool(pool):
+        for account in accounts:
+            await _check(account, pool, logger)
+    else:
+        tasks = [_check(account, pool, logger) for account in accounts]
+        await asyncio.gather(*tasks)

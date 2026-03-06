@@ -23,8 +23,8 @@ from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.account import AccountFile, AccountIn, AccountUtil
 from app.common.utils.functions import clear_dir, pick
-from app.common.utils.proxy_pool import ProxyPool
 from app.common.utils.s3 import AsyncS3Client
+from app.tasks.accounts.pool_selector import PoolType, build_pool, is_mobile_pool
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
@@ -56,13 +56,27 @@ async def unzip_from_s3(file_id: str) -> AsyncPath:
 
 async def get_account_files(tmp_dir: AsyncPath) -> list[AccountFile]:
     files = [f async for f in tmp_dir.glob("*")]
-    json_files = {f.stem: f for f in files if f.suffix == ".json"}
-    session_files = {f.stem: f for f in files if f.suffix == ".session"}
+
+    def normalize_phone_stem(path: AsyncPath) -> str:
+        return path.stem.replace("+", "")
+
+    json_files = {normalize_phone_stem(f): f for f in files if f.suffix == ".json"}
+    session_files = {
+        normalize_phone_stem(f): f for f in files if f.suffix == ".session"
+    }
     result = []
     for name in json_files:
         if name in session_files:
+            normalized_session = session_files[name].with_name(f"{name}.session")
+            if normalized_session != session_files[name]:
+                await session_files[name].rename(normalized_session)
+
+            normalized_json = json_files[name].with_name(f"{name}.json")
+            if normalized_json != json_files[name]:
+                await json_files[name].rename(normalized_json)
+
             result.append(
-                AccountFile(session=session_files[name], json=json_files[name])
+                AccountFile(session=normalized_session, json=normalized_json)
             )
 
     return result
@@ -95,7 +109,7 @@ async def save_photos(client: TelegramClient, account_in: AccountIn):
 
 
 async def save_account(
-    user_id: int, account: AccountUtil, pool: ProxyPool, logger: StreamLogger
+    user_id: int, account: AccountUtil, pool: PoolType, logger: StreamLogger
 ):
     proxy = await pool.acquire_proxy(account.country)
     if not proxy:
@@ -186,7 +200,7 @@ async def get_telegram_code(app: TelegramClient) -> str | None:
         await asyncio.sleep(1)
 
 
-async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogger):
+async def duplicate_session(account_id: int, pool: PoolType, logger: StreamLogger):
     orm_account = await orm.Account.get(id=account_id)
 
     await logger.info("Дуплициуем сессию")
@@ -214,6 +228,8 @@ async def duplicate_session(account_id: int, pool: ProxyPool, logger: StreamLogg
         return
     finally:
         await dup_client.disconnect()  # type: ignore
+        if proxy and is_mobile_pool(pool):
+            await pool.release_proxy_lock(proxy)
 
     await asyncio.sleep(2)
 
@@ -308,12 +324,18 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         except Exception as e:
             await logger.error(e)
 
-    proxy_pool = ProxyPool(input.user_id)
-
-    tasks = [
-        save_account(input.user_id, account, proxy_pool, logger) for account in accounts
-    ]
-    results = await asyncio.gather(*tasks)
+    proxy_pool = await build_pool(input.user_id)
+    results = []
+    if is_mobile_pool(proxy_pool):
+        for account in accounts:
+            result = await save_account(input.user_id, account, proxy_pool, logger)
+            results.append(result)
+    else:
+        tasks = [
+            save_account(input.user_id, account, proxy_pool, logger)
+            for account in accounts
+        ]
+        results = await asyncio.gather(*tasks)
 
     saved_ids = [r for r in results if r]
 

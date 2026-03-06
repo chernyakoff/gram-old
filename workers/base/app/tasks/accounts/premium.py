@@ -19,8 +19,8 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.account import AccountUtil
-from app.common.utils.proxy_pool import ProxyPool
 from app.tasks.accounts.exceptions import SessionExpiredError
+from app.tasks.accounts.pool_selector import build_pool, is_mobile_pool
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -101,7 +101,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
 
     user_id = orm_account.user_id
 
-    pool = ProxyPool(user_id)
+    pool = await build_pool(user_id)
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
         await logger.error("отсутствуют валидные прокси")
@@ -187,3 +187,5 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         orm_account.busy = False
         await orm_account.save()
         await client.disconnect()  # type: ignore
+        if proxy and is_mobile_pool(pool):
+            await pool.release_proxy_lock(proxy)

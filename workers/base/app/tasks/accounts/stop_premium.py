@@ -16,7 +16,7 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.account import AccountUtil
-from app.common.utils.proxy_pool import ProxyPool
+from app.tasks.accounts.pool_selector import build_pool, is_mobile_pool
 from app.utils.stream_logger import StreamLogger
 
 PREMIUM_BOT = "PremiumBot"
@@ -134,7 +134,7 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     logger = StreamLogger(ctx)
     orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
     account_util = AccountUtil.from_orm(orm_account)
-    pool = ProxyPool(orm_account.user_id)
+    pool = await build_pool(orm_account.user_id)
 
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
@@ -158,3 +158,5 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     orm_account.premium_stopped = True
     async with in_transaction() as conn:
         await orm_account.save(using_db=conn, update_fields=["busy", "premium_stopped"])
+    if proxy and is_mobile_pool(pool):
+        await pool.release_proxy_lock(proxy)

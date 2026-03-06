@@ -15,9 +15,9 @@ from tortoise.transactions import in_transaction
 from app.client import hatchet
 from app.common.models import orm
 from app.common.utils.account import AccountUtil
-from app.common.utils.proxy_pool import ProxyPool
 from app.common.utils.s3 import AsyncS3Client
 from app.tasks.accounts.exceptions import SessionExpiredError
+from app.tasks.accounts.pool_selector import build_pool, is_mobile_pool
 from app.utils.queries import set_main_photo
 from app.utils.stream_logger import StreamLogger
 
@@ -199,7 +199,7 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     orm_account = await orm.Account.get(id=input.id).prefetch_related("proxy")
     orm_account.busy = True
 
-    pool = ProxyPool(input.user_id)
+    pool = await build_pool(input.user_id)
     account = AccountUtil.from_orm(orm_account)
 
     proxy = await pool.verify_proxy(orm_account)
@@ -228,3 +228,5 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
         orm_account.busy = False
         async with in_transaction() as conn:
             await orm_account.save(using_db=conn, update_fields=["busy"])
+        if proxy and is_mobile_pool(pool):
+            await pool.release_proxy_lock(proxy)

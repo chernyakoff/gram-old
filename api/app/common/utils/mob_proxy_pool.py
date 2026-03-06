@@ -1,0 +1,156 @@
+import asyncio
+import logging
+import uuid
+from datetime import timedelta
+from typing import Optional
+
+import aiohttp
+from tortoise import timezone as tz
+from tortoise.transactions import in_transaction
+
+from app.common.models.orm import Account, MobProxy
+from app.common.utils.proxy import ProxyUtil
+from app.common.utils.proxy_pool import ProxyLogEntry, Status
+
+logger = logging.getLogger(__name__)
+
+
+class MobProxyPool:
+    LOCK_TIMEOUT = 300
+    IP_WAIT_TIMEOUT = 30
+    IP_POLL_INTERVAL = 1
+    MAX_FAILURES = 5
+
+    is_mobile = True
+
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+        self.logs: list[ProxyLogEntry] = []
+
+    def _add_log(self, status: Status, message: str, payload: Optional[dict] = None):
+        self.logs.append(ProxyLogEntry(status=status, message=message, payload=payload))
+        if status in (Status.ERROR, Status.WARNING):
+            logger.error("%s | %s", message, payload)
+
+    def get_logs(self, clear: bool = False) -> list[ProxyLogEntry]:
+        logs_copy = self.logs.copy()
+        if clear:
+            self.logs.clear()
+        return logs_copy
+
+    async def _get_locked_proxy(self) -> Optional[MobProxy]:
+        now = tz.now()
+        async with in_transaction() as conn:
+            row = await conn.execute_query_dict(
+                """
+                SELECT p.*
+                FROM mob_proxies p
+                WHERE p.user_id = $1
+                AND p.active = TRUE
+                AND (p.locked_until IS NULL OR p.locked_until < $2)
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+                """,
+                [self.user_id, now],
+            )
+            if not row:
+                return None
+
+            proxy = MobProxy(**row[0])
+            proxy._saved_in_db = True
+            proxy.locked_until = now + timedelta(seconds=self.LOCK_TIMEOUT)
+            proxy.lock_session = str(uuid.uuid4())
+            await proxy.save(update_fields=["locked_until", "lock_session"], using_db=conn)
+            return proxy
+
+    async def _call_change_url(self, proxy: MobProxy):
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(proxy.change_url) as response:
+                if response.status >= 400:
+                    body = await response.text()
+                    raise RuntimeError(
+                        f"change_url returned {response.status}: {body[:200]}"
+                    )
+
+    async def _wait_for_ip_change(self, proxy: MobProxy) -> bool:
+        proxy_util = ProxyUtil.from_orm(proxy)  # type: ignore[arg-type]
+        old_ip = await proxy_util.check()
+
+        await self._call_change_url(proxy)
+
+        deadline = tz.now() + timedelta(seconds=self.IP_WAIT_TIMEOUT)
+        while tz.now() < deadline:
+            await asyncio.sleep(self.IP_POLL_INTERVAL)
+            new_ip = await proxy_util.check()
+            if new_ip and (old_ip is None or new_ip != old_ip):
+                self._add_log(
+                    Status.SUCCESS,
+                    "Mob proxy IP changed",
+                    {"proxy_id": proxy.id, "old_ip": old_ip, "new_ip": new_ip},
+                )
+                return True
+
+        self._add_log(
+            Status.ERROR,
+            "Mob proxy IP change timeout",
+            {"proxy_id": proxy.id, "old_ip": old_ip},
+        )
+        return False
+
+    async def _handle_failure(self, proxy: MobProxy):
+        proxy.failures += 1
+        update_fields = ["failures"]
+        if proxy.failures >= self.MAX_FAILURES:
+            proxy.active = False
+            update_fields.append("active")
+            self._add_log(
+                Status.ERROR,
+                "Mob proxy deactivated due to failures",
+                {"proxy_id": proxy.id, "failures": proxy.failures},
+            )
+        await proxy.save(update_fields=update_fields)
+
+    async def release_proxy_lock(self, proxy: MobProxy):
+        proxy.locked_until = None  # type: ignore[assignment]
+        proxy.lock_session = None  # type: ignore[assignment]
+        await proxy.save(update_fields=["locked_until", "lock_session"])
+        self._add_log(Status.INFO, "Mob proxy lock released", {"proxy_id": proxy.id})
+
+    async def acquire_proxy(self, country: str) -> Optional[MobProxy]:
+        _ = country
+        proxy = await self._get_locked_proxy()
+        if not proxy:
+            self._add_log(
+                Status.ERROR,
+                "No available active mob proxy",
+                {"user_id": self.user_id},
+            )
+            return None
+
+        try:
+            if await self._wait_for_ip_change(proxy):
+                return proxy
+            await self._handle_failure(proxy)
+            await self.release_proxy_lock(proxy)
+            return None
+        except Exception as e:
+            self._add_log(
+                Status.ERROR,
+                "Mob proxy rotate/check failed",
+                {"proxy_id": proxy.id, "error": str(e)},
+            )
+            await self._handle_failure(proxy)
+            await self.release_proxy_lock(proxy)
+            return None
+
+    async def verify_proxy(self, account: Account) -> Optional[MobProxy]:
+        proxy = await self.acquire_proxy(account.country)
+        if not proxy:
+            self._add_log(
+                Status.ERROR,
+                "Mob proxy unavailable for account",
+                {"account_id": account.id, "user_id": account.user_id},
+            )
+            return None
+        return proxy

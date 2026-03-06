@@ -19,7 +19,7 @@ from app.utils.account_limiter import AccountLimiter
 from app.utils.logger import Logger
 
 # Максимальное время на случай если что-то пойдет не так
-MAX_SESSION_HOURS = 6
+MAX_SESSION_HOURS = 1
 
 
 class DialogIn(BaseModel):
@@ -52,18 +52,7 @@ async def renew_account_info(client: TelegramClient, account: orm.Account):
     await account.save(update_fields=keys)
 
 
-@hatchet.task(
-    name="dialog",
-    input_validator=DialogIn,
-    execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
-    schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
-    concurrency=ConcurrencyExpression(
-        expression="input.key",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
-    ),
-)
-async def dialog_task(input: DialogIn, ctx: Context):
+async def _dialog_task_impl(input: DialogIn, ctx: Context):
     logger = Logger(ctx)
     account = await orm.Account.get(id=input.account_id).prefetch_related(
         "user", "proxy"
@@ -358,3 +347,33 @@ async def dialog_task(input: DialogIn, ctx: Context):
                 await asyncio.sleep(1)  # Пауза между попытками
 
         await release_account(account)
+
+
+@hatchet.task(
+    name="dialog",
+    input_validator=DialogIn,
+    execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    concurrency=ConcurrencyExpression(
+        expression="input.key",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+    ),
+)
+async def dialog_task(input: DialogIn, ctx: Context):
+    await _dialog_task_impl(input, ctx)
+
+
+@hatchet.task(
+    name="mp-dialog",
+    input_validator=DialogIn,
+    execution_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    schedule_timeout=timedelta(hours=MAX_SESSION_HOURS),
+    concurrency=ConcurrencyExpression(
+        expression="input.key",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+    ),
+)
+async def mp_dialog_task(input: DialogIn, ctx: Context):
+    await _dialog_task_impl(input, ctx)

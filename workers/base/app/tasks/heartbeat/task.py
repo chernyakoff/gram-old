@@ -23,12 +23,17 @@ dialog_task = hatchet.stubs.task(
     name="dialog",
     input_validator=DialogIn,
 )
+mp_dialog_task = hatchet.stubs.task(
+    name="mp-dialog",
+    input_validator=DialogIn,
+)
 
 LEASE_HOURS = 2
 MAX_ACCOUNTS_PER_CYCLE = 50
 RECIPIENT_LEASE_MINUTES = 30
 
 heartbeat = hatchet.workflow(name="heartbeat", on_crons=["5,35 * * * *"])
+mp_heartbeat = hatchet.workflow(name="mp-heartbeat", on_crons=["* * * * *"])
 
 
 async def execute_query(query: str):
@@ -41,6 +46,9 @@ async def cleanup_stale_locks():
     await orm.Proxy.filter(locked_until__lt=now, lock_session__not_isnull=True).update(
         locked_until=None, lock_session=None
     )
+    await orm.MobProxy.filter(
+        locked_until__lt=now, lock_session__not_isnull=True
+    ).update(locked_until=None, lock_session=None)
     await execute_query("""
 UPDATE accounts
 SET lease_expires_at = NULL,
@@ -86,12 +94,28 @@ async def release_recipients():
     )
 
 
-async def get_active_projects(min_balance: int = 1000) -> list[orm.Project]:
+async def get_active_projects(
+    min_balance: int = 1000, mobile_mode: bool = False
+) -> list[orm.Project]:
     """Получить активные проекты, где у пользователя хватает баланса"""
-    return await orm.Project.filter(
+    mobile_user_ids = await orm.MobProxy.filter(active=True).values_list(
+        "user_id", flat=True
+    )
+
+    query = orm.Project.filter(
         status=True,
         user__balance__gt=min_balance,
-    ).prefetch_related("mailings", "user")
+    )
+
+    if mobile_mode:
+        if mobile_user_ids:
+            query = query.filter(user_id__in=mobile_user_ids)
+        else:
+            return []
+    elif mobile_user_ids:
+        query = query.exclude(user_id__in=mobile_user_ids)
+
+    return await query.prefetch_related("mailings", "user")
 
 
 def is_project_in_send_window(project: orm.Project, now) -> bool:
@@ -393,3 +417,111 @@ async def task(input: EmptyModel, ctx: Context):
         )
 
     return {"planned_tasks": planned_tasks, "time": now.isoformat()}
+
+
+@mp_heartbeat.task()
+async def mp_task(input: EmptyModel, ctx: Context):
+    await complete_old_dialogs()
+    await unmute_accounts()
+    await release_recipients()
+    await cleanup_stale_locks()
+
+    now = tz.now()
+    planned_tasks = 0
+    notify_queue = []
+    planned_users: set[int] = set()
+
+    projects = await get_active_projects(mobile_mode=True)
+
+    for project in projects:
+        if project.user_id in planned_users:
+            continue
+
+        in_send_window = is_project_in_send_window(project, now)
+        active_mailings = [
+            m
+            for m in project.mailings
+            if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+        ]
+        if not active_mailings:
+            continue
+
+        async with in_transaction() as conn:
+            free_accounts = await get_available_accounts(project, now, conn)
+            if not free_accounts:
+                continue
+
+            for mailing in active_mailings:
+                info = await check_and_close_mailing(mailing, now, conn)
+                if info:
+                    notify_queue.append(info)
+
+            active_mailings = [
+                m
+                for m in active_mailings
+                if m.status in (enums.MailingStatus.RUNNING, enums.MailingStatus.DRAFT)
+            ]
+            if not active_mailings:
+                continue
+
+            acc = free_accounts[0]
+            dialogs_left = await check_daily_limit(acc, now, conn)
+
+            recipients = []
+            if in_send_window:
+                recipients = await get_recipients_for_mailings(
+                    active_mailings, dialogs_left, now, conn
+                )
+
+            reserved = 0
+            if recipients:
+                reserved = await reserve_daily_limit(acc, len(recipients), now, conn)
+                if reserved < len(recipients):
+                    recipients = recipients[:reserved]
+
+            if in_send_window:
+                for mailing in active_mailings:
+                    if mailing.status == enums.MailingStatus.DRAFT:
+                        if any(r.mailing_id == mailing.id for r in recipients):
+                            await (
+                                orm.Mailing.filter(id=mailing.id)
+                                .using_db(conn)
+                                .update(
+                                    status=enums.MailingStatus.RUNNING,
+                                    started_at=now,
+                                )
+                            )
+
+            if not await lock_account_and_recipients(acc, recipients, now, conn):
+                continue
+
+            recipients_id = [r.id for r in recipients]
+
+            await mp_dialog_task.aio_run_no_wait(
+                input=DialogIn(
+                    account_id=acc.id,
+                    recipients_id=recipients_id,
+                    key=str(acc.user_id),
+                ),
+                options=TriggerWorkflowOptions(
+                    additional_metadata={
+                        "account_id": acc.id,
+                        "user_id": acc.user_id,
+                        "mobile_mode": True,
+                    }
+                ),
+            )
+
+            planned_users.add(acc.user_id)
+            planned_tasks += len(recipients_id)
+
+    for info in notify_queue:
+        asyncio.create_task(
+            notify_mailing_end(info["user_id"], info["name"], info["project_name"])
+        )
+
+    return {
+        "planned_tasks": planned_tasks,
+        "planned_users": len(planned_users),
+        "time": now.isoformat(),
+    }
