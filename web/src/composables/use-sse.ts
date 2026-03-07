@@ -9,7 +9,7 @@ export function useSSE() {
     if (evtSource) return // уже подключен
 
 
-    evtSource = new EventSource(`${import.meta.env.API_URL}/sse`)
+    evtSource = new EventSource(`${import.meta.env.API_URL}/sse/`)
 
     evtSource.onmessage = (event) => {
       const data = JSON.parse(event.data)
