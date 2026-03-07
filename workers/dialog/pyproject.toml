@@ -13,7 +13,7 @@ dependencies = [
     "watchfiles>=1.1.0",
     "python-dateutil>=2.9.0.post0",
     "emojis>=0.7.0",
-    "hatchet-sdk>=1.18.1",
+    "hatchet-sdk==1.28.0",
     "aiohttp-socks>=0.10.1",
     "astor>=0.8.1",
     "phonenumbers>=9.0.13",

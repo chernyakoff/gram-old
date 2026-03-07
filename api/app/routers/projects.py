@@ -47,11 +47,11 @@ async def create_project(data: ProjectIn, user=Depends(get_current_user)):
         brief_params["project_id"] = project.id
         await orm.Brief.create(**brief_params)
         stream_key, options = build_stream_options()
-        ref = await tasks.generate_prompt.aio_run_no_wait(
+        asyncio.create_task(watch_job(stream_key))
+        await tasks.generate_prompt.aio_run_no_wait(
             input=models.GeneratePromptIn(project_id=project.id),
             options=options,
         )
-        asyncio.create_task(watch_job(stream_key))
         return {"id": stream_key}
 
 
@@ -146,12 +146,11 @@ async def update_project(id: int, data: ProjectIn, user=Depends(get_current_user
 
     # запускаем генерацию
     stream_key, options = build_stream_options()
-    ref = await tasks.generate_prompt.aio_run_no_wait(
+    asyncio.create_task(watch_job(stream_key))
+    await tasks.generate_prompt.aio_run_no_wait(
         input=models.GeneratePromptIn(project_id=project.id),
         options=options,
     )
-    asyncio.create_task(watch_job(stream_key))
-
     return {"id": stream_key}
 
 

@@ -14,6 +14,16 @@ services:
     networks:
       - dev
 
+  redis:
+    image: redis:7-alpine
+    container_name: neuro-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - dev
+
   pg-backup:
     image: postgres:15
     container_name: neuro-postgres-backup
@@ -52,9 +62,11 @@ services:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
       - UV_LINK_MODE=copy
+      - REDIS_URL=redis://redis:6379/0
     command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
+      - redis
     networks:
       - hatchet
       - dev
@@ -92,9 +104,11 @@ services:
     environment:
       - UV_SYSTEM_PYTHON=1
       - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379/0
     command: ["uv", "run", "python", "-m", "app"]
     depends_on:
       - postgres
+      - redis
     ports:
       - "127.0.0.1:18833:8833"
     networks:
@@ -141,6 +155,7 @@ volumes:
   uv-venv-api: {}
   postgres-data-dev: {}
   minio-data: {}
+  redis-data: {}
 
 networks:
   hatchet:

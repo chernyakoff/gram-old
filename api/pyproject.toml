@@ -19,7 +19,7 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "passlib[bcrypt]>=1.7.4",
     "emojis>=0.7.0",
-    "hatchet-sdk>=1.18.1",
+    "hatchet-sdk==1.28.0",
     "python-multipart>=0.0.20",
     "aerich>=0.9.1",
     "autoflake>=2.3.1",
@@ -28,6 +28,7 @@ dependencies = [
     "html-to-markdown>=2.9.1",
     "openrouter>=0.1.1",
     "httpx[socks]>=0.28.1",
+    "redis[hiredis]>=5.2.1",
 ]
 requires-python = "==3.13.*"
 readme = "README.md"

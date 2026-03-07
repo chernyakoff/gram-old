@@ -32,11 +32,11 @@ async def upload_accounts(
 ):
     try:
         stream_key, options = build_stream_options()
-        ref = await tasks.accounts_upload.aio_run_no_wait(
+        asyncio.create_task(watch_job(stream_key))
+        await tasks.accounts_upload.aio_run_no_wait(
             input=models.AccountsUploadIn(user_id=user.id, s3path=input.s3path),
             options=options,
         )
-        asyncio.create_task(watch_job(stream_key))
         return {"id": stream_key}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
@@ -108,11 +108,11 @@ async def update_accounts(
     params["id"] = id
     params["user_id"] = user.id
     stream_key, options = build_stream_options()
-    ref = await tasks.accounts_update.aio_run_no_wait(
+    asyncio.create_task(watch_job(stream_key))
+    await tasks.accounts_update.aio_run_no_wait(
         input=models.AccountsUpdateIn(**params),
         options=options,
     )
-    asyncio.create_task(watch_job(stream_key))
     return {"id": stream_key}
 
 
@@ -145,11 +145,11 @@ async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
     accounts = await orm.Account.filter(id__in=data.account_ids, user_id=user.id).all()
     ids = [a.id for a in accounts]
     stream_key, options = build_stream_options()
-    ref = await tasks.accounts_check.aio_run_no_wait(
+    asyncio.create_task(watch_job(stream_key))
+    await tasks.accounts_check.aio_run_no_wait(
         input=models.AccountsCheckIn(ids=ids),
         options=options,
     )
-    asyncio.create_task(watch_job(stream_key))
     return {"id": stream_key}
 
 
@@ -167,9 +167,9 @@ async def stop_premium(id: int, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="not found")
 
     stream_key, options = build_stream_options()
-    ref = await tasks.stop_premium.aio_run_no_wait(
+    asyncio.create_task(watch_job(stream_key))
+    await tasks.stop_premium.aio_run_no_wait(
         input=models.StopPremiumIn(account_id=id),
         options=options,
     )
-    asyncio.create_task(watch_job(stream_key))
     return {"id": stream_key}
