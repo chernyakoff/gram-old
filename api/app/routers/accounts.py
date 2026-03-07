@@ -20,7 +20,7 @@ from app.dto.card import CardDetails
 from app.dto.common import WorkflowOut
 from app.hatchet.base import models, tasks
 from app.routers.auth import get_current_user
-from app.routers.sse import build_stream_options, watch_job
+from app.routers.sse import watch_job
 
 router = APIRouter(prefix="/accounts", tags=["account"])
 
@@ -31,13 +31,11 @@ async def upload_accounts(
     user=Depends(get_current_user),
 ):
     try:
-        stream_key, options = build_stream_options()
-        asyncio.create_task(watch_job(stream_key))
-        await tasks.accounts_upload.aio_run_no_wait(
+        ref = await tasks.accounts_upload.aio_run_no_wait(
             input=models.AccountsUploadIn(user_id=user.id, s3path=input.s3path),
-            options=options,
         )
-        return {"id": stream_key}
+        asyncio.create_task(watch_job(ref.workflow_run_id))
+        return {"id": ref.workflow_run_id}
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
 
@@ -107,13 +105,11 @@ async def update_accounts(
     params = input.model_dump()
     params["id"] = id
     params["user_id"] = user.id
-    stream_key, options = build_stream_options()
-    asyncio.create_task(watch_job(stream_key))
-    await tasks.accounts_update.aio_run_no_wait(
+    ref = await tasks.accounts_update.aio_run_no_wait(
         input=models.AccountsUpdateIn(**params),
-        options=options,
     )
-    return {"id": stream_key}
+    asyncio.create_task(watch_job(ref.workflow_run_id))
+    return {"id": ref.workflow_run_id}
 
 
 @router.post("/bind-project")
@@ -144,13 +140,11 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
 async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
     accounts = await orm.Account.filter(id__in=data.account_ids, user_id=user.id).all()
     ids = [a.id for a in accounts]
-    stream_key, options = build_stream_options()
-    asyncio.create_task(watch_job(stream_key))
-    await tasks.accounts_check.aio_run_no_wait(
+    ref = await tasks.accounts_check.aio_run_no_wait(
         input=models.AccountsCheckIn(ids=ids),
-        options=options,
     )
-    return {"id": stream_key}
+    asyncio.create_task(watch_job(ref.workflow_run_id))
+    return {"id": ref.workflow_run_id}
 
 
 @router.post("/set-limit")
@@ -166,10 +160,8 @@ async def stop_premium(id: int, user=Depends(get_current_user)):
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 
-    stream_key, options = build_stream_options()
-    asyncio.create_task(watch_job(stream_key))
-    await tasks.stop_premium.aio_run_no_wait(
+    ref = await tasks.stop_premium.aio_run_no_wait(
         input=models.StopPremiumIn(account_id=id),
-        options=options,
     )
-    return {"id": stream_key}
+    asyncio.create_task(watch_job(ref.workflow_run_id))
+    return {"id": ref.workflow_run_id}

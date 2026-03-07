@@ -1,12 +1,10 @@
 from typing import AsyncGenerator
 
 from pydantic import BaseModel, ConfigDict
-from redis.asyncio import Redis
 from tortoise import BaseDBAsyncClient
 
 from app.client import hatchet
 from app.config import init_db, shutdown_db, worker_config
-from app.redis import init_redis, shutdown_redis
 from app.tasks.accounts.check import accounts_check
 from app.tasks.accounts.premium import buy_premium
 from app.tasks.accounts.stop_premium import stop_premium
@@ -23,20 +21,17 @@ from app.tasks.synonimize.task import synonimize
 class LifespanContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     db: BaseDBAsyncClient
-    redis: Redis
 
 
 async def lifespan() -> AsyncGenerator[LifespanContext, None]:
     conn = await init_db()
-    redis = await init_redis()
 
-    ctx = LifespanContext(db=conn, redis=redis)
+    ctx = LifespanContext(db=conn)
     print("DB initialized!")
     try:
         yield ctx
     finally:
         print("Cleaning up DB...")
-        await shutdown_redis()
         await shutdown_db()
 
 
