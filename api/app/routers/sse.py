@@ -24,6 +24,8 @@ async def watch_job(run_id: str):
         async for chunk in hatchet.runs.subscribe_to_stream(run_id):
             event = {"jobId": run_id, "log": json.loads(chunk)}
             await broadcast_event(event)
+
+        await broadcast_event({"jobId": run_id, "status": "finished"})
     except Exception as e:
         await broadcast_event({"jobId": run_id, "status": "failed", "error": str(e)})
 
