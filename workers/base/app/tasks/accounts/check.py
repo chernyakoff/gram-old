@@ -133,6 +133,7 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
 
 class AccountsCheckIn(BaseModel):
     user_id: int
+    concurrency_key: str
     ids: list[int]
 
 
@@ -236,7 +237,7 @@ async def accounts_check(input: AccountsCheckIn, ctx: Context):
     execution_timeout=timedelta(hours=1),
     schedule_timeout=timedelta(hours=1),
     concurrency=ConcurrencyExpression(
-        expression="input.user_id",
+        expression="input.concurrency_key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),

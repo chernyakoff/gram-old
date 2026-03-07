@@ -41,7 +41,11 @@ async def upload_accounts(
             else tasks.accounts_upload
         )
         ref = await task.aio_run_no_wait(
-            input=models.AccountsUploadIn(user_id=user.id, s3path=input.s3path),
+            input=models.AccountsUploadIn(
+                user_id=user.id,
+                concurrency_key=str(user.id),
+                s3path=input.s3path,
+            ),
         )
         asyncio.create_task(watch_job(ref.workflow_run_id))
         return {"id": ref.workflow_run_id}
@@ -114,6 +118,7 @@ async def update_accounts(
     params = input.model_dump()
     params["id"] = id
     params["user_id"] = user.id
+    params["concurrency_key"] = str(user.id)
     task = (
         tasks.accounts_update_mp
         if await has_mobile_proxy(user.id)
@@ -144,7 +149,10 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
         raise HTTPException(status_code=404, detail="not found")
 
     input_model = models.BuyPremiumIn(
-        account_id=id, user_id=user.id, card=models.CardDetails(**card.model_dump())
+        account_id=id,
+        user_id=user.id,
+        concurrency_key=str(user.id),
+        card=models.CardDetails(**card.model_dump()),
     )
     task = (
         tasks.buy_premium_mp
@@ -165,7 +173,11 @@ async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
         else tasks.accounts_check
     )
     ref = await task.aio_run_no_wait(
-        input=models.AccountsCheckIn(user_id=user.id, ids=ids),
+        input=models.AccountsCheckIn(
+            user_id=user.id,
+            concurrency_key=str(user.id),
+            ids=ids,
+        ),
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))
     return {"id": ref.workflow_run_id}
@@ -190,7 +202,11 @@ async def stop_premium(id: int, user=Depends(get_current_user)):
         else tasks.stop_premium
     )
     ref = await task.aio_run_no_wait(
-        input=models.StopPremiumIn(account_id=id, user_id=user.id),
+        input=models.StopPremiumIn(
+            account_id=id,
+            user_id=user.id,
+            concurrency_key=str(user.id),
+        ),
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))
     return {"id": ref.workflow_run_id}

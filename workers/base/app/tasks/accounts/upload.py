@@ -35,6 +35,7 @@ from app.utils.stream_logger import StreamLogger
 
 class AccountsUploadIn(BaseModel):
     user_id: int
+    concurrency_key: str
     s3path: str
 
 
@@ -368,7 +369,7 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
     execution_timeout=timedelta(hours=1),
     schedule_timeout=timedelta(hours=1),
     concurrency=ConcurrencyExpression(
-        expression="input.user_id",
+        expression="input.concurrency_key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),

@@ -38,6 +38,7 @@ MAX_WAIT_SECONDS = 60
 class StopPremiumIn(BaseModel):
     account_id: int
     user_id: int
+    concurrency_key: str
 
 
 async def _stop_premium(
@@ -177,7 +178,7 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
     execution_timeout=timedelta(hours=1),
     schedule_timeout=timedelta(hours=1),
     concurrency=ConcurrencyExpression(
-        expression="input.user_id",
+        expression="input.concurrency_key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),

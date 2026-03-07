@@ -35,6 +35,7 @@ class AccountsUpdatePhotosIn(BaseModel):
 class AccountsUpdateIn(BaseModel):
     id: int
     user_id: int
+    concurrency_key: str
     username: str | None
     about: str | None
     channel: str | None
@@ -252,7 +253,7 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
     execution_timeout=timedelta(hours=1),
     schedule_timeout=timedelta(hours=1),
     concurrency=ConcurrencyExpression(
-        expression="input.user_id",
+        expression="input.concurrency_key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),

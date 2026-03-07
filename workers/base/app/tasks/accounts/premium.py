@@ -41,6 +41,7 @@ class CardDetails(BaseModel):
 class BuyPremiumIn(BaseModel):
     account_id: int
     user_id: int
+    concurrency_key: str
     card: CardDetails
 
 
@@ -210,7 +211,7 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     execution_timeout=timedelta(hours=1),
     schedule_timeout=timedelta(hours=1),
     concurrency=ConcurrencyExpression(
-        expression="input.user_id",
+        expression="input.concurrency_key",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),
