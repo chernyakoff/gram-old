@@ -48,7 +48,10 @@ def get_worker(worker_module: str) -> Worker | None:
 
 
 def get_validator(v: type[Any] | None) -> type[Any] | None:
-    return v if "EmptyModel" not in str(v) else None
+    if v is None:
+        return None
+    model = getattr(v, "_type", v)
+    return model if "EmptyModel" not in str(model) else None
 
 
 def get_stubs_data(worker: Worker) -> StubsData:

@@ -25,13 +25,22 @@ from app.routers.sse import watch_job
 router = APIRouter(prefix="/accounts", tags=["account"])
 
 
+async def has_mobile_proxy(user_id: int) -> bool:
+    return await orm.MobProxy.filter(user_id=user_id, active=True).exists()
+
+
 @router.post("/", response_model=WorkflowOut)
 async def upload_accounts(
     input: AccountsBulkCreateIn,
     user=Depends(get_current_user),
 ):
     try:
-        ref = await tasks.accounts_upload.aio_run_no_wait(
+        task = (
+            tasks.accounts_upload_mp
+            if await has_mobile_proxy(user.id)
+            else tasks.accounts_upload
+        )
+        ref = await task.aio_run_no_wait(
             input=models.AccountsUploadIn(user_id=user.id, s3path=input.s3path),
         )
         asyncio.create_task(watch_job(ref.workflow_run_id))
@@ -105,7 +114,12 @@ async def update_accounts(
     params = input.model_dump()
     params["id"] = id
     params["user_id"] = user.id
-    ref = await tasks.accounts_update.aio_run_no_wait(
+    task = (
+        tasks.accounts_update_mp
+        if await has_mobile_proxy(user.id)
+        else tasks.accounts_update
+    )
+    ref = await task.aio_run_no_wait(
         input=models.AccountsUpdateIn(**params),
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))
@@ -130,9 +144,14 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
         raise HTTPException(status_code=404, detail="not found")
 
     input_model = models.BuyPremiumIn(
-        account_id=id, card=models.CardDetails(**card.model_dump())
+        account_id=id, user_id=user.id, card=models.CardDetails(**card.model_dump())
     )
-    response = await tasks.buy_premium.aio_run(input=input_model)
+    task = (
+        tasks.buy_premium_mp
+        if await has_mobile_proxy(user.id)
+        else tasks.buy_premium
+    )
+    response = await task.aio_run(input=input_model)
     return response
 
 
@@ -140,8 +159,13 @@ async def buy_premium(id: int, card: CardDetails, user=Depends(get_current_user)
 async def check(data: AccountsCheckIn, user=Depends(get_current_user)):
     accounts = await orm.Account.filter(id__in=data.account_ids, user_id=user.id).all()
     ids = [a.id for a in accounts]
-    ref = await tasks.accounts_check.aio_run_no_wait(
-        input=models.AccountsCheckIn(ids=ids),
+    task = (
+        tasks.accounts_check_mp
+        if await has_mobile_proxy(user.id)
+        else tasks.accounts_check
+    )
+    ref = await task.aio_run_no_wait(
+        input=models.AccountsCheckIn(user_id=user.id, ids=ids),
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))
     return {"id": ref.workflow_run_id}
@@ -160,8 +184,13 @@ async def stop_premium(id: int, user=Depends(get_current_user)):
     if not account:
         raise HTTPException(status_code=404, detail="not found")
 
-    ref = await tasks.stop_premium.aio_run_no_wait(
-        input=models.StopPremiumIn(account_id=id),
+    task = (
+        tasks.stop_premium_mp
+        if await has_mobile_proxy(user.id)
+        else tasks.stop_premium
+    )
+    ref = await task.aio_run_no_wait(
+        input=models.StopPremiumIn(account_id=id, user_id=user.id),
     )
     asyncio.create_task(watch_job(ref.workflow_run_id))
     return {"id": ref.workflow_run_id}

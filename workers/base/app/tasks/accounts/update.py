@@ -2,7 +2,11 @@ import asyncio
 from datetime import timedelta
 from io import BytesIO
 
-from hatchet_sdk import Context
+from hatchet_sdk import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    Context,
+)
 from pydantic import BaseModel
 from telethon import TelegramClient, types
 from telethon.tl.functions.account import (
@@ -191,13 +195,7 @@ async def update(
         await upload_photos(client, input.photos.upload, orm_account.id, logger)
 
 
-@hatchet.task(
-    name="accounts-update",
-    input_validator=AccountsUpdateIn,
-    execution_timeout=timedelta(hours=1),
-    schedule_timeout=timedelta(hours=1),
-)
-async def accounts_update(input: AccountsUpdateIn, ctx: Context):
+async def _accounts_update_impl(input: AccountsUpdateIn, ctx: Context):
     await asyncio.sleep(2)  # эмуляция задержки
 
     logger = StreamLogger(ctx)
@@ -236,3 +234,28 @@ async def accounts_update(input: AccountsUpdateIn, ctx: Context):
             await orm_account.save(using_db=conn, update_fields=["busy"])
         if proxy and is_mobile_pool(pool):
             await pool.release_proxy_lock(proxy)
+
+
+@hatchet.task(
+    name="accounts-update",
+    input_validator=AccountsUpdateIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
+async def accounts_update(input: AccountsUpdateIn, ctx: Context):
+    await _accounts_update_impl(input, ctx)
+
+
+@hatchet.task(
+    name="accounts-update-mp",
+    input_validator=AccountsUpdateIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+    concurrency=ConcurrencyExpression(
+        expression="input.user_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+)
+async def accounts_update_mp(input: AccountsUpdateIn, ctx: Context):
+    await _accounts_update_impl(input, ctx)

@@ -5,7 +5,11 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from typing import cast
 
-from hatchet_sdk import Context
+from hatchet_sdk import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    Context,
+)
 from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.errors.rpcerrorlist import YouBlockedUserError
@@ -128,6 +132,7 @@ async def renew_info(app: TelegramClient, orm_account: orm.Account):
 
 
 class AccountsCheckIn(BaseModel):
+    user_id: int
     ids: list[int]
 
 
@@ -196,6 +201,25 @@ async def _check(orm_account: orm.Account, pool: PoolType, logger: StreamLogger)
             await pool.release_proxy_lock(proxy)
 
 
+async def _accounts_check_impl(input: AccountsCheckIn, ctx: Context):
+    await asyncio.sleep(2)  # эмуляция задержки
+    logger = StreamLogger(ctx)
+    accounts = (
+        await orm.Account.filter(id__in=input.ids).prefetch_related("proxy").all()
+    )
+    if not accounts:
+        await logger.warning("Аккаунты не найдены")
+        return
+
+    pool = await build_pool(input.user_id)
+    if is_mobile_pool(pool):
+        for account in accounts:
+            await _check(account, pool, logger)
+    else:
+        tasks = [_check(account, pool, logger) for account in accounts]
+        await asyncio.gather(*tasks)
+
+
 @hatchet.task(
     name="accounts-check",
     input_validator=AccountsCheckIn,
@@ -203,16 +227,19 @@ async def _check(orm_account: orm.Account, pool: PoolType, logger: StreamLogger)
     schedule_timeout=timedelta(hours=1),
 )
 async def accounts_check(input: AccountsCheckIn, ctx: Context):
-    await asyncio.sleep(2)  # эмуляция задержки
-    logger = StreamLogger(ctx)
-    accounts = (
-        await orm.Account.filter(id__in=input.ids).prefetch_related("proxy").all()
-    )
-    user_id = accounts[0].user_id
-    pool = await build_pool(user_id)
-    if is_mobile_pool(pool):
-        for account in accounts:
-            await _check(account, pool, logger)
-    else:
-        tasks = [_check(account, pool, logger) for account in accounts]
-        await asyncio.gather(*tasks)
+    await _accounts_check_impl(input, ctx)
+
+
+@hatchet.task(
+    name="accounts-check-mp",
+    input_validator=AccountsCheckIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+    concurrency=ConcurrencyExpression(
+        expression="input.user_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+)
+async def accounts_check_mp(input: AccountsCheckIn, ctx: Context):
+    await _accounts_check_impl(input, ctx)

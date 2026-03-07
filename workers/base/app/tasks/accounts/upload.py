@@ -8,7 +8,11 @@ from typing import cast
 from uuid import uuid4
 
 from aiopath import AsyncPath
-from hatchet_sdk import Context
+from hatchet_sdk import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    Context,
+)
 from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.errors import PasswordHashInvalidError, SessionPasswordNeededError
@@ -292,13 +296,7 @@ async def duplicate_session(account_id: int, pool: PoolType, logger: StreamLogge
         await dup_client.disconnect()  # type: ignore
 
 
-@hatchet.task(
-    name="accounts-upload",
-    input_validator=AccountsUploadIn,
-    execution_timeout=timedelta(hours=1),
-    schedule_timeout=timedelta(hours=1),
-)
-async def accounts_upload(input: AccountsUploadIn, ctx: Context):
+async def _accounts_upload_impl(input: AccountsUploadIn, ctx: Context):
     await asyncio.sleep(2)
 
     logger = StreamLogger(ctx)
@@ -352,3 +350,28 @@ async def accounts_upload(input: AccountsUploadIn, ctx: Context):
         duplicate_session(account_id, proxy_pool, logger) for account_id in saved_ids
     ]
     await asyncio.gather(*tasks) """
+
+
+@hatchet.task(
+    name="accounts-upload",
+    input_validator=AccountsUploadIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
+async def accounts_upload(input: AccountsUploadIn, ctx: Context):
+    await _accounts_upload_impl(input, ctx)
+
+
+@hatchet.task(
+    name="accounts-upload-mp",
+    input_validator=AccountsUploadIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+    concurrency=ConcurrencyExpression(
+        expression="input.user_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+)
+async def accounts_upload_mp(input: AccountsUploadIn, ctx: Context):
+    await _accounts_upload_impl(input, ctx)

@@ -4,7 +4,11 @@ from datetime import timedelta
 from typing import Literal, Optional, cast
 
 import aiohttp
-from hatchet_sdk import Context
+from hatchet_sdk import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    Context,
+)
 from pydantic import BaseModel
 from telethon import types
 from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
@@ -36,6 +40,7 @@ class CardDetails(BaseModel):
 
 class BuyPremiumIn(BaseModel):
     account_id: int
+    user_id: int
     card: CardDetails
 
 
@@ -93,21 +98,13 @@ async def tokenize_card(public_token: str, card: CardDetails):
             return True, payment_json
 
 
-@hatchet.task(
-    name="buy-premium",
-    input_validator=BuyPremiumIn,
-    execution_timeout=timedelta(hours=1),
-    schedule_timeout=timedelta(hours=1),
-)
-async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
+async def _buy_premium_impl(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
     logger = StreamLogger(ctx)
     card = input.card
 
     orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
 
-    user_id = orm_account.user_id
-
-    pool = await build_pool(user_id)
+    pool = await build_pool(input.user_id)
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
         await logger.error("отсутствуют валидные прокси")
@@ -195,3 +192,28 @@ async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
         await client.disconnect()  # type: ignore
         if proxy and is_mobile_pool(pool):
             await pool.release_proxy_lock(proxy)
+
+
+@hatchet.task(
+    name="buy-premium",
+    input_validator=BuyPremiumIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
+async def buy_premium(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
+    return await _buy_premium_impl(input, ctx)
+
+
+@hatchet.task(
+    name="buy-premium-mp",
+    input_validator=BuyPremiumIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+    concurrency=ConcurrencyExpression(
+        expression="input.user_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+)
+async def buy_premium_mp(input: BuyPremiumIn, ctx: Context) -> BuyPremiumOut:
+    return await _buy_premium_impl(input, ctx)

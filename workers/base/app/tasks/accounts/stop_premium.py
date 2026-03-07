@@ -2,7 +2,11 @@ import asyncio
 from datetime import timedelta
 from typing import Literal, Optional
 
-from hatchet_sdk import Context
+from hatchet_sdk import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    Context,
+)
 from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.events import NewMessage
@@ -33,6 +37,7 @@ MAX_WAIT_SECONDS = 60
 
 class StopPremiumIn(BaseModel):
     account_id: int
+    user_id: int
 
 
 async def _stop_premium(
@@ -123,18 +128,12 @@ async def _stop_premium(
         await client.disconnect()  # type: ignore
 
 
-@hatchet.task(
-    name="stop-premium",
-    input_validator=StopPremiumIn,
-    execution_timeout=timedelta(hours=1),
-    schedule_timeout=timedelta(hours=1),
-)
-async def stop_premium(input: StopPremiumIn, ctx: Context):
+async def _stop_premium_impl(input: StopPremiumIn, ctx: Context):
     await asyncio.sleep(2)
     logger = StreamLogger(ctx)
     orm_account = await orm.Account.get(id=input.account_id).prefetch_related("proxy")
     account_util = AccountUtil.from_orm(orm_account)
-    pool = await build_pool(orm_account.user_id)
+    pool = await build_pool(input.user_id)
 
     proxy = await pool.verify_proxy(orm_account)
     if not proxy:
@@ -160,3 +159,28 @@ async def stop_premium(input: StopPremiumIn, ctx: Context):
         await orm_account.save(using_db=conn, update_fields=["busy", "premium_stopped"])
     if proxy and is_mobile_pool(pool):
         await pool.release_proxy_lock(proxy)
+
+
+@hatchet.task(
+    name="stop-premium",
+    input_validator=StopPremiumIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+)
+async def stop_premium(input: StopPremiumIn, ctx: Context):
+    await _stop_premium_impl(input, ctx)
+
+
+@hatchet.task(
+    name="stop-premium-mp",
+    input_validator=StopPremiumIn,
+    execution_timeout=timedelta(hours=1),
+    schedule_timeout=timedelta(hours=1),
+    concurrency=ConcurrencyExpression(
+        expression="input.user_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+)
+async def stop_premium_mp(input: StopPremiumIn, ctx: Context):
+    await _stop_premium_impl(input, ctx)
